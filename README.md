@@ -7,6 +7,11 @@ is the same route as the Android version of OpenCPN. The screens follow the desk
 adapted for touch and small screens. Plugins are built into the app, because iOS does not
 allow apps to load them at runtime.
 
+> **Made with Claude Code.** This port was developed by Xander Burchartz together with
+> [Claude Code](https://claude.com/claude-code), Anthropic's AI coding assistant. Claude wrote
+> most of the code and patches, under Xander's direction. Xander tested the app on his own
+> iPhone, iPad and boat. Please keep this in mind when reviewing the code.
+
 <p>
   <img src="docs/screenshots/ipad-chart.jpg" alt="Chart of the Markermeer on an iPad" width="24%">
   <img src="docs/screenshots/ipad-grib.jpg" alt="GRIB wind forecast with the GRIB panel on an iPad" width="24%">
