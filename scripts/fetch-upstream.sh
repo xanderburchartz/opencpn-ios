@@ -21,7 +21,7 @@
 #                 ../navico_autopilot_pi naast deze repo; ander pad met NAVICO_PI_REPO)
 #   o-charts_pi   o-charts-plugin (GPL-2.0), daarna scripts/apply-patches.sh o-charts_pi;
 #                 de meegeleverde oexserverd-binaries (andere platforms) worden niet gebruikt,
-#                 zie docs/o-charts-ios.md
+#                 zie docs/o-charts-ios.md (Engels: docs/o-charts.md)
 #
 # Bestaat een map al op de juiste commit, dan doet het script niets. Staat hij op een
 # andere commit en zijn er geen lokale wijzigingen, dan zet het script hem om. Met lokale
@@ -56,7 +56,7 @@ COMPONENTS=(
   "raymarine_autopilot_pi|raymarine_autopilot_pi|https://github.com/rgleason/raymarine_autopilot_pi.git|v2.3.5.0|477a6c6ebbd0242c72aeeb8e4e34a8bf472aec00|ja|"
   "pypilot_pi|pypilot_pi|https://github.com/rgleason/pypilot_pi.git|v0.53.4.0|8dcc83f26d8e090f09614b5463c0fdb28ac1f3e1|ja|"
   "autopilot_route_pi|autopilot_route_pi|https://github.com/rgleason/autopilot_route_pi.git|v0.4.42.0|d7b7791d3c26894c12a8ea079f473778f4726a7e|ja|"
-  "navico_autopilot_pi|navico_autopilot_pi|$NAVICO_PI_REPO|main|cb762e57a33ed4dcee3186fc079b96703c1ae349|ja|"
+  "navico_autopilot_pi|navico_autopilot_pi|$NAVICO_PI_REPO|main|ffcd16d7b784caae80b52857d7fc675a25646c9c|ja|"
   "o-charts_pi|o-charts_pi|https://github.com/bdbcat/o-charts_pi.git|master (2.2.5.0)|cc4d4e75dec478f6e6a068c9d8e10813d2641903|ja|"
 )
 

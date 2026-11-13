@@ -7,6 +7,13 @@ is the same route as the Android version of OpenCPN. The screens follow the desk
 adapted for touch and small screens. Plugins are built into the app, because iOS does not
 allow apps to load them at runtime.
 
+<p>
+  <img src="docs/screenshots/ipad-chart.jpg" alt="Chart of the Markermeer on an iPad" width="24%">
+  <img src="docs/screenshots/ipad-grib.jpg" alt="GRIB wind forecast with the GRIB panel on an iPad" width="24%">
+  <img src="docs/screenshots/iphone-settings.jpg" alt="Options screen on an iPhone" width="16%">
+  <img src="docs/screenshots/iphone-navico-autopilot.jpg" alt="Navico autopilot panel over the chart on an iPhone, connected to a NAC-3 (Dutch user interface)" width="16%">
+</p>
+
 ## Status: alpha
 
 This is an early version. Do not use it as your only means of navigation.
@@ -41,7 +48,7 @@ the OpenCPN project.
 ## Getting the app
 
 For now you build it yourself with a Mac and Xcode, and install it on your own device with a
-free Apple ID: see [docs/zelf-bouwen.en.md](docs/zelf-bouwen.en.md). Distribution through
+free Apple ID: see [docs/building.md](docs/building.md). Distribution through
 TestFlight is planned.
 
 ## Repository layout

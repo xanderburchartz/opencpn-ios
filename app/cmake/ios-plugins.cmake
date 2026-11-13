@@ -492,7 +492,13 @@ ocpnios_ext_plugin(autopilot_route_pi GLCOMPAT
 # en verdwijnt hij uit de pluginlijst (iPhone, 10 nov 2026). Waarde = GetCommonName() in
 # kleine letters (PLUGIN_API_NAME "NavicoAutopilot").
 ocpnios_ext_plugin(navico_autopilot_pi COMMON navicoautopilot
-  DEFINES PLUGIN_USE_SVG)
+  DEFINES PLUGIN_USE_SVG
+  # Het paneel heeft eigen knoppen (ApButton, geen wxButton); window_fit zag daardoor een
+  # instrumentpaneel en liet het zweven, half over de werkbalk (iPhone, 13 nov 2026). Met
+  # de markering ocpnios_panel wordt het een paneel onderin, zoals GRIB.
+  FIXUPS
+    "src/navico_autopilot_pi.cpp@@#include <chrono>@@#include <chrono>\n#include <QWidget>"
+    "src/navico_autopilot_pi.cpp@@    m_panel->ApplyColours(m_scheme)%SEMI%@@    m_panel->ApplyColours(m_scheme)%SEMI%\n    m_panel->GetHandle()->setProperty(\"ocpnios_panel\", true)%SEMI% /* opencpn-ios */")
 
 # o-charts_pi met stub voor de ontsleuteling (eigen bestand, zie daar).
 include("${OCPNIOS_ROOT}/app/cmake/ios-ocharts.cmake")

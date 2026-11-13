@@ -260,11 +260,19 @@ void FitToScreen(QWidget* w) {
     // (GRIB liggend dekte de kaart bijna helemaal af, 10 nov 2026).
     const bool landscape = avail.width() > avail.height();
     if (landscape) g.setWidth(std::min(avail.width(), 520));
+    // Een zwevend AUI-paneel staat staand hooguit op 60%: de Navico-stuurautomaat
+    // (koersboog, twee rijen standen, koersknoppen, melding) heeft op de iPhone ruim de
+    // helft nodig (13 nov 2026).
+    const int maxPct = landscape ? 70 : 50;
     if (wxWindow* ww = wxWindow::QtRetrieveWindowPointer(w))
       if (ww->GetSizer()) {
-        const int want = std::min(ww->GetSizer()->GetMinSize().y + 4,
-                                  avail.height() * (landscape ? 70 : 50) / 100);
-        if (w->minimumHeight() > want) {
+        // Bij een wxFrame (QMainWindow, zoals het zwevende AUI-venster) zit de kopbalk
+        // niet in de sizer maar is hij de menuWidget: erbij tellen. Zonder kreeg de
+        // Navico-stuurautomaat 66 pt te weinig en werd de koersboog platgedrukt.
+        const bool aui = dynamic_cast<wxAuiFloatingFrame*>(ww) != nullptr;
+        const int extra = qobject_cast<QMainWindow*>(w) ? kHeaderHeight : 0;
+        const int want = std::min(ww->GetSizer()->GetMinSize().y + extra + 4,
+                                  avail.height() * (aui && !landscape ? 60 : maxPct) / 100);        if (w->minimumHeight() > want) {
           w->setMinimumHeight(0);
           ww->SetMinSize(wxSize(ww->GetMinSize().x, -1));
         }
@@ -278,7 +286,7 @@ void FitToScreen(QWidget* w) {
         if (inner > 0) {
           const int extra = qobject_cast<QMainWindow*>(w) ? kHeaderHeight : 0;
           g.setHeight(std::min(inner + extra + 4,
-                               avail.height() * (landscape ? 70 : 50) / 100));
+                               avail.height() * (landscape ? 70 : 60) / 100));
           if (w->minimumHeight() > g.height()) w->setMinimumHeight(0);
         }
       }
@@ -909,7 +917,18 @@ void EnsureSheetHeader(QWidget* dialog) {
   // Venster dat alleen iets toont, zonder knoppen of invoer (Dashboard, Tactics: zwevende
   // instrumentpanelen): geen kopbalk en eigen maat en plaats. Schermvullend dekte het de
   // kaart af (10 nov 2026, met echte instrumentdata); aan en uit gaat met de werkbalkknop.
-  const bool displayOnly = type != Qt::Dialog && buttons.empty() && !HasInputs(ww);
+  // Een plugin met eigen getekende knoppen (Navico-stuurautomaat: ApButton, geen
+  // wxButton) markeert zijn paneel met "ocpnios_panel"; dat werd anders een zwevend
+  // instrumentpaneel half over de werkbalk (iPhone, 13 nov 2026).
+  bool marked = dialog->property("ocpnios_panel").toBool();
+  if (!marked)
+    for (QWidget* c : dialog->findChildren<QWidget*>())
+      if (c->property("ocpnios_panel").toBool()) {
+        marked = true;
+        dialog->setProperty("ocpnios_panel", true);
+        break;
+      }
+  const bool displayOnly = !marked && type != Qt::Dialog && buttons.empty() && !HasInputs(ww);
   if (displayOnly) {
     dialog->setProperty(kSheetProp, 4);
     return;
@@ -1061,6 +1080,14 @@ void EnsureSheetHeader(QWidget* dialog) {
                       avail.isValid() &&
                       dialog->height() < std::max(avail.width(), avail.height()) * 40 / 100);
   dialog->setProperty(kSheetProp, panel ? 3 : 2);
+  // Meldingsregel met vaste maat (wxST_NO_AUTORESIZE) in een paneel onderin: de plugin
+  // breekt af op zijn eigen breedte, die op de iPhone breder is dan het scherm; de melding
+  // van de Navico-stuurautomaat viel rechts weg (13 nov 2026). Qt breekt af op de echte
+  // breedte.
+  if (panel)
+    for (auto* l : dialog->findChildren<QLabel*>())
+      if (auto* st = dynamic_cast<wxStaticText*>(wxWindow::QtRetrieveWindowPointer(l)))
+        if (st->HasFlag(wxST_NO_AUTORESIZE)) l->setWordWrap(true);
   const QSize wanted = dialog->property(kWantedSizeProp).toSize();
   if (wanted.isValid())
     dialog->setProperty(kWantedSizeProp, QSize(wanted.width(), wanted.height() + kHeaderHeight));

@@ -19,8 +19,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DOEL="${1:-$ROOT/build/openbaar}"
 PATRONEN="$ROOT/prive/patronen.txt"
 
-# Werknotities: logboek, plan, lessen, sessie-afspraken en de afbeeldingen van het logboek.
-UITSLUITEN='^(CLAUDE\.md|PLAN\.md|lessen\.md|docs/logboek\.md|docs/overzicht-[^/]*\.md|docs/bronnen\.md|docs/concept-[^/]*|docs/img/.*|prive/.*)$'
+# Werknotities (logboek, plan, lessen, sessie-afspraken, afbeeldingen van het logboek) en de
+# Nederlandse docs; de openbare repo krijgt alleen de Engelse (README.en.md, docs/building.md,
+# docs/o-charts.md).
+UITSLUITEN='^(CLAUDE\.md|PLAN\.md|lessen\.md|docs/logboek\.md|docs/overzicht-[^/]*\.md|docs/bronnen\.md|docs/concept-[^/]*|docs/zelf-bouwen\.md|docs/o-charts-ios\.md|docs/qt-installeren\.md|docs/licenties-verspreiding\.md|docs/img/.*|prive/.*)$'
 
 [ -f "$PATRONEN" ] || { echo "ontbreekt: $PATRONEN (lijst met persoonsgegevens)" >&2; exit 2; }
 case "$DOEL" in

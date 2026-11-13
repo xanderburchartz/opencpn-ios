@@ -1,7 +1,6 @@
 # o-charts on iOS: what the decryption library needs to provide
 
-Status 13 Nov 2026. Technical note for the conversation with o-charts. English version of
-[`o-charts-ios.md`](o-charts-ios.md) (Dutch); the content is the same. Based on the open
+Status 13 Nov 2026. Technical note for the conversation with o-charts. Based on the open
 source of o-charts_pi 2.2.5.0 (GPL-2.0, github.com/bdbcat/o-charts_pi, commit `cc4d4e75`).
 The closed part (oexserverd, libsgl) has not been examined or analysed; everything below
 follows from what the open plugin asks of oexserverd and what it expects back.

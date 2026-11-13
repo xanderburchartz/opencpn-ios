@@ -2,8 +2,7 @@
 
 OpenCPN for iOS is an unofficial port of [OpenCPN](https://opencpn.org) to iPhone and iPad.
 The app as a whole is distributed under the **GNU General Public License, version 3**
-(see [LICENSE](LICENSE)). The reasons are explained in
-[docs/licenties-verspreiding.md](docs/licenties-verspreiding.md), which is in Dutch. In short:
+(see [LICENSE](LICENSE)). In short:
 
 - All GPL code in the app is licensed "version 2 or later" or "version 3 or later".
 - OpenSSL (Apache 2.0) and Qt (LGPLv3) are compatible with GPLv3 but not with GPLv2, so the
@@ -51,7 +50,7 @@ repository provides for that:
 - the complete source of the app, including all patches and build scripts;
 - fixed commits for every third-party component;
 - step-by-step build and installation instructions:
-  [docs/zelf-bouwen.en.md](docs/zelf-bouwen.en.md). An iPhone or iPad can be used with a free
+  [docs/building.md](docs/building.md). An iPhone or iPad can be used with a free
   Apple ID.
 
 ## Not affiliated
