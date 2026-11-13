@@ -8,7 +8,7 @@ adapted for touch and small screens. Plugins are built into the app, because iOS
 allow apps to load them at runtime.
 
 > **Made with Claude Code.** This port was developed by Xander Burchartz together with
-> [Claude Code](https://claude.com/claude-code), Anthropic's AI coding assistant. Claude wrote
+> [Claude Code](https://claude.com/product/claude-code), Anthropic's AI coding assistant. Claude wrote
 > most of the code and patches, under Xander's direction. Xander tested the app on his own
 > iPhone, iPad and boat. Please keep this in mind when reviewing the code.
 
