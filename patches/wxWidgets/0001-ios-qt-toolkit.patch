@@ -1,0 +1,1096 @@
+diff --git a/build/cmake/init.cmake b/build/cmake/init.cmake
+index a15cf06..1313af9 100644
+--- a/build/cmake/init.cmake
++++ b/build/cmake/init.cmake
+@@ -531,7 +531,7 @@ if(wxUSE_GUI)
+ 
+     # extra dependencies
+     if(wxUSE_OPENGL)
+-        if(WXOSX_IPHONE)
++        if(IPHONE)
+             set(OPENGL_FOUND TRUE)
+             set(OPENGL_INCLUDE_DIR "")
+             set(OPENGL_LIBRARIES "-framework OpenGLES" "-framework QuartzCore" "-framework GLKit")
+diff --git a/build/cmake/lib/base/CMakeLists.txt b/build/cmake/lib/base/CMakeLists.txt
+index 6eed902..c6e20cc 100644
+--- a/build/cmake/lib/base/CMakeLists.txt
++++ b/build/cmake/lib/base/CMakeLists.txt
+@@ -59,9 +59,10 @@ if(APPLE)
+         PUBLIC
+         "-framework CoreFoundation"
+     )
+-    if(WXOSX_IPHONE)
++    if(IPHONE)
+         wx_lib_link_libraries(wxbase
+             PUBLIC
++            "-framework Foundation"
+             "-framework UIKit"
+         )
+     else()
+diff --git a/build/cmake/toolkit.cmake b/build/cmake/toolkit.cmake
+index eb5a823..9624311 100644
+--- a/build/cmake/toolkit.cmake
++++ b/build/cmake/toolkit.cmake
+@@ -10,7 +10,8 @@
+ # Options required for toolkit selection/detection
+ wx_option(wxUSE_GUI "Use GUI" ON)
+ 
+-if(CMAKE_OSX_SYSROOT MATCHES iphoneos)
++if(CMAKE_OSX_SYSROOT MATCHES iphoneos OR CMAKE_OSX_SYSROOT MATCHES iphonesimulator
++   OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
+     set(IPHONE ON)
+ 
+     # workaround a bug where try_compile (and functions using it,
+@@ -24,7 +25,8 @@ if(WIN32)
+     set(wxPLATFORM WIN32)
+ elseif(APPLE AND IPHONE)
+     set(wxDEFAULT_TOOLKIT osx_iphone)
+-    set(wxTOOLKIT_OPTIONS osx_iphone)
++    # opencpn-ios: wxQt ook op iOS toestaan
++    set(wxTOOLKIT_OPTIONS osx_iphone qt)
+     set(wxPLATFORM OSX)
+ elseif(APPLE)
+     set(wxDEFAULT_TOOLKIT osx_cocoa)
+diff --git a/include/wx/osx/core/private.h b/include/wx/osx/core/private.h
+index 0931ab3..254c403 100644
+--- a/include/wx/osx/core/private.h
++++ b/include/wx/osx/core/private.h
+@@ -39,7 +39,7 @@
+ #   endif
+ #endif
+ 
+-#if ( !wxUSE_GUI && !defined(__WXOSX_IPHONE__) ) || defined(__WXOSX_COCOA__)
++#if ( !wxUSE_GUI && !defined(__WXOSX_IPHONE__) && !defined(__WXDARWIN_IPHONE__) ) || defined(__WXOSX_COCOA__)
+ 
+ // Carbon functions are currently still used in wxOSX/Cocoa too (including
+ // wxBase part of it).
+diff --git a/include/wx/osx/iphone/chkconf.h b/include/wx/osx/iphone/chkconf.h
+index aea925c..241a40c 100644
+--- a/include/wx/osx/iphone/chkconf.h
++++ b/include/wx/osx/iphone/chkconf.h
+@@ -21,7 +21,8 @@
+     #define wxUSE_SECRETSTORE 0
+ #endif
+ 
+-#if wxUSE_GUI
++// opencpn-ios: met wxQt op iOS gelden de GUI-beperkingen van wxOSX/iPhone niet
++#if wxUSE_GUI && !defined(__WXQT__)
+ 
+ /*
+  * text rendering system
+diff --git a/include/wx/osx/private.h b/include/wx/osx/private.h
+index 113e244..bda479f 100644
+--- a/include/wx/osx/private.h
++++ b/include/wx/osx/private.h
+@@ -9,6 +9,14 @@
+     #include "wx/osx/cocoa/private.h"
+ #elif wxUSE_GUI && defined(__WXOSX__)
+     #error "Must include wx/defs.h first"
++#elif defined(__WXDARWIN_IPHONE__)
++    // opencpn-ios: niet-wxOSX code (wxBase, wxQt) op iOS
++    #include <CoreFoundation/CoreFoundation.h>
++    #include <CoreGraphics/CoreGraphics.h>
++
++    #ifdef __OBJC__
++        #import <Foundation/Foundation.h>
++    #endif
+ #else
+     #include <ApplicationServices/ApplicationServices.h>
+ 
+diff --git a/include/wx/qt/dirdlg.h b/include/wx/qt/dirdlg.h
+index 93e1435..88f9332 100644
+--- a/include/wx/qt/dirdlg.h
++++ b/include/wx/qt/dirdlg.h
+@@ -34,6 +34,9 @@ public:
+ public:     // overrides from wxGenericDirDialog
+ 
+     wxString GetPath() const override;
++    // opencpn-ios: altijd gedeclareerd (anders verschilt de vtable per includer); op iOS
++    // de documentkiezer van het systeem, elders ongewijzigd.
++    virtual int ShowModal() override;
+     void SetPath(const wxString& path) override;
+ 
+ private:
+diff --git a/include/wx/qt/filedlg.h b/include/wx/qt/filedlg.h
+index f5331e8..3868096 100644
+--- a/include/wx/qt/filedlg.h
++++ b/include/wx/qt/filedlg.h
+@@ -35,6 +35,8 @@ public:
+ 
+     virtual wxString GetPath() const override;
+     virtual void GetPaths(wxArrayString& paths) const override;
++    // opencpn-ios: op iOS opent wxFD_OPEN de documentkiezer van het systeem.
++    virtual int ShowModal() override;
+     virtual wxString GetFilename() const override;
+     virtual void GetFilenames(wxArrayString& files) const override;
+     virtual int GetFilterIndex() const override;
+diff --git a/include/wx/qt/glcanvas.h b/include/wx/qt/glcanvas.h
+index 847316d..8880aa2 100644
+--- a/include/wx/qt/glcanvas.h
++++ b/include/wx/qt/glcanvas.h
+@@ -8,7 +8,17 @@
+ #ifndef _WX_GLCANVAS_H_
+ #define _WX_GLCANVAS_H_
+ 
+-#include <GL/gl.h>
++#if defined(__APPLE__)
++    #include <TargetConditionals.h>
++#endif
++#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
++    // opencpn-ios: OpenGL ES op iOS (door Apple deprecated, werkt nog)
++    #define GLES_SILENCE_DEPRECATION
++    #include <OpenGLES/ES2/gl.h>
++    #define wxHAS_OPENGL_ES
++#else
++    #include <GL/gl.h>
++#endif
+ 
+ class QOpenGLWidget;
+ class QOpenGLContext;
+diff --git a/include/wx/qt/private/converter.h b/include/wx/qt/private/converter.h
+index 9e8a499..8cf3509 100644
+--- a/include/wx/qt/private/converter.h
++++ b/include/wx/qt/private/converter.h
+@@ -68,6 +68,32 @@ inline QString wxQtConvertString( const wxString &str )
+     return QString( str.utf8_str() );
+ }
+ 
++// opencpn-ios: labels van knoppen, vinkjes en rondjes zonder sneltoetsletter.
++// Qt tekende op iOS een streep onder de letter na "&" ("_Help", "_OK"); zonder
++// toetsenbord zinloos. "&&" (een echte &) blijft "&&" voor Qt.
++inline QString wxQtConvertLabel( const wxString &label )
++{
++#ifdef Q_OS_IOS
++    wxString out;
++    for ( size_t i = 0; i < label.length(); i++ )
++    {
++        if ( label[i] == '&' )
++        {
++            if ( i + 1 < label.length() && label[i + 1] == '&' )
++            {
++                out += "&&";
++                i++;
++            }
++            continue;
++        }
++        out += label[i];
++    }
++    return wxQtConvertString( out );
++#else
++    return wxQtConvertString( label );
++#endif
++}
++
+ inline wxColour wxQtConvertColour(const QColor &colour)
+ {
+     return wxColour(colour.red(), colour.green(), colour.blue(), colour.alpha());
+diff --git a/include/wx/qt/private/utils.h b/include/wx/qt/private/utils.h
+index fecc700..604541e 100644
+--- a/include/wx/qt/private/utils.h
++++ b/include/wx/qt/private/utils.h
+@@ -24,4 +24,25 @@ void wxMissingImplementation( const char fileName[], unsigned lineNumber,
+ #define wxMISSING_FUNCTION() \
+     wxMISSING_IMPLEMENTATION( __func__ )
+ 
++#ifdef __WXDARWIN_IPHONE__
++class wxMenu;
++// opencpn-ios: menukeuze tijdens een popupmenu bewaren tot het menu dicht is
++// (menuitem.cpp, window.cpp). Eén tegelijk; geneste popups bewaren de buitenste.
++class wxQtPopupMenuPending
++{
++public:
++    wxQtPopupMenuPending() : m_prev(ms_current) { ms_current = this; }
++    ~wxQtPopupMenuPending() { ms_current = m_prev; }
++    static wxQtPopupMenuPending* Current() { return ms_current; }
++    void Set(wxMenu* menu, int id, int checked)
++    { m_menu = menu; m_id = id; m_checked = checked; }
++    wxMenu* m_menu = nullptr;
++    int m_id = 0;
++    int m_checked = -1;
++private:
++    wxQtPopupMenuPending* m_prev;
++    static wxQtPopupMenuPending* ms_current;
++};
++#endif
++
+ #endif // _WX_QT_UTILS_H_
+diff --git a/include/wx/qt/statusbar.h b/include/wx/qt/statusbar.h
+index a8b1f42..56213b9 100644
+--- a/include/wx/qt/statusbar.h
++++ b/include/wx/qt/statusbar.h
+@@ -40,6 +40,11 @@ private:
+ 
+     std::vector<QWidget*> m_qtPanes;
+ 
++    // opencpn-ios: true terwijl panes worden toegevoegd of verwijderd. Elke addWidget()/
++    // removeWidget() kan via de lay-out een resize-event geven; de wxEVT_SIZE-handler mag
++    // dan niet aan m_qtPanes komen (crash bij kantelen op de iPhone).
++    bool m_qtChangingPanes = false;
++
+     wxDECLARE_DYNAMIC_CLASS(wxStatusBar);
+ };
+ 
+diff --git a/src/common/dlgcmn.cpp b/src/common/dlgcmn.cpp
+index 43be10c..9bf25d0 100644
+--- a/src/common/dlgcmn.cpp
++++ b/src/common/dlgcmn.cpp
+@@ -580,6 +580,13 @@ bool wxDialogBase::DoLayoutAdaptation()
+ /// Can we do the adaptation?
+ bool wxDialogBase::CanDoLayoutAdaptation()
+ {
++#if defined(__WXQT__) && defined(__WXDARWIN_IPHONE__)
++    // opencpn-ios: nooit. De adapter verhangt de onderdelen naar een
++    // wxScrolledWindow, maar onder wxQt bleven ze zichtbaar bij de dialoog: de
++    // schuifbalk schoof een leeg vlak (radar-voorkeuren, 10 nov 2026). De app geeft
++    // te hoge vensters zelf een scrollvlak (app/ios/window_fit.cpp).
++    return false;
++#endif
+     // Check if local setting overrides the global setting
+     bool layoutEnabled = (GetLayoutAdaptationMode() == wxDIALOG_ADAPTATION_MODE_ENABLED) || (IsLayoutAdaptationEnabled() && (GetLayoutAdaptationMode() != wxDIALOG_ADAPTATION_MODE_DISABLED));
+ 
+diff --git a/src/common/glcmn.cpp b/src/common/glcmn.cpp
+index 57ea0f1..41b8ee5 100644
+--- a/src/common/glcmn.cpp
++++ b/src/common/glcmn.cpp
+@@ -410,6 +410,18 @@ wxGLAPI::~wxGLAPI()
+ {
+ }
+ 
++#if defined(wxHAS_OPENGL_ES) && !wxUSE_OPENGL_EMULATION
++// opencpn-ios: OpenGL ES 2 heeft geen vaste-functie-API en de emulatie hierboven
++// gebruikt ES1. Deze oude aanroepen doen op wxQt/iOS daarom niets.
++void wxGLAPI::glFrustum(GLfloat, GLfloat, GLfloat, GLfloat, GLfloat, GLfloat) {}
++void wxGLAPI::glBegin(GLenum) {}
++void wxGLAPI::glTexCoord2f(GLfloat, GLfloat) {}
++void wxGLAPI::glVertex3f(GLfloat, GLfloat, GLfloat) {}
++void wxGLAPI::glNormal3f(GLfloat, GLfloat, GLfloat) {}
++void wxGLAPI::glColor4f(GLfloat, GLfloat, GLfloat, GLfloat) {}
++void wxGLAPI::glColor3f(GLfloat, GLfloat, GLfloat) {}
++void wxGLAPI::glEnd() {}
++#else
+ void wxGLAPI::glFrustum(GLfloat left, GLfloat right, GLfloat bottom,
+                             GLfloat top, GLfloat zNear, GLfloat zFar)
+ {
+@@ -576,6 +588,7 @@ void wxGLAPI::glEnd()
+     ::glEnd();
+ #endif
+ }
++#endif // wxHAS_OPENGL_ES && !wxUSE_OPENGL_EMULATION
+ 
+ #endif // wxUSE_GLCANVAS
+ 
+diff --git a/src/common/utilscmn.cpp b/src/common/utilscmn.cpp
+index 376b9c9..2e7a8b7 100644
+--- a/src/common/utilscmn.cpp
++++ b/src/common/utilscmn.cpp
+@@ -1068,7 +1068,8 @@ bool wxSetDetectableAutoRepeat( bool WXUNUSED(flag) )
+ 
+ #if defined(__WINDOWS__) && !defined(__WXQT__) || \
+     defined(__WXX11__) || defined(__WXGTK__) || \
+-    defined(__WXOSX__)
++    defined(__WXOSX__) || \
++    (defined(__WXQT__) && defined(__WXDARWIN_IPHONE__)) // opencpn-ios: utils_base.mm
+ 
+ // implemented in a port-specific utils source file:
+ bool wxDoLaunchDefaultBrowser(const wxLaunchBrowserParams& params);
+diff --git a/src/generic/hyperlinkg.cpp b/src/generic/hyperlinkg.cpp
+index c772ad4..6cf4d39 100644
+--- a/src/generic/hyperlinkg.cpp
++++ b/src/generic/hyperlinkg.cpp
+@@ -41,6 +41,9 @@
+ #include "wx/renderer.h"
+ 
+ #include "wx/private/hyperlink.h"
++#ifdef __WXQT__
++#include <QtCore/QtGlobal>  // Q_OS_IOS
++#endif
+ 
+ // ============================================================================
+ // implementation
+@@ -238,14 +241,24 @@ void wxGenericHyperlinkCtrl::OnChar(wxKeyEvent& event)
+ void wxGenericHyperlinkCtrl::OnLeftDown(wxMouseEvent& event)
+ {
+     // the left click must start from the hyperlink rect
++#ifdef Q_OS_IOS
++    // opencpn-ios: met een vinger telt het hele vlak, niet alleen de letters.
++    m_clicking = GetClientRect().Contains(event.GetPosition());
++#else
+     m_clicking = GetLabelRect().Contains(event.GetPosition());
++#endif
+ }
+ 
+ void wxGenericHyperlinkCtrl::OnLeftUp(wxMouseEvent& event)
+ {
+     // the click must be started and ended in the hyperlink rect
++#ifdef Q_OS_IOS
++    if (!m_clicking || !GetClientRect().Contains(event.GetPosition()))
++        return;
++#else
+     if (!m_clicking || !GetLabelRect().Contains(event.GetPosition()))
+         return;
++#endif
+ 
+     SetForegroundColour(m_visitedColour);
+     m_visited = true;
+diff --git a/src/generic/progdlgg.cpp b/src/generic/progdlgg.cpp
+index 3f2f7ea..52f2320 100644
+--- a/src/generic/progdlgg.cpp
++++ b/src/generic/progdlgg.cpp
+@@ -784,6 +784,26 @@ void wxGenericProgressDialog::UpdateMessage(const wxString &newmsg)
+ {
+     if ( !newmsg.empty() && newmsg != m_msg->GetLabel() )
+     {
++#ifdef __WXQT__
++#if defined(Q_OS_IOS) || defined(__APPLE__)
++        // opencpn-ios: op een telefoon niet breder worden dan het scherm.
++        // OpenCPN toont hier lange bestandspaden; die werden zo breed dat de
++        // balk rechts buiten beeld viel (Xander, 9 nov 2026). Midden inkorten
++        // tot de schermbreedte min marges.
++        {
++            const int maxw = wxGetDisplaySize().x - 80;
++            if ( maxw > 100 && m_msg->GetTextExtent(newmsg).x > maxw )
++            {
++                wxString shown = wxControl::Ellipsize(newmsg, wxClientDC(m_msg),
++                                                      wxELLIPSIZE_MIDDLE, maxw);
++                m_msg->SetLabel(shown);
++                m_msg->InvalidateBestSize();
++                wxEventLoopBase::GetActive()->YieldFor(wxEVT_CATEGORY_UI);
++                return;
++            }
++        }
++#endif
++#endif
+         m_msg->SetLabel(newmsg);
+ 
+         // When using wxST_NO_AUTORESIZE, best size is not invalidated by
+diff --git a/src/osx/cocoa/utils_base.mm b/src/osx/cocoa/utils_base.mm
+index dfafab2..1de3de6 100644
+--- a/src/osx/cocoa/utils_base.mm
++++ b/src/osx/cocoa/utils_base.mm
+@@ -34,7 +34,8 @@
+ #endif // wxUSE_SOCKETS
+ 
+ #if (defined(__APPLE__) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 101000) \
+-    || (defined(__WXOSX_IPHONE__) && defined(__IPHONE_8_0))
++    || (defined(__WXOSX_IPHONE__) && defined(__IPHONE_8_0)) \
++    || defined(__WXDARWIN_IPHONE__)
+     #define wxHAS_NSPROCESSINFO 1
+ #endif
+ 
+@@ -389,3 +390,20 @@ bool wxMacInitCocoa()
+ }
+ 
+ #endif // __WXDARWIN_OSX__
++
++// opencpn-ios: wxQt op iOS heeft geen eigen browserstart; de generieke versie gebruikt
++// wxExecute, dat op iOS niet bestaat. Hier via UIApplication (UIKit wordt op iOS al
++// aan wxbase gelinkt). openURL: zonder opties werkt sinds iOS 18 niet meer.
++#if defined(__WXQT__) && defined(__WXDARWIN_IPHONE__)
++#import <UIKit/UIKit.h>
++#include "wx/private/launchbrowser.h"
++
++bool wxDoLaunchDefaultBrowser(const wxLaunchBrowserParams& params)
++{
++    NSURL* url = [NSURL URLWithString:wxNSStringWithWxString(params.url)];
++    if ( !url )
++        return false;
++    [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
++    return true;
++}
++#endif
+diff --git a/src/qt/anybutton.cpp b/src/qt/anybutton.cpp
+index 94b0718..7561538 100644
+--- a/src/qt/anybutton.cpp
++++ b/src/qt/anybutton.cpp
+@@ -18,6 +18,7 @@
+ 
+ #include "wx/bitmap.h"
+ #include "wx/qt/private/utils.h"
++#include "wx/qt/private/converter.h"
+ #include "wx/qt/private/winevent.h"
+ 
+ class wxQtPushButton : public wxQtEventSignalHandler< QPushButton, wxAnyButton >
+@@ -120,7 +121,7 @@ void wxAnyButton::SetLabel( const wxString &label )
+ 
+     wxAnyButtonBase::SetLabel( label );
+ 
+-    GetQPushButton()->setText( wxQtConvertString( label ));
++    GetQPushButton()->setText( wxQtConvertLabel( label ));
+ }
+ 
+ wxString wxAnyButton::GetLabel() const
+diff --git a/src/qt/checkbox.cpp b/src/qt/checkbox.cpp
+index 8a5bd7c..cf5e95a 100644
+--- a/src/qt/checkbox.cpp
++++ b/src/qt/checkbox.cpp
+@@ -60,7 +60,7 @@ bool wxCheckBox::Create(wxWindow *parent, wxWindowID id, const wxString& label,
+ {
+     m_qtWindow = new wxQtCheckBox( parent, this );
+ 
+-    GetQCheckBox()->setText( wxQtConvertString( label ) );
++    GetQCheckBox()->setText( wxQtConvertLabel( label ) );
+ 
+     WXValidateStyle(&style);
+ 
+@@ -134,7 +134,7 @@ void wxCheckBox::SetLabel(const wxString& label)
+ {
+     wxCheckBoxBase::SetLabel( label );
+ 
+-    GetQCheckBox()->setText( wxQtConvertString(label) );
++    GetQCheckBox()->setText( wxQtConvertLabel(label) );
+ }
+ 
+ #endif // wxUSE_CHECKBOX
+diff --git a/src/qt/dc.cpp b/src/qt/dc.cpp
+index f170215..826059e 100644
+--- a/src/qt/dc.cpp
++++ b/src/qt/dc.cpp
+@@ -322,7 +322,11 @@ void wxQtDCImpl::SetLogicalFunction(wxRasterOperationMode function)
+             m_qtPainter->setCompositionMode( QPainter::RasterOp_SourceAndNotDestination );
+             break;
+         case wxCOPY:        // src
+-            m_qtPainter->setCompositionMode( QPainter::CompositionMode_Source );
++            // opencpn-ios: CompositionMode_Source kopieert ook de alfa; op een
++            // dekkende doelbitmap werden doorzichtige pixels van symbolen zwart
++            // (zwarte vierkanten achter lichten en het eigen schip in OpenCPN,
++            // 8 nov 2026). SourceOver geeft het gedrag van de andere wx-poorten.
++            m_qtPainter->setCompositionMode( QPainter::CompositionMode_SourceOver );
+             break;
+         case wxAND:         // src AND dst
+             m_qtPainter->setCompositionMode( QPainter::RasterOp_SourceAndDestination );
+diff --git a/src/qt/dialog.cpp b/src/qt/dialog.cpp
+index 5a2f659..d64253d 100644
+--- a/src/qt/dialog.cpp
++++ b/src/qt/dialog.cpp
+@@ -10,6 +10,10 @@
+ 
+ #include "wx/modalhook.h"
+ #include "wx/dialog.h"
++#include <climits>
++
++// opencpn-ios: retourcode zolang EndModal() niet is aangeroepen (zie ShowModal)
++static const int kNoEndModal = INT_MIN;
+ #include "wx/qt/private/utils.h"
+ #include "wx/qt/private/winevent.h"
+ 
+@@ -80,21 +84,29 @@ int wxDialog::ShowModal()
+     // capture making it impossible to do anything in the modal dialog itself
+     QtReleaseMouseAndNotify();
+ 
++    // opencpn-ios: een code die EndModal() meegeeft ongewijzigd teruggeven, ook 0.
++    // Voorheen werd 0 vertaald naar wxID_OK/wxID_CANCEL, waardoor wxCurl
++    // (wxCDRF_SUCCESS == 0) een geslaagde download niet als geslaagd zag.
++    // Alleen als Qt zelf sluit (accept/reject) volgt OK of Annuleren.
++    SetReturnCode(kNoEndModal);
++
+     Show(true);
+ 
+     // EndModal may have been called from InitDialog handler (called from
+     // inside Show()) and hidden the dialog back again
+ 
++    bool ret = false;
+     if ( IsShown() )
+     {
+         QDialog* qDialog = GetDialogHandle();
+         qDialog->setModal(true);
+ 
+-        bool ret = qDialog->exec();
+-        if ( GetReturnCode() == 0 )
+-            return ret ? wxID_OK : wxID_CANCEL;
++        ret = qDialog->exec();
+     }
+ 
++    if ( GetReturnCode() == kNoEndModal )
++        SetReturnCode(ret ? wxID_OK : wxID_CANCEL);
++
+     return GetReturnCode();
+ }
+ 
+@@ -135,7 +147,7 @@ bool wxDialog::Show(bool show)
+         InitDialog();
+ 
+         // Don't show the dialog if EndModal() has been called from InitDialog()
+-        show = GetReturnCode() == 0;
++        show = GetReturnCode() == 0 || GetReturnCode() == kNoEndModal;
+     }
+     else
+     {
+diff --git a/src/qt/filedlg.cpp b/src/qt/filedlg.cpp
+index 22d141b..f5eed0f 100644
+--- a/src/qt/filedlg.cpp
++++ b/src/qt/filedlg.cpp
+@@ -116,9 +116,48 @@ wxString wxFileDialog::GetPath() const
+     return paths[0];
+ }
+ 
++#ifdef Q_OS_IOS
++// opencpn-ios: QIOSFileDialog kon zich boven een blad niet tonen en bleef dan in zijn
++// eigen lus hangen (WeatherRouting > Bestand > Openen, 12 nov 2026). De app levert een
++// eigen documentkiezer (app/ios/file_picker.mm); zonder die functie blijft Qt in gebruik.
++bool ocpnios_pick_open_file(const QString& title, const QString& dir, QString* out)
++    __attribute__((weak));
++
++static QStringList OcpniosPicked(const QFileDialog* dlg)
++{
++    const QString p = dlg->property("ocpnios_path").toString();
++    return p.isEmpty() ? QStringList() : QStringList(p);
++}
++#endif
++
++int wxFileDialog::ShowModal()
++{
++#ifdef Q_OS_IOS
++    GetQFileDialog()->setProperty("ocpnios_path", QString());
++    if ( !HasFlag(wxFD_SAVE) && ocpnios_pick_open_file )
++    {
++        QString out;
++        if ( !ocpnios_pick_open_file(wxQtConvertString(GetMessage()),
++                                     wxQtConvertString(GetDirectory()), &out) )
++            return wxID_CANCEL;
++        GetQFileDialog()->setProperty("ocpnios_path", out);
++        return wxID_OK;
++    }
++#endif
++    return wxFileDialogBase::ShowModal();
++}
++
+ void wxFileDialog::GetPaths(wxArrayString& paths) const
+ {
++    // opencpn-ios: eerst leegmaken, zoals de andere wx-ports doen. Zonder dit voegde
++    // GRIB (dat zijn vorige lijst hergebruikt) het nieuw gekozen bestand toe aan het
++    // vorige en laadde beide samen (13 nov 2026).
++    paths.Empty();
+     QStringList selectedfiles = GetQFileDialog()->selectedFiles();
++#ifdef Q_OS_IOS
++    if ( !OcpniosPicked(GetQFileDialog()).isEmpty() )
++        selectedfiles = OcpniosPicked(GetQFileDialog());
++#endif
+     foreach (QString file, selectedfiles)
+         paths.Add(wxQtConvertString(file));
+ }
+@@ -137,7 +176,12 @@ wxString wxFileDialog::GetFilename() const
+ 
+ void wxFileDialog::GetFilenames(wxArrayString& files) const
+ {
++    files.Empty();  // opencpn-ios: zie GetPaths
+     QStringList selectedfiles = GetQFileDialog()->selectedFiles();
++#ifdef Q_OS_IOS
++    if ( !OcpniosPicked(GetQFileDialog()).isEmpty() )
++        selectedfiles = OcpniosPicked(GetQFileDialog());
++#endif
+     foreach (QString file, selectedfiles )
+     {
+         wxFileName fn = wxQtConvertString(file);
+@@ -242,8 +286,36 @@ bool wxDirDialog::Create(wxWindow *parent,
+     return wxTopLevelWindow::Create( parent, wxID_ANY, message, pos, size, style, name );
+ }
+ 
++#ifdef Q_OS_IOS
++// opencpn-ios: ook de mapkiezer via de documentkiezer van iOS (app/ios/file_picker.mm);
++// die van Qt verscheen niet (13 nov 2026).
++bool ocpnios_pick_folder(const QString& title, const QString& dir, QString* out)
++    __attribute__((weak));
++#endif
++
++int wxDirDialog::ShowModal()
++{
++#ifdef Q_OS_IOS
++    if ( ocpnios_pick_folder )
++    {
++        QString out;
++        if ( !ocpnios_pick_folder(wxQtConvertString(GetMessage()),
++                                  wxQtConvertString(GetPath()), &out) )
++            return wxID_CANCEL;
++        GetQFileDialog()->setProperty("ocpnios_path", out);
++        return wxID_OK;
++    }
++#endif
++    return wxDirDialogBase::ShowModal();
++}
++
+ wxString wxDirDialog::GetPath() const
+ {
++#ifdef Q_OS_IOS
++    const QString picked = GetQFileDialog()->property("ocpnios_path").toString();
++    if ( !picked.isEmpty() )
++        return wxQtConvertString(picked);
++#endif
+     QStringList selectedfiles = GetQFileDialog()->selectedFiles();
+     if (selectedfiles.size() > 0)
+         return wxQtConvertString(selectedfiles.first());
+diff --git a/src/qt/glcanvas.cpp b/src/qt/glcanvas.cpp
+index 67f76cc..f3fb0c0 100644
+--- a/src/qt/glcanvas.cpp
++++ b/src/qt/glcanvas.cpp
+@@ -29,6 +29,13 @@ public:
+     {
+         setFormat(format);
+         setFocusPolicy(Qt::StrongFocus);
++#ifdef Q_OS_IOS
++        // opencpn-ios: vorige beeld bewaren. Standaard wist QOpenGLWidget zijn
++        // framebuffer voor elke paintGL; slaat de applicatie een tekenbeurt over
++        // (OpenCPN doet dat bewust tijdens het laden van kaartdelen), dan
++        // verscheen een volledig zwart beeld (iPhone-video 9 nov 2026).
++        setUpdateBehavior(QOpenGLWidget::PartialUpdate);
++#endif
+     }
+ 
+ protected:
+diff --git a/src/qt/graphics.cpp b/src/qt/graphics.cpp
+index b3151e8..6b9cdca 100644
+--- a/src/qt/graphics.cpp
++++ b/src/qt/graphics.cpp
+@@ -712,7 +712,12 @@ class WXDLLIMPEXP_CORE wxQtGraphicsContext : public wxGraphicsContext
+ 
+         m_internalTransform = m_qtPainter->worldTransform();
+ 
+-        SetInitialClipping();
++        // opencpn-ios: deze context deelt de QPainter van de DC. Heeft de DC al
++        // een clipping-regio, dan die laten staan: SetInitialClipping() verving
++        // hem door het hele vlak, waardoor OpenCPN's basiskaart (getekend via een
++        // graphics context met de DC-clipping) over de ENC heen viel.
++        if ( !m_qtPainter->hasClipping() )
++            SetInitialClipping();
+     }
+ 
+     // Set the initial clipping to the entire surface when the context is
+diff --git a/src/qt/listctrl.cpp b/src/qt/listctrl.cpp
+index c3971e4..b519138 100644
+--- a/src/qt/listctrl.cpp
++++ b/src/qt/listctrl.cpp
+@@ -440,8 +440,8 @@ public:
+         const int row = static_cast<int>(info.GetId());
+         const int col = info.m_col;
+ 
+-        wxCHECK_MSG( row < rowCount(), false, "Invalid row");
+-        wxCHECK_MSG( col < columnCount(), false, "Invalid col");
++        wxCHECK_MSG( row >= 0 && row < rowCount(), false, "Invalid row");  // opencpn-ios: ook < 0
++        wxCHECK_MSG( col >= 0 && col < columnCount(), false, "Invalid col");
+ 
+         const QModelIndex modelIndex = index(row, col);
+ 
+@@ -474,7 +474,9 @@ public:
+ 
+         QVector<int> roles;
+ 
+-        if ( (info.m_mask & wxLIST_MASK_TEXT) && !info.GetText().empty() )
++        // opencpn-ios: ook lege tekst overnemen; anders bleef de oude tekst staan
++        // (WeatherRouting-status "Berekenen..." na een mislukte berekening, 12 nov 2026).
++        if ( info.m_mask & wxLIST_MASK_TEXT )
+         {
+             columnItem.m_label =  wxQtConvertString(info.GetText());
+             roles.push_back(Qt::DisplayRole);
+@@ -1556,6 +1558,16 @@ int wxListCtrl::GetItemState(long item, long stateMask) const
+ 
+ bool wxListCtrl::SetItemState(long item, long state, long stateMask)
+ {
++    // opencpn-ios: item -1 betekent "alle regels", zoals in wxMSW en wxGTK
++    // (chartdldr_pi roept dit aan als er niets geselecteerd is).
++    if ( item == -1 )
++    {
++        bool ok = true;
++        for ( long i = 0; i < GetItemCount(); ++i )
++            ok = SetItemState(i, state, stateMask) && ok;
++        return ok;
++    }
++
+     wxListItem info;
+ 
+     info.m_mask = wxLIST_MASK_STATE;
+diff --git a/src/qt/menu.cpp b/src/qt/menu.cpp
+index 3c263e3..5c4006a 100644
+--- a/src/qt/menu.cpp
++++ b/src/qt/menu.cpp
+@@ -73,7 +73,7 @@ wxMenu::wxMenu(long style)
+ wxMenu::wxMenu(const wxString& title, long style)
+     : wxMenuBase( title, style )
+ {
+-    m_qtMenu = new QMenu( wxQtConvertString( title ));
++    m_qtMenu = new QMenu( wxQtConvertLabel( title ));
+ 
+     ApplyStyle( m_qtMenu, style );
+ }
+@@ -137,7 +137,7 @@ static void InsertMenuItemAction( const wxMenu *menu, const wxMenuItem *previous
+             wxWindowID id = item->GetId();
+             if ( wxIsStockID( id ) )
+             {
+-                itemAction->setText( wxQtConvertString( wxGetStockLabel( id ) ) );
++                itemAction->setText( wxQtConvertLabel( wxGetStockLabel( id ) ) );
+ #if wxUSE_ACCEL
+                 wxAcceleratorEntry accel = wxGetStockAccelerator( id );
+                 QString shortcut;
+@@ -261,7 +261,7 @@ static QMenu *SetTitle( wxMenu *menu, const wxString &title )
+     menu->SetTitle(title);
+ 
+     QMenu *qtMenu = menu->GetHandle();
+-    qtMenu->setTitle( wxQtConvertString( title ));
++    qtMenu->setTitle( wxQtConvertLabel( title ));
+ 
+     return qtMenu;
+ }
+@@ -334,7 +334,7 @@ void wxMenuBar::SetMenuLabel(size_t pos, const wxString& label)
+ {
+     QAction *qtAction = GetActionAt( GetQMenuBar(), pos );
+     QMenu *qtMenu = qtAction->menu();
+-    qtMenu->setTitle( wxQtConvertString( label ));
++    qtMenu->setTitle( wxQtConvertLabel( label ));
+ }
+ 
+ wxString wxMenuBar::GetMenuLabel(size_t pos) const
+diff --git a/src/qt/menuitem.cpp b/src/qt/menuitem.cpp
+index 5076ece..f30f3e4 100644
+--- a/src/qt/menuitem.cpp
++++ b/src/qt/menuitem.cpp
+@@ -37,9 +37,14 @@ public:
+     // Example: [ Ctrl-Shift-- ] should be converted to [ Ctrl+Shift+- ]
+     static wxString Normalize(const wxString& text)
+     {
+-        QString normalized = wxQtConvertString( text );
++        // opencpn-ios: alleen het sneltoetsdeel na de tab. Over de hele tekst werd
++        // "Beheer route- en markeringen" tot "route+ en" (10 nov 2026).
++        const int tab = text.Find('\t');
++        if ( tab == wxNOT_FOUND )
++            return text;
++        QString normalized = wxQtConvertString( text.Mid(tab) );
+         normalized.replace(QRegularExpression("([^+-])[-](.)"), "\\1+\\2");
+-        return wxQtConvertString( normalized );
++        return text.Left(tab) + wxQtConvertString( normalized );
+     }
+ 
+ private:
+@@ -50,6 +55,16 @@ private:
+ 
+     void onActionTriggered( bool checked )
+     {
++#ifdef __WXDARWIN_IPHONE__
++        // opencpn-ios: binnen QMenu::exec (popupmenu) geeft een modaal venster vanuit de
++        // handler een Qt-assert in de iOS-eventloop. Keuze onthouden; wxWindowQt::DoPopupMenu
++        // verstuurt hem na het sluiten van het menu (zie window.cpp).
++        if ( wxQtPopupMenuPending* p = wxQtPopupMenuPending::Current() )
++        {
++            p->Set(m_handler, m_mitemId, m_isCheckable ? checked : -1);
++            return;
++        }
++#endif
+         m_handler->SendEvent(m_mitemId, m_isCheckable ? checked : -1);
+     }
+ 
+@@ -59,6 +74,10 @@ private:
+ };
+ 
+ 
++#ifdef __WXDARWIN_IPHONE__
++wxQtPopupMenuPending* wxQtPopupMenuPending::ms_current = nullptr;
++#endif
++
+ wxMenuItem *wxMenuItemBase::New(wxMenu *parentMenu, int id, const wxString& name,
+     const wxString& help, wxItemKind kind, wxMenu *subMenu)
+ {
+@@ -105,7 +124,11 @@ void wxMenuItem::SetItemLabel( const wxString &label )
+         auto qtAction = static_cast<wxQtAction *>(m_qtAction);
+ 
+         qtAction->UpdateShortcutsFromLabel( qtlabel );
++#ifdef Q_OS_IOS
++        qtAction->setText( wxQtConvertLabel( qtlabel.BeforeFirst('\t') ));
++#else
+         qtAction->setText( wxQtConvertString( qtlabel ));
++#endif
+     }
+ }
+ 
+@@ -208,7 +231,14 @@ void wxMenuItem::ClearExtraAccels()
+ 
+ wxQtAction::wxQtAction( wxMenu *handler, int id, const wxString &text, const wxString &help,
+                         wxItemKind kind, wxMenu *subMenu, wxMenuItem *menuItem )
++#ifdef Q_OS_IOS
++    // opencpn-ios: geen sneltoetsen in menu's op een telefoon/tablet ("Ctrl+R"
++    // naast een menu-item zegt daar niets; Xander, 9 nov 2026). Alleen de tekst
++    // vóór de tab, en geen QAction-sneltoets (die toont QMenu anders ook).
++    : QAction( wxQtConvertLabel( text.BeforeFirst('\t') ), handler->GetHandle() ),
++#else
+     : QAction( wxQtConvertString( text ), handler->GetHandle() ),
++#endif
+       m_handler(handler),
+       m_mitemId(menuItem->GetId()), m_isCheckable(menuItem->IsCheckable())
+ {
+@@ -246,6 +276,10 @@ wxQtAction::wxQtAction( wxMenu *handler, int id, const wxString &text, const wxS
+ 
+ void wxQtAction::UpdateShortcutsFromLabel(const wxString& text)
+ {
++#if wxUSE_ACCEL && defined(Q_OS_IOS)
++    wxUnusedVar(text);
++    return;
++#endif
+ #if wxUSE_ACCEL
+     const wxString accelStr = text.AfterFirst('\t');
+     if ( !accelStr.empty() )
+diff --git a/src/qt/printqt.cpp b/src/qt/printqt.cpp
+index 43af336..408ea91 100644
+--- a/src/qt/printqt.cpp
++++ b/src/qt/printqt.cpp
+@@ -16,6 +16,9 @@
+ #include "wx/qt/dcprint.h"
+ #include "wx/qt/printdlg.h"
+ #include "wx/private/print.h"
++#include "wx/datetime.h"
++#include "wx/filefn.h"
++#include "wx/stdpaths.h"
+ 
+ #include <QPrinter>
+ 
+@@ -46,6 +49,23 @@ bool wxQtPrinter::Print(wxWindow* parent, wxPrintout* printout, bool prompt)
+     if ( m_printDialogData.GetMaxPage() < 1 )
+         m_printDialogData.SetMaxPage(9999);
+ 
++#ifdef __WXDARWIN_IPHONE__
++    // opencpn-ios: het printvenster van Qt (QUnixPrintWidget) toont bij een
++    // ongeldig uitvoerpad een QMessageBox binnen het modale venster; dat geeft op
++    // iOS een Qt-assert in de event-loop en de app crasht (8 nov 2026). Op iOS dus
++    // geen venster: direct een PDF in Documents, zichtbaar in de app Bestanden
++    // (UIFileSharingEnabled).
++    prompt = false;
++    {
++        // In de map Afdrukken, niet los in de hoofdmap (13 nov 2026).
++        const wxString dir = wxStandardPaths::Get().GetDocumentsDir() + "/Afdrukken";
++        if ( !wxDirExists(dir) ) wxMkdir(dir);
++        const wxString name = wxDateTime::Now().Format("OpenCPN-%Y%m%d-%H%M%S.pdf");
++        wxPrintData& pd = m_printDialogData.GetPrintData();
++        pd.SetFilename(dir + wxFILE_SEP_PATH + name);
++        pd.SetPrintMode(wxPRINT_MODE_FILE);
++    }
++#endif
+     // Create a suitable device context
+     std::unique_ptr<wxPrinterDC> dc;
+ 
+diff --git a/src/qt/radiobut.cpp b/src/qt/radiobut.cpp
+index e142897..b3403bd 100644
+--- a/src/qt/radiobut.cpp
++++ b/src/qt/radiobut.cpp
+@@ -123,7 +123,7 @@ bool wxRadioButton::Create( wxWindow *parent,
+ {
+     m_qtWindow = new wxQtRadioButton( parent, this );
+ 
+-    GetQRadioButton()->setText( wxQtConvertString( label ));
++    GetQRadioButton()->setText( wxQtConvertLabel( label ));
+ 
+     if ( !wxRadioButtonBase::Create(parent, id, pos, size, style, validator, name) )
+         return false;
+@@ -172,7 +172,7 @@ void wxRadioButton::SetLabel(const wxString& label)
+ {
+     wxRadioButtonBase::SetLabel(label);
+ 
+-    GetQRadioButton()->setText( wxQtConvertString(label) );
++    GetQRadioButton()->setText( wxQtConvertLabel(label) );
+ }
+ 
+ #endif // wxUSE_RADIOBTN
+diff --git a/src/qt/region.cpp b/src/qt/region.cpp
+index ef50185..2fd9a76 100644
+--- a/src/qt/region.cpp
++++ b/src/qt/region.cpp
+@@ -337,7 +337,12 @@ bool wxRegion::DoUnionWithRect(const wxRect& rect)
+ 
+ const QRegion &wxRegion::GetHandle() const
+ {
+-    wxCHECK_MSG( IsOk(), GetHandle(), "Invalid region" );
++    // opencpn-ios: het origineel deed wxCHECK_MSG( IsOk(), GetHandle(), ... ), wat bij een
++    // lege (niet aangemaakte) regio zichzelf eindeloos aanroept tot de stack vol is
++    // (crash bij uitzoomen in OpenCPN). Een lege regio is gewoon leeg.
++    static const QRegion s_emptyRegion;
++    if ( !IsOk() )
++        return s_emptyRegion;
+ 
+     return M_REGIONDATA;
+ }
+diff --git a/src/qt/statusbar.cpp b/src/qt/statusbar.cpp
+index ac756b5..85ea902 100644
+--- a/src/qt/statusbar.cpp
++++ b/src/qt/statusbar.cpp
+@@ -61,6 +61,11 @@ bool wxStatusBar::Create(wxWindow *parent, wxWindowID id,
+ 
+     Bind(wxEVT_SIZE, [this](wxSizeEvent& event)
+         {
++            if ( this->m_qtChangingPanes )
++            {
++                event.Skip();
++                return;
++            }
+             const int n = this->GetFieldsCount();
+             for ( int i = 0; i < n; ++i )
+             {
+@@ -84,10 +89,27 @@ void wxStatusBar::SetStatusWidths(int number, const int widths[])
+     if ( number != (int)m_panes.GetCount() )
+         return;
+ 
++    // opencpn-ios: niet aan de panes komen terwijl CreateFieldsIfNeeded() ze nog
++    // toevoegt. Het tonen van een pane kan (bij draaien van het toestel) een
++    // resize geven die hier opnieuw binnenkomt; dan werden de half toegevoegde
++    // panes verwijderd en crashte addWidget() (iPhone 9 nov 2026 21:01).
++    if ( m_qtChangingPanes )
++    {
++        wxStatusBarBase::SetStatusWidths(number, widths);
++        return;
++    }
++
+     if ( !m_qtPanes.empty() )
+     {
++        // opencpn-ios: eerst m_qtPanes leegmaken. Het verwijderen van een pane kan
++        // (via de lay-out) een resize-event geven; de wxEVT_SIZE-handler roept dan
++        // DoUpdateStatusText() aan, die anders een al verwijderde pane gebruikt.
++        std::vector<QWidget*> oldPanes;
++        oldPanes.swap(m_qtPanes);
++        m_qtChangingPanes = true;
++
+         int i = 0;
+-        for ( auto pane : m_qtPanes )
++        for ( auto pane : oldPanes )
+         {
+             GetQStatusBar()->removeWidget(pane);
+ 
+@@ -97,8 +119,7 @@ void wxStatusBar::SetStatusWidths(int number, const int widths[])
+                 delete pane;
+             }
+         }
+-
+-        m_qtPanes.clear();
++        m_qtChangingPanes = false;
+     }
+ 
+     wxStatusBarBase::SetStatusWidths(number, widths);
+@@ -132,8 +153,17 @@ int wxStatusBar::GetBorderY() const
+ 
+ void wxStatusBar::DoUpdateStatusText(int number)
+ {
++    if ( m_qtChangingPanes )
++        return;
++
+     CreateFieldsIfNeeded();
+ 
++    // opencpn-ios: CreateFieldsIfNeeded() voegt panes een voor een toe; elke addWidget()
++    // kan een resize-event geven waarvan de handler hier alle velden bijwerkt, ook de
++    // nog niet aangemaakte. Dan is number buiten bereik.
++    if ( number < 0 || static_cast<size_t>(number) >= m_qtPanes.size() )
++        return;
++
+     const auto pane = dynamic_cast<QLabel*>(m_qtPanes[number]);
+ 
+     if ( !pane )
+@@ -168,9 +198,11 @@ void wxStatusBar::DoUpdateStatusText(int number)
+ 
+ void wxStatusBar::CreateFieldsIfNeeded()
+ {
+-    if ( !m_qtPanes.empty() )
++    if ( !m_qtPanes.empty() || m_qtChangingPanes )
+         return;
+ 
++    m_qtChangingPanes = true;
++
+     for ( size_t i = 0; i < m_panes.GetCount(); ++i )
+     {
+         //Set sizes
+@@ -206,12 +238,16 @@ void wxStatusBar::CreateFieldsIfNeeded()
+             }
+ 
+             static_cast<QLabel*>(pane)->setFrameStyle(style);
++            // opencpn-ios: tekst direct zetten; updates tijdens het opbouwen worden
++            // overgeslagen (zie m_qtChangingPanes).
++            static_cast<QLabel*>(pane)->setText(wxQtConvertString(m_panes[i].GetText()));
+         }
+ 
+         m_qtPanes.push_back(pane);
+ 
+         GetQStatusBar()->addWidget(pane, width < 0 ? -width : 0);
+     }
++    m_qtChangingPanes = false;
+ }
+ 
+ #endif
+diff --git a/src/qt/window.cpp b/src/qt/window.cpp
+index 29b7f83..678e947 100644
+--- a/src/qt/window.cpp
++++ b/src/qt/window.cpp
+@@ -16,6 +16,7 @@
+ #include <QtWidgets/QGridLayout>
+ #include <QtWidgets/QApplication>
+ #include <QtWidgets/QWidget>
++#include <QtWidgets/QPushButton>
+ #include <QtWidgets/QScrollArea>
+ #include <QtWidgets/QMainWindow>
+ #include <QtWidgets/QMenu>
+@@ -1282,7 +1283,23 @@ bool wxWindowQt::DoPopupMenu(wxMenu *menu, int x, int y)
+         pt = GetHandle()->mapToGlobal(QPoint(x, y));
+     }
+ 
++#ifdef __WXDARWIN_IPHONE__
++    // opencpn-ios: handler pas na het sluiten van het menu (zie menuitem.cpp). Eerst de
++    // onthoudstand beëindigen, zodat menu's in een venster dat de handler opent gewoon werken.
++    wxMenu* chosen = nullptr;
++    int chosenId = 0, chosenChecked = -1;
++    {
++        wxQtPopupMenuPending pending;
++        menu->GetHandle()->exec(pt);
++        chosen = pending.m_menu;
++        chosenId = pending.m_id;
++        chosenChecked = pending.m_checked;
++    }
++    if ( chosen )
++        chosen->SendEvent(chosenId, chosenChecked);
++#else
+     menu->GetHandle()->exec(pt);
++#endif
+ 
+     return true;
+ }
+@@ -1323,6 +1340,15 @@ void wxWindowQt::QtApplyFrameBorder()
+         {
+             qtFrame->setFrameStyle(QFrame::NoFrame);
+         }
++#ifdef Q_OS_IOS
++        // opencpn-ios: Box|Plain en Panel tekent Qt in tekstkleur, dus als harde zwarte
++        // rand (lijsten, Templates; iPad 10 nov 2026). Op iOS de lichte themarand.
++        else if ( HasFlag(wxBORDER_SIMPLE) || HasFlag(wxBORDER_RAISED) ||
++                  HasFlag(wxBORDER_SUNKEN) )
++        {
++            qtFrame->setFrameStyle(QFrame::StyledPanel | QFrame::Plain);
++        }
++#endif
+         else if ( HasFlag(wxBORDER_SIMPLE) )
+         {
+             qtFrame->setFrameStyle(QFrame::Box | QFrame::Plain);
+@@ -1425,6 +1451,23 @@ bool wxWindowQt::SetBackgroundColour(const wxColour& colour)
+     {
+         QWidget *widget = QtGetParentWidget();
+         wxQtChangeRoleColour(widget->backgroundRole(), widget, colour);
++#ifdef Q_OS_IOS
++        // opencpn-ios: de algemene knopstijl (touch_ui.cpp) overschrijft de palet-
++        // kleur, waardoor een knopkleur die een modus aangeeft wegviel (Raymarine-
++        // stuurautomaat: Auto rood, Standby groen; 10 nov 2026). Als eigen stijl zetten.
++        // Alleen duidelijke kleuren (verzadiging): grijstinten die OpenCPN voor de
++        // dag/nacht-schema's op alle knoppen zet, laten we aan de algemene stijl.
++        const QColor qc(colour.Red(), colour.Green(), colour.Blue());
++        if ( auto* pb = qobject_cast<QPushButton*>(GetHandle()) )
++        {
++            if ( qc.hsvSaturationF() > 0.25 )
++                pb->setStyleSheet(QString("QPushButton { background-color: %1; }")
++                                      .arg(qc.name()));
++            else if ( !pb->styleSheet().isEmpty() &&
++                      pb->styleSheet().startsWith("QPushButton { background-color:") )
++                pb->setStyleSheet(QString());
++        }
++#endif
+     }
+ 
+     return true;
+diff --git a/src/unix/utilsunx.cpp b/src/unix/utilsunx.cpp
+index efedca9..b691e8c 100644
+--- a/src/unix/utilsunx.cpp
++++ b/src/unix/utilsunx.cpp
+@@ -277,7 +277,7 @@ int wxKill(long pid, wxSignal sig, wxKillError *rc, int flags)
+ // Shutdown or reboot the PC
+ bool wxShutdown(int flags)
+ {
+-#if defined(__WXOSX__) && wxOSX_USE_IPHONE
++#if (defined(__WXOSX__) && wxOSX_USE_IPHONE) || defined(__WXDARWIN_IPHONE__)
+     wxUnusedVar(flags);
+     return false;
+ #else

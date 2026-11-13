@@ -1,0 +1,343 @@
+diff --git a/include/pi_common.h b/include/pi_common.h
+index f1e274a..ef679c8 100644
+--- a/include/pi_common.h
++++ b/include/pi_common.h
+@@ -44,7 +44,12 @@
+ // For OpenGL
+ extern "C" {
+ 
+-#ifdef __WXGTK__
++#if defined(__OCPN__IOS__)
++// opencpn-ios: OpenGL ES met de vertaallaag voor oude GL (app/ios/glcompat).
++} // end "extern C" (glcompat.h regelt zelf extern "C")
++#include "glcompat.h"
++extern "C" {
++#elif defined(__WXGTK__)
+ #include "GL/gl.h"
+ #include "GL/glext.h"
+ #include "GL/glu.h"
+@@ -97,7 +102,7 @@ using namespace std;
+ #include <sys/ioctl.h>
+ #endif
+ 
+-#ifdef __WXOSX__
++#if defined(__WXOSX__) || defined(__OCPN__IOS__)
+ #include <netdb.h>
+ #include <sys/socket.h>
+ #include <sys/types.h>
+diff --git a/src/ControlsDialog.cpp b/src/ControlsDialog.cpp
+index 2c5c51c..550840c 100644
+--- a/src/ControlsDialog.cpp
++++ b/src/ControlsDialog.cpp
+@@ -397,6 +397,9 @@ bool ControlsDialog::Create(wxWindow* parent, radar_pi* ppi, RadarInfo* ri, wxWi
+ #ifdef __WXGTK__
+   long wstyle = wxCLOSE_BOX | wxCAPTION | wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR;
+ #endif
++#ifdef __OCPN__IOS__  // opencpn-ios: wxQt, zelfde stijl als GTK
++  long wstyle = wxCLOSE_BOX | wxCAPTION | wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR;
++#endif
+ 
+   /*guard_zone_names[0] = _("Off");*/
+   guard_zone_names[0] = _("Arc");
+diff --git a/src/GuardZoneBogey.cpp b/src/GuardZoneBogey.cpp
+index 2a4218c..5818cc6 100644
+--- a/src/GuardZoneBogey.cpp
++++ b/src/GuardZoneBogey.cpp
+@@ -78,6 +78,9 @@ bool GuardZoneBogey::Create(wxWindow *parent, radar_pi *pi, wxWindowID id, const
+ #ifdef __WXGTK__
+   long wstyle = wxCLOSE_BOX | wxCAPTION | wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR;
+ #endif
++#ifdef __OCPN__IOS__  // opencpn-ios: wxQt, zelfde stijl als GTK
++  long wstyle = wxCLOSE_BOX | wxCAPTION | wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR;
++#endif
+ 
+   wxSize size_min = size;
+ 
+diff --git a/src/MessageBox.cpp b/src/MessageBox.cpp
+index 748e427..0c7c88e 100644
+--- a/src/MessageBox.cpp
++++ b/src/MessageBox.cpp
+@@ -91,7 +91,12 @@ bool MessageBox::Create(wxWindow *parent, radar_pi *pi) {
+   wstyle |= wxSTAY_ON_TOP;  // FLOAT_ON_PARENT is broken on Mac, I know this is not optimal
+ #endif
+ 
++#ifdef __OCPN__IOS__
++  // opencpn-ios: als titel van het blad "Radar", niet het versienummer (10 nov 2026).
++  const wxString caption = _("Radar");
++#else
+   const wxString caption = wxT(PLUGIN_VERSION);
++#endif
+   if (!wxDialog::Create(parent, wxID_ANY, caption, wxDefaultPosition, wxDefaultSize, wstyle)) {
+     return false;
+   }
+@@ -227,9 +232,19 @@ void MessageBox::OnMove(wxMoveEvent &event) { event.Skip(); }
+ 
+ void MessageBox::OnSize(wxSizeEvent &event) { event.Skip(); }
+ 
++#ifdef __OCPN__IOS__
++// opencpn-ios: op iOS is dit venster een blad over het hele scherm. Zonder radar kwam het
++// na sluiten elke seconde terug en blokkeerde het de kaart (iPad, 10 nov 2026). Na sluiten
++// pas weer tonen als de gebruiker het zelf opvraagt (force, bv. via de radarknop).
++static bool s_ios_dismissed = false;
++#endif
++
+ void MessageBox::OnClose(wxCloseEvent &event) {
+   m_allow_auto_hide = true;
+   m_message_state = HIDE;
++#ifdef __OCPN__IOS__
++  s_ios_dismissed = true;
++#endif
+   Hide();
+ }
+ 
+@@ -277,6 +292,9 @@ bool MessageBox::UpdateMessage(bool force) {
+ 
+   if (force) {
+     m_allow_auto_hide = false;
++#ifdef __OCPN__IOS__
++    s_ios_dismissed = false;
++#endif
+   }
+ 
+   for (size_t r = 0; r < M_SETTINGS.radar_count; r++) {
+@@ -297,6 +315,10 @@ bool MessageBox::UpdateMessage(bool force) {
+   if (!m_allow_auto_hide) {
+     LOG_DIALOG(wxT("messagebox explicit wanted: SHOW_CLOSE"));
+     new_message_state = SHOW_CLOSE;
++#ifdef __OCPN__IOS__
++  } else if (s_ios_dismissed) {
++    new_message_state = HIDE;
++#endif
+   } else if (IsModalDialogShown()) {
+     LOG_DIALOG(wxT("messagebox modal dialog shown: HIDE"));
+     new_message_state = HIDE;
+@@ -336,6 +358,15 @@ bool MessageBox::UpdateMessage(bool force) {
+     if (m_pi->m_radar[r]) {
+       wxString info = m_pi->m_radar[r]->GetInfoStatus();
+       m_radar_text[r]->SetLabel(info);
++#ifdef __OCPN__IOS__
++      // opencpn-ios: lange meldingen afbreken; op de iPhone liepen ze rechts uit beeld.
++      {
++        // Breedte van het blad zelf (wxGetDisplaySize gaf hier niet de schermbreedte in
++        // punten); vóór de eerste maat 400.
++        const int cw = GetClientSize().x;
++        m_radar_text[r]->Wrap(cw > 200 ? cw - 40 : 400);
++      }
++#endif
+       m_radar_text[r]->Show();
+       m_radar_box[r]->SetLabel(m_pi->m_radar[r]->m_name);
+       m_radar_box[r]->Show();
+@@ -403,7 +434,14 @@ bool MessageBox::UpdateMessage(bool force) {
+   m_message_sizer->Layout();
+   m_top_sizer->Layout();
+   Layout();
++#ifdef __OCPN__IOS__
++  // opencpn-ios: op iOS is dit een schermvullend blad. Fit() maakte het elke seconde even
++  // klein, waarna het weer schermbreed werd; een tik op "Gereed" in dat moment viel naast
++  // de knop (eerste tik deed niets, gemeten 10 nov 2026). Alleen bij het eerste tonen.
++  if (!IsShown()) Fit();
++#else
+   Fit();
++#endif
+ 
+   m_old_radar_seen = radarSeen;
+   m_message_state = new_message_state;
+@@ -414,6 +452,9 @@ bool MessageBox::UpdateMessage(bool force) {
+ void MessageBox::OnMessageCloseButtonClick(wxCommandEvent &event) {
+   m_allow_auto_hide = true;
+   m_message_state = HIDE;
++#ifdef __OCPN__IOS__
++  s_ios_dismissed = true;
++#endif
+   Hide();
+ }
+ 
+diff --git a/src/RadarCanvas.cpp b/src/RadarCanvas.cpp
+index e2673d9..3470caf 100644
+--- a/src/RadarCanvas.cpp
++++ b/src/RadarCanvas.cpp
+@@ -90,7 +90,7 @@ void RadarCanvas::OnMove(wxMoveEvent &evt) {
+ }
+ 
+ wxSize RadarCanvas::GetScaledSize(wxSize size) {
+-#if defined(__WXGTK3__) || defined(__WXMAC__)
++#if defined(__WXGTK3__) || defined(__WXMAC__) || defined(__OCPN__IOS__)
+   return size * GetContentScaleFactor();
+ #else
+   return size;
+@@ -98,7 +98,7 @@ wxSize RadarCanvas::GetScaledSize(wxSize size) {
+ }
+ 
+ int RadarCanvas::GetScaledSize(int size) {
+-#if defined(__WXGTK3__) || defined(__WXMAC__)
++#if defined(__WXGTK3__) || defined(__WXMAC__) || defined(__OCPN__IOS__)
+   return size * GetContentScaleFactor();
+ #else
+   return size;
+@@ -171,6 +171,16 @@ void RadarCanvas::RenderTexts(const wxSize &loc) {
+   s = m_ri->GetCanvasTextCenter();
+   if (s.length()) {
+     m_FontBig.GetTextExtent(s, &x, &y);
++#ifdef __OCPN__IOS__
++    // opencpn-ios: lange statusmeldingen (bv. "Kan UDP socket niet aan poort binden")
++    // waren breder dan het radarvenster en vielen links en rechts weg (10 nov 2026).
++    // Dan de kleinere letter, en hooguit vanaf de linkerrand.
++    if (x > loc.GetWidth() - 8) {
++      m_FontNormal.GetTextExtent(s, &x, &y);
++      m_FontNormal.RenderString(s, wxMax(4, (loc.GetWidth() - x) / 2),
++                                (loc.GetHeight() - y) / 2);
++    } else
++#endif
+     m_FontBig.RenderString(s, (loc.GetWidth() - x) / 2, (loc.GetHeight() - y) / 2);
+   }
+ 
+diff --git a/src/RadarDrawShader.cpp b/src/RadarDrawShader.cpp
+index 8faa1b1..e02ed1c 100644
+--- a/src/RadarDrawShader.cpp
++++ b/src/RadarDrawShader.cpp
+@@ -37,6 +37,33 @@
+ 
+ PLUGIN_BEGIN_NAMESPACE
+ 
++#ifdef __OCPN__IOS__
++// opencpn-ios: GLSL ES-variant. Attribuut- en uniformnamen zijn die van de vertaallaag
++// (app/ios/glcompat), die bij glBegin/glEnd de matrix en texcoords invult.
++static const char *VertexShaderText =
++    "attribute vec4 a_pos; \n"
++    "attribute vec2 a_tex; \n"
++    "uniform mat4 u_mvp; \n"
++    "varying vec2 v_tex; \n"
++    "void main() \n"
++    "{ \n"
++    "   v_tex = a_tex; \n"
++    "   gl_Position = u_mvp * a_pos; \n"
++    "} \n";
++
++static const char *FragmentShaderColorText =
++    "precision highp float; \n"
++    "uniform sampler2D tex2d; \n"
++    "varying vec2 v_tex; \n"
++    "void main() \n"
++    "{ \n"
++    "   float d = length(v_tex);\n"
++    "   if (d >= 1.0) \n"
++    "      discard; \n"
++    "   float a = atan(v_tex.y, v_tex.x) / 6.28318; \n"
++    "   gl_FragColor = texture2D(tex2d, vec2(d, a)); \n"
++    "} \n";
++#else
+ // identity vertex program (does nothing special)
+ static const char *VertexShaderText =
+     "void main() \n"
+@@ -70,6 +97,7 @@ static const char *FragmentShaderColorText =
+     "   float a = atan(gl_TexCoord[0].y, gl_TexCoord[0].x) / 6.28318; \n"
+     "   gl_FragColor = texture2D(tex2d, vec2(d, a)); \n"
+     "} \n";
++#endif  // __OCPN__IOS__
+ 
+ bool RadarDrawShader::Init(size_t spokes, size_t spoke_len_max) {
+   wxCriticalSectionLocker lock(m_exclusive);
+diff --git a/src/navico/NavicoControl.cpp b/src/navico/NavicoControl.cpp
+index 951d9c1..1d5c3b3 100644
+--- a/src/navico/NavicoControl.cpp
++++ b/src/navico/NavicoControl.cpp
+@@ -86,7 +86,7 @@ void NavicoControl::logBinaryData(const wxString &what, const uint8_t *data, int
+   int i = 0;
+ 
+   explain.Alloc(size * 3 + 50);
+-  explain += wxT("") + m_name.c_str() + wxT(" ");
++  explain += m_name + wxT(" ");  // opencpn-ios: wchar_t[] + wxCStrData compileert niet met wx 3.3
+   explain += what;
+   explain += wxString::Format(wxT(" %d bytes: "), size);
+   for (i = 0; i < size; i++) {
+diff --git a/src/navico/NavicoReceive.cpp b/src/navico/NavicoReceive.cpp
+index 14f5901..6871f0b 100644
+--- a/src/navico/NavicoReceive.cpp
++++ b/src/navico/NavicoReceive.cpp
+@@ -520,7 +520,18 @@ SOCKET NavicoReceive::GetNewReportSocket() {
+   } else {
+     s << error;
+     SetInfoStatus(s);
++#ifdef __OCPN__IOS__
++    // De ontvangstlus probeert dit elke selectronde opnieuw voor elke netwerkkaart; zonder
++    // deze rem werd een op de vijf logregels deze melding. Alleen een nieuwe fout loggen.
++    static thread_local wxString last_error;
++    if (error != last_error) {
++      last_error = error;
++      wxLogError(wxT("%s Unable to listen to socket: %s (verdere gelijke meldingen onderdrukt)"),
++                 m_ri->m_name.c_str(), error.c_str());
++    }
++#else
+     wxLogError(wxT("%s Unable to listen to socket: %s"), m_ri->m_name.c_str(), error.c_str());
++#endif
+   }
+   return socket;
+ }
+diff --git a/src/radar_pi.cpp b/src/radar_pi.cpp
+index 7b7b0b6..7257aad 100644
+--- a/src/radar_pi.cpp
++++ b/src/radar_pi.cpp
+@@ -1539,6 +1539,9 @@ bool radar_pi::RenderGLOverlayMultiCanvas(wxGLContext* pcontext, PlugIn_ViewPort
+   }
+ 
+   m_vp = vp;
++#ifdef __OCPN__IOS__
++  ocpnios_glcompat_begin_overlay();
++#endif
+ 
+   LOG_DIALOG(wxT("RenderGLOverlayMultiCanvas context=%p canvas=%d"), pcontext, canvasIndex);
+   m_opencpn_gl_context = pcontext;
+@@ -1917,6 +1920,12 @@ bool radar_pi::LoadConfig(void) {
+     pConf->Read(wxT("ReverseZoom"), &m_settings.reverse_zoom, false);
+     pConf->Read(wxT("ScanMaxAge"), &m_settings.max_age, 6);
+     pConf->Read(wxT("Show"), &m_settings.show, true);
++#ifdef __OCPN__IOS__
++    // opencpn-ios: altijd uit starten; aanzetten met de radarknop in de werkbalk. Anders
++    // kwamen bij elke start het radarvenster en de melding "geen radar" in beeld (Xander,
++    // 11 nov 2026: "Hij moet uitstaan totdat ik hem selecteer, net zoals in de desktopversie").
++    m_settings.show = false;
++#endif
+     pConf->Read(wxT("SkewFactor"), &m_settings.skew_factor, 1);
+     pConf->Read(wxT("ThresholdBlue"), &m_settings.threshold_blue, 32);
+     // Make room for BLOB_HISTORY_MAX history values
+diff --git a/src/raymarine/RME120Control.cpp b/src/raymarine/RME120Control.cpp
+index 3ab0a82..20127c3 100644
+--- a/src/raymarine/RME120Control.cpp
++++ b/src/raymarine/RME120Control.cpp
+@@ -81,7 +81,7 @@ void RME120Control::logBinaryData(const wxString &what, const uint8_t *data, int
+   int i = 0;
+ 
+   explain.Alloc(size * 3 + 50);
+-  explain += wxT("") + m_name.c_str() + wxT(" ");
++  explain += m_name + wxT(" ");  // opencpn-ios: wchar_t[] + wxCStrData compileert niet met wx 3.3
+   explain += what;
+   explain += wxString::Format(wxT(" %d bytes: "), size);
+   for (i = 0; i < size; i++) {
+diff --git a/src/shaderutil.cpp b/src/shaderutil.cpp
+index 1c4767c..9863957 100644
+--- a/src/shaderutil.cpp
++++ b/src/shaderutil.cpp
+@@ -35,6 +35,10 @@
+ #if defined(WIN32)
+ #define SET_FUNCTION_POINTER(name) wglGetProcAddress(name)
+ typedef PROC FunctionPointer;
++#elif defined(__OCPN__IOS__)
++// opencpn-ios: via de vertaallaag (glUseProgram moet langs de laag).
++#define SET_FUNCTION_POINTER(name) ocpnios_glcompat_getproc(name)
++typedef void *FunctionPointer;
+ #elif defined(__WXMAC__)
+ #include <dlfcn.h>
+ #define SET_FUNCTION_POINTER(name) dlsym(RTLD_DEFAULT, name)
+diff --git a/src/socketutil.cpp b/src/socketutil.cpp
+index 3613954..ee0afb4 100644
+--- a/src/socketutil.cpp
++++ b/src/socketutil.cpp
+@@ -229,7 +229,7 @@ SOCKET GetLocalhostServerTCPSocket() {
+   struct sockaddr_in adr;
+ 
+   CLEAR_STRUCT(adr);
+-#ifdef __WXMAC__
++#if defined(__WXMAC__) || defined(__OCPN__IOS__)
+   adr.sin_len = sizeof(adr);
+ #endif
+   adr.sin_family = AF_INET;

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Vervanger voor GNU patch bij het bouwen van OpenCPN: de patch van macOS (Apple 2.0)
+# past OpenCPN's ShapefileCpp-patches niet toe, git apply wel. OpenCPN's PatchFile.cmake
+# zoekt eerst naar "gpatch" en roept het aan als: gpatch -p1 --ignore-whitespace < patch
+# (in de doelmap). Alleen die vorm wordt ondersteund.
+set -euo pipefail
+strip=1
+for a in "$@"; do
+  case "$a" in
+    -p*) strip="${a#-p}" ;;
+    --ignore-whitespace) ;;
+    *) echo "gpatch-vervanger: optie niet ondersteund: $a" >&2; exit 2 ;;
+  esac
+done
+# Buiten een eventuele omringende git-repo werken (build/ ligt in de opencpn-ios-repo).
+export GIT_CEILING_DIRECTORIES="$(dirname "$PWD")"
+exec git apply --ignore-whitespace -p"$strip" -

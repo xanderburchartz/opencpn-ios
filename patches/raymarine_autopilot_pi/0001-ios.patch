@@ -1,0 +1,27 @@
+diff --git a/src/autopilot_pi.cpp b/src/autopilot_pi.cpp
+index 93ff664..bbef033 100644
+--- a/src/autopilot_pi.cpp
++++ b/src/autopilot_pi.cpp
+@@ -504,6 +504,9 @@ bool raymarine_autopilot_pi::LoadConfig(void)
+             pConf->SetPath ( _T( "/Settings/raymarine_autopilot_pi" ) );
+ 			pConf->Read ( _T( "ShowautopilotIcon" ), &m_bautopilotShowIcon, 1 );
+ 			pConf->Read(_T("Showautopilot"), &m_bShowautopilot, 1 );
++#ifdef __OCPN__IOS__
++			m_bShowautopilot = false;  // opencpn-ios: venster dicht starten
++#endif
+             m_route_dialog_x =  pConf->Read ( _T ( "DialogPosX" ), 20L );
+             m_route_dialog_y =  pConf->Read ( _T ( "DialogPosY" ), 20L );
+ 
+diff --git a/src/autopilotgui.cpp b/src/autopilotgui.cpp
+index cf74159..5177490 100644
+--- a/src/autopilotgui.cpp
++++ b/src/autopilotgui.cpp
+@@ -79,7 +79,7 @@ m_dialog::m_dialog(wxWindow* parent, double Skalefaktor, wxWindowID id, const wx
+ 	StaticLine3 = new wxStaticLine(this, wxID_ANY, wxDefaultPosition, Skalefaktor * FromDIP(wxSize(-1, 2)), wxLI_HORIZONTAL);
+ 	StaticLine3->SetMaxSize(FromDIP(wxSize(-1, Skalefaktor * 2)));
+ 
+-	bSizer10->Add(StaticLine3, 0, wxALIGN_CENTER_HORIZONTAL | wxALL | wxEXPAND, 3);
++	bSizer10->Add(StaticLine3, 0, wxALL | wxEXPAND, 3);  // opencpn-ios: uitlijning met wxEXPAND gaf een wx-assert
+ 
+ 	wxFlexGridSizer* fgSizer5;
+ 	fgSizer5 = new wxFlexGridSizer(0, 4, 0, 0);

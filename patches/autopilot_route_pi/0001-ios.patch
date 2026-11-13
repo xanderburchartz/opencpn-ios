@@ -1,0 +1,345 @@
+diff --git a/po/nl_NL.po b/po/nl_NL.po
+index 4c89285..3b197ac 100644
+--- a/po/nl_NL.po
++++ b/po/nl_NL.po
+@@ -19,11 +19,11 @@ msgstr ""
+ 
+ #: src/AutopilotRouteUI.cpp:31
+ msgid "Mode"
+-msgstr ""
++msgstr "Modus"
+ 
+ #: src/AutopilotRouteUI.cpp:47
+ msgid "XTE Multiplier"
+-msgstr ""
++msgstr "XTE-vermenigvuldiger"
+ 
+ #: src/AutopilotRouteUI.cpp:55
+ msgid "%"
+@@ -31,39 +31,39 @@ msgstr ""
+ 
+ #: src/AutopilotRouteUI.cpp:63
+ msgid "Standard XTE"
+-msgstr ""
++msgstr "Standaard XTE"
+ 
+ #: src/AutopilotRouteUI.cpp:74
+ msgid "Waypoint Bearing"
+-msgstr ""
++msgstr "Peiling routepunt"
+ 
+ #: src/AutopilotRouteUI.cpp:88
+ msgid "Meters"
+-msgstr ""
++msgstr "Meter"
+ 
+ #: src/AutopilotRouteUI.cpp:95
+ msgid "MaxErrorAngle"
+-msgstr ""
++msgstr "Max. afwijkingshoek"
+ 
+ #: src/AutopilotRouteUI.cpp:106
+ msgid "By Distance"
+-msgstr ""
++msgstr "Op afstand"
+ 
+ #: src/AutopilotRouteUI.cpp:113
+ msgid "Seconds"
+-msgstr ""
++msgstr "Seconden"
+ 
+ #: src/AutopilotRouteUI.cpp:124
+ msgid "By Time"
+-msgstr ""
++msgstr "Op tijd"
+ 
+ #: src/AutopilotRouteUI.cpp:131
+ msgid "Route Position Bearing"
+-msgstr ""
++msgstr "Peiling routepositie"
+ 
+ #: src/AutopilotRouteUI.cpp:141
+ msgid "NMEA Sentences"
+-msgstr ""
++msgstr "NMEA-zinnen"
+ 
+ #: src/AutopilotRouteUI.cpp:159
+ msgid "1"
+@@ -87,7 +87,7 @@ msgstr ""
+ 
+ #: src/AutopilotRouteUI.cpp:172
+ msgid "Magnetic"
+-msgstr ""
++msgstr "Magnetisch"
+ 
+ #: src/AutopilotRouteUI.cpp:178
+ msgid "APB"
+@@ -107,7 +107,7 @@ msgstr ""
+ 
+ #: src/AutopilotRouteUI.cpp:190
+ msgid "Boundary"
+-msgstr ""
++msgstr "Begrenzing"
+ 
+ #: src/AutopilotRouteUI.cpp:198
+ msgid "GUID"
+@@ -115,11 +115,11 @@ msgstr ""
+ 
+ #: src/AutopilotRouteUI.cpp:212
+ msgid "Generate"
+-msgstr ""
++msgstr "Genereren"
+ 
+ #: src/AutopilotRouteUI.cpp:215
+ msgid "Width"
+-msgstr ""
++msgstr "Breedte"
+ 
+ #: src/AutopilotRouteUI.cpp:219
+ msgid "M"
+@@ -127,98 +127,101 @@ msgstr ""
+ 
+ #: src/AutopilotRouteUI.cpp:242
+ msgid "Options"
+-msgstr ""
++msgstr "Opties"
+ 
+ #: src/AutopilotRouteUI.cpp:249
+ msgid "Confirm Bearing Change\n"
+ "On Waypoint Arrival"
+-msgstr ""
++msgstr "Koerswijziging bevestigen\nbij aankomst op routepunt"
+ 
+ #: src/AutopilotRouteUI.cpp:252
+ msgid "Great Circle (Shortest Distance)"
+-msgstr ""
++msgstr "Grootcirkel (kortste afstand)"
+ 
+ #: src/AutopilotRouteUI.cpp:252
+ msgid "Mercator (Constant Bearings)"
+-msgstr ""
++msgstr "Mercator (vaste koers)"
+ 
+ #: src/AutopilotRouteUI.cpp:265
+ msgid "Active Route Windows"
+-msgstr ""
++msgstr "Vensters actieve route"
+ 
+ #: src/AutopilotRouteUI.cpp:273
+ msgid "BRG"
+-msgstr ""
++msgstr "BRG"
+ 
+ #: src/AutopilotRouteUI.cpp:273
+ msgid "RNG"
+-msgstr ""
++msgstr "RNG"
+ 
+ #: src/AutopilotRouteUI.cpp:273
+ msgid "TTG"
+-msgstr ""
++msgstr "TTG"
+ 
+ #: src/AutopilotRouteUI.cpp:273
+ msgid "VMG"
+-msgstr ""
++msgstr "VMG"
+ 
+ #: src/AutopilotRouteUI.cpp:278 src/concanv.cpp:126 src/concanv.cpp:207
+ msgid "Deactivate"
+-msgstr ""
++msgstr "Deactiveren"
+ 
+ #: src/AutopilotRouteUI.cpp:278
+ msgid "Highway"
+-msgstr ""
++msgstr "Snelweg"
+ 
+ #: src/AutopilotRouteUI.cpp:278
+ msgid "Route ETA"
+-msgstr ""
++msgstr "Route ETA"
+ 
+ #: src/AutopilotRouteUI.cpp:278
+ msgid "Route RNG"
+-msgstr ""
++msgstr "Route RNG"
+ 
+ #: src/AutopilotRouteUI.cpp:278
+ msgid "Route TTG"
+-msgstr ""
++msgstr "Route TTG"
+ 
+ #: src/AutopilotRouteUI.cpp:295
+ msgid "Information"
+-msgstr ""
++msgstr "Informatie"
+ 
+ #: src/AutopilotRouteUI.h:90
+ msgid "Autopilot Route Preferences"
+-msgstr ""
++msgstr "Voorkeuren Autopilot Route"
+ 
+ #: src/autopilot_route_pi.cpp:762
+ msgid "Advance Waypoint?"
+-msgstr ""
++msgstr "Naar volgend routepunt?"
+ 
+ #: src/autopilot_route_pi.cpp:763
+ msgid "Autopilot Route"
+-msgstr ""
++msgstr "Autopilot Route"
+ 
+ #: src/concanv.cpp:88 src/concanv.cpp:92 src/concanv.cpp:96 src/concanv.cpp:100
+ #: src/concanv.cpp:104 src/concanv.cpp:108 src/concanv.cpp:112
+ #: src/concanv.cpp:116
+ msgid "Console Legend"
+-msgstr ""
++msgstr "Console-legenda"
+ 
+ #: src/concanv.cpp:88 src/concanv.cpp:92 src/concanv.cpp:96 src/concanv.cpp:100
+ #: src/concanv.cpp:104 src/concanv.cpp:108 src/concanv.cpp:112
+ #: src/concanv.cpp:116
+ msgid "Console Value"
+-msgstr ""
++msgstr "Console-waarde"
+ 
+ #: src/concanv.cpp:208
+ msgid "Preferences"
+-msgstr ""
++msgstr "Voorkeuren"
+ 
+ #: src/concanv.cpp:209
+ msgid "Undock"
+-msgstr ""
++msgstr "Losmaken"
+ 
+ #: src/concanv.cpp:339
+ msgid "%Dd %H:%M"
+-msgstr ""
++msgstr "%Dd %H:%M"
++
+ 
++msgid "Active Route"
++msgstr "Actieve route"
+diff --git a/src/autopilot_route_pi.cpp b/src/autopilot_route_pi.cpp
+index 1913722..8aba1c4 100644
+--- a/src/autopilot_route_pi.cpp
++++ b/src/autopilot_route_pi.cpp
+@@ -347,7 +347,7 @@ void autopilot_route_pi::ShowConsoleCanvas()
+         wxSize sz = m_ConsoleCanvas->GetSize();
+         wxAuiPaneInfo p = wxAuiPaneInfo().
+             Name( "Console Canvas" ).
+-            Caption( "Console Canvas" ).
++            Caption( _("Active Route") ).  // opencpn-ios: vertaalbare titel (was "Console Canvas")
+             CaptionVisible( false ).
+             TopDockable(false).
+             BottomDockable(false).
+diff --git a/src/concanv.cpp b/src/concanv.cpp
+index 57f00c0..cd952c3 100644
+--- a/src/concanv.cpp
++++ b/src/concanv.cpp
+@@ -65,6 +65,17 @@ BEGIN_EVENT_TABLE(ConsoleCanvas, wxWindow)
+     
+ END_EVENT_TABLE()
+ 
++#ifdef __OCPN__IOS__
++// opencpn-ios: in het iOS-blad is de hoogte beperkt. Met proportie 1 kromp de laatste
++// regel (RNG) onder zijn minimum en verdween de waarde; nu houden de regels hun hoogte
++// en krimpt de koersafwijkingsbalk (CDI) als er te weinig ruimte is (11 nov 2026).
++static const int kAnnunProp = 0;
++static const int kCdiProp = 1;
++#else
++static const int kAnnunProp = 1;
++static const int kCdiProp = 0;
++#endif
++
+ // Define a constructor for my canvas
+ ConsoleCanvas::ConsoleCanvas( wxWindow *frame, autopilot_route_pi &pi )
+ :         wxWindow( frame, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE,
+@@ -87,40 +98,40 @@ ConsoleCanvas::ConsoleCanvas( wxWindow *frame, autopilot_route_pi &pi )
+ 
+     pXTE = new AnnunText( this, -1, _("Console Legend"), _("Console Value") );
+     pXTE->SetALabel( _T("XTE") );
+-    m_pitemBoxSizerLeg->Add( pXTE, 1, wxALIGN_LEFT | wxALL, 2 );
++    m_pitemBoxSizerLeg->Add( pXTE, kAnnunProp, wxALIGN_LEFT | wxALL, 2 );
+ 
+     pBRG = new AnnunText( this, -1, _("Console Legend"), _("Console Value") );
+     pBRG->SetALabel( _T("BRG") );
+-    m_pitemBoxSizerLeg->Add( pBRG, 1, wxALIGN_LEFT | wxALL, 2 );
++    m_pitemBoxSizerLeg->Add( pBRG, kAnnunProp, wxALIGN_LEFT | wxALL, 2 );
+ 
+     pRNG = new AnnunText( this, -1, _("Console Legend"), _("Console Value") );
+     pRNG->SetALabel( _T("RNG") );
+-    m_pitemBoxSizerLeg->Add( pRNG, 1, wxALIGN_LEFT | wxALL, 2 );
++    m_pitemBoxSizerLeg->Add( pRNG, kAnnunProp, wxALIGN_LEFT | wxALL, 2 );
+ 
+     pTRNG = new AnnunText( this, -1, _("Console Legend"), _("Console Value") );
+     pTRNG->SetALabel( _T("Route RNG") );
+-    m_pitemBoxSizerLeg->Add( pTRNG, 1, wxALIGN_LEFT | wxALL, 2 );
++    m_pitemBoxSizerLeg->Add( pTRNG, kAnnunProp, wxALIGN_LEFT | wxALL, 2 );
+ 
+     pVMG = new AnnunText( this, -1, _("Console Legend"), _("Console Value") );
+     pVMG->SetALabel( _T("VMG") );
+-    m_pitemBoxSizerLeg->Add( pVMG, 1, wxALIGN_LEFT | wxALL, 2 );
++    m_pitemBoxSizerLeg->Add( pVMG, kAnnunProp, wxALIGN_LEFT | wxALL, 2 );
+ 
+     pETA = new AnnunText( this, -1, _("Console Legend"), _("Console Value") );
+     pETA->SetALabel( _T("Route ETA") );
+-    m_pitemBoxSizerLeg->Add( pETA, 1, wxALIGN_LEFT | wxALL, 2 );
++    m_pitemBoxSizerLeg->Add( pETA, kAnnunProp, wxALIGN_LEFT | wxALL, 2 );
+ 
+     pTTTG = new AnnunText( this, -1, _("Console Legend"), _("Console Value") );
+     pTTTG->SetALabel( _T("Route TTG") );
+-    m_pitemBoxSizerLeg->Add( pTTTG, 1, wxALIGN_LEFT | wxALL, 2 );
++    m_pitemBoxSizerLeg->Add( pTTTG, kAnnunProp, wxALIGN_LEFT | wxALL, 2 );
+ 
+     pTTG = new AnnunText( this, -1, _("Console Legend"), _("Console Value") );
+     pTTG->SetALabel( _T("TTG") );
+-    m_pitemBoxSizerLeg->Add( pTTG, 1, wxALIGN_LEFT | wxALL, 2 );
++    m_pitemBoxSizerLeg->Add( pTTG, kAnnunProp, wxALIGN_LEFT | wxALL, 2 );
+ 
+     //    Create CDI Display Window
+     pCDI = new CDI( this, -1, wxSIMPLE_BORDER, _T("CDI") );
+     m_pitemBoxSizerLeg->AddSpacer( 5 );
+-    m_pitemBoxSizerLeg->Add( pCDI, 0, wxALL | wxEXPAND, 2 );
++    m_pitemBoxSizerLeg->Add( pCDI, kCdiProp, wxALL | wxEXPAND, 2 );
+ 
+     // Deactivate button
+     pDeactivate = new wxButton( this, ID_DEACTIVATE, _("Deactivate") );
+@@ -200,6 +211,9 @@ void ConsoleCanvas::OnShow( wxShowEvent& event )
+     pDeactivate->Show( m_pi.prefs.ActiveRouteLabel(page, "Deactivate") );
+ 
+     m_pitemBoxSizerLeg->SetSizeHints( this );
++    // opencpn-ios: na tonen/verbergen van regels ook opnieuw indelen; anders hielden de
++    // regels hun oude maat en viel de RNG-waarde over het label (11 nov 2026).
++    Layout();
+ }
+ 
+ void ConsoleCanvas::OnContextMenu( wxContextMenuEvent& event ) {
+@@ -563,7 +577,12 @@ void AnnunText::OnPaint( wxPaintEvent& event )
+     int cw, ch;
+     mdc.GetSize( &cw, &ch );
+ 
+-    mdc.DrawText( m_value, cw - w - 2, ch - h - 2 );
++    // opencpn-ios: waarde nooit over het label tekenen, ook als de regel te laag is.
++    int lw, lh;
++    mdc.GetTextExtent( m_label, &lw, &lh, NULL, NULL, &m_labelFont );
++    int vy = ch - h - 2;
++    if( vy < 2 + lh ) vy = 2 + lh;
++    mdc.DrawText( m_value, cw - w - 2, vy );
+ 
+     wxPaintDC dc( this );
+     dc.Blit( 0, 0, sx, sy, &mdc, 0, 0 );
+@@ -581,7 +600,11 @@ CDI::CDI( wxWindow *parent, wxWindowID id, long style, const wxString& name ) :
+         wxWindow( parent, id, wxDefaultPosition, wxDefaultSize, style, name )
+ 
+ {
++#ifdef __OCPN__IOS__
++    SetMinSize( wxSize( 10, 60 ) );  // opencpn-ios: mag krimpen in het blad
++#else
+     SetMinSize( wxSize( 10, 150 ) );
++#endif
+ }
+ 
+ void CDI::MouseEvent( wxMouseEvent& event )

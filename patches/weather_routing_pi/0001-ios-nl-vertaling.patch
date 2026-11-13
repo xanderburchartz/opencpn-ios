@@ -1,0 +1,319 @@
+diff --git a/po/nl_NL.po b/po/nl_NL.po
+index 9b0746e..4a0df07 100644
+--- a/po/nl_NL.po
++++ b/po/nl_NL.po
+@@ -54,43 +54,43 @@ msgstr "Grondkoers (GrK)"
+ 
+ #: include/WeatherRoutingUI.h:635
+ msgid "Speed Through Water (STW)"
+-msgstr ""
++msgstr "Vaart door het water (STW)"
+ 
+ #: include/WeatherRoutingUI.h:636
+ msgid "Course Through Water (CTW)"
+-msgstr ""
++msgstr "Koers door het water (CTW)"
+ 
+ #: include/WeatherRoutingUI.h:637
+ msgid "TWD over Ground"
+-msgstr ""
++msgstr "Ware windrichting over grond (TWD)"
+ 
+ #: include/WeatherRoutingUI.h:638
+ msgid "TWS over Ground"
+-msgstr ""
++msgstr "Ware windsnelheid over grond (TWS)"
+ 
+ #: include/WeatherRoutingUI.h:639
+ msgid "TWA over Ground"
+-msgstr ""
++msgstr "Ware windhoek over grond (TWA)"
+ 
+ #: include/WeatherRoutingUI.h:640
+ msgid "TWD over Water"
+-msgstr ""
++msgstr "Ware windrichting over water (TWD)"
+ 
+ #: include/WeatherRoutingUI.h:641
+ msgid "TWS Over Water"
+-msgstr ""
++msgstr "Ware windsnelheid over water (TWS)"
+ 
+ #: include/WeatherRoutingUI.h:642
+ msgid "TWA Over Water"
+-msgstr ""
++msgstr "Ware windhoek over water (TWA)"
+ 
+ #: include/WeatherRoutingUI.h:643
+ msgid "AWS over Water"
+-msgstr ""
++msgstr "Schijnbare windsnelheid (AWS)"
+ 
+ #: include/WeatherRoutingUI.h:644
+ msgid "AWA over Water"
+-msgstr ""
++msgstr "Schijnbare windhoek (AWA)"
+ 
+ #: include/WeatherRoutingUI.h:645 src/RoutingTablePanel.cpp:513
+ #: src/WeatherRoutingUI.cpp:5343
+@@ -107,7 +107,7 @@ msgstr "Stroomrichting"
+ 
+ #: include/WeatherRoutingUI.h:648
+ msgid "Significant Wave Height"
+-msgstr ""
++msgstr "Significante golfhoogte"
+ 
+ #: include/WeatherRoutingUI.h:649 src/WeatherRouting.cpp:118
+ #: src/WeatherRoutingUI.cpp:5163 src/WeatherRoutingUI.cpp:5373
+@@ -117,44 +117,44 @@ msgstr "Slagen"
+ #: include/WeatherRoutingUI.h:650 src/WeatherRouting.cpp:119
+ #: src/WeatherRoutingUI.cpp:5174 src/WeatherRoutingUI.cpp:5383
+ msgid "Jibes"
+-msgstr ""
++msgstr "Gijpen"
+ 
+ #: include/WeatherRoutingUI.h:651 src/WeatherRouting.cpp:120
+ #: src/WeatherRoutingUI.cpp:5185 src/WeatherRoutingUI.cpp:5394
+ msgid "Sail Plan Changes"
+-msgstr ""
++msgstr "Zeilwissels"
+ 
+ #: include/WeatherRoutingUI.h:652 src/RoutingTablePanel.cpp:521
+ msgid "Cloud Cover"
+-msgstr ""
++msgstr "Bewolking"
+ 
+ #: include/WeatherRoutingUI.h:653
+ msgid "Rainfall"
+-msgstr ""
++msgstr "Neerslag"
+ 
+ #: include/WeatherRoutingUI.h:654
+ msgid "Air Temperature"
+-msgstr ""
++msgstr "Luchttemperatuur"
+ 
+ #: include/WeatherRoutingUI.h:655
+ msgid "Sea Surface Temperature"
+-msgstr ""
++msgstr "Zeewatertemperatuur"
+ 
+ #: include/WeatherRoutingUI.h:656 src/RoutingTablePanel.cpp:526
+ msgid "CAPE"
+-msgstr ""
++msgstr "CAPE (onweersenergie)"
+ 
+ #: include/WeatherRoutingUI.h:657
+ msgid "Relative Humidity"
+-msgstr ""
++msgstr "Relatieve vochtigheid"
+ 
+ #: include/WeatherRoutingUI.h:658
+ msgid "Air Pressure"
+-msgstr ""
++msgstr "Luchtdruk"
+ 
+ #: include/WeatherRoutingUI.h:659
+ msgid "Reflectivity"
+-msgstr ""
++msgstr "Radarreflectie"
+ 
+ #: include/WeatherRoutingUI.h:677 src/PlotDialog.cpp:42
+ msgid "Weather Route Plot"
+@@ -205,7 +205,7 @@ msgstr "Polar bewerken"
+ 
+ #: include/WeatherRoutingUI.h:1201
+ msgid "Weather Routing Table"
+-msgstr ""
++msgstr "Weerrouteringstabel"
+ 
+ #: src/Boat.cpp:49
+ msgid "Boat file does not exist."
+@@ -1015,7 +1015,7 @@ msgstr "Gestopt"
+ 
+ #: src/WeatherRouting.cpp:98
+ msgid "Start Type"
+-msgstr ""
++msgstr "Soort start"
+ 
+ #: src/WeatherRouting.cpp:102
+ msgid "End Time"
+@@ -1090,6 +1090,12 @@ msgid "A new version of the Weather Route plugin has been installed.\n\n"
+ "sure to backup your changes. If you have added new polars or boats\n"
+ "with exclusive names, they will be kept untouched.\n\n"
+ msgstr ""
++"Er is een nieuwe versie van de Weather Routing-plugin geïnstalleerd.\n\n"
++"\"Importeer nieuwe boten en polars\" overschrijft de standaardboten\n"
++"en -polars met nieuwere gegevens. Heb je die gegevens aangepast zonder\n"
++"de namen te wijzigen, dan worden je aanpassingen overschreven; maak dus\n"
++"eerst een reservekopie. Polars of boten die je zelf met een eigen naam\n"
++"hebt toegevoegd, blijven ongemoeid.\n\n"
+ 
+ #: src/WeatherRouting.cpp:238
+ msgid "Import example configurations will overwrite your route\n"
+@@ -1098,6 +1104,11 @@ msgid "Import example configurations will overwrite your route\n"
+ "Pressing \"OK\" will apply the selected changes, pressing \"Cancel\"\n"
+ "will do nothing and you will be asked again on the next launch."
+ msgstr ""
++"\"Voorbeeldconfiguraties importeren\" overschrijft je eigen\n"
++"routeconfiguraties met een voorbeeldset die laat zien hoe Weather Routing\n"
++"werkt. Maak zo nodig eerst een reservekopie van je configuraties.\n\n"
++"Met \"Gereed\" worden de gekozen wijzigingen uitgevoerd. Met \"Annuleren\"\n"
++"gebeurt er niets en wordt het bij de volgende start opnieuw gevraagd."
+ 
+ #: src/WeatherRouting.cpp:244
+ msgid "Import new boats and polars"
+@@ -1252,7 +1263,7 @@ msgstr "Kon bestand niet opslaan: "
+ 
+ #: src/WeatherRouting.cpp:2520
+ msgid "From Position"
+-msgstr ""
++msgstr "Vanaf positie"
+ 
+ #: src/WeatherRouting.cpp:2521
+ msgid "From Boat"
+@@ -1370,7 +1381,7 @@ msgstr "&Opslaan"
+ 
+ #: src/WeatherRoutingUI.cpp:39
+ msgid "&Save As..."
+-msgstr ""
++msgstr "Opslaan &als..."
+ 
+ #: src/WeatherRoutingUI.cpp:47 src/WeatherRoutingUI.cpp:4517
+ msgid "&Close"
+@@ -1441,15 +1452,15 @@ msgstr "Alles &terugstellen"
+ 
+ #: src/WeatherRoutingUI.cpp:142
+ msgid "Save as track"
+-msgstr ""
++msgstr "Als track opslaan"
+ 
+ #: src/WeatherRoutingUI.cpp:147
+ msgid "Save all as tracks"
+-msgstr ""
++msgstr "Alles als tracks opslaan"
+ 
+ #: src/WeatherRoutingUI.cpp:152
+ msgid "Save as route"
+-msgstr ""
++msgstr "Als route opslaan"
+ 
+ #: src/WeatherRoutingUI.cpp:158
+ msgid "E&xport routing as GPX file"
+@@ -1461,7 +1472,7 @@ msgstr "&Filter"
+ 
+ #: src/WeatherRoutingUI.cpp:170
+ msgid "&Routings"
+-msgstr ""
++msgstr "&Routeringen"
+ 
+ #: src/WeatherRoutingUI.cpp:174 src/WeatherRoutingUI.cpp:295
+ msgid "&Settings"
+@@ -1489,7 +1500,7 @@ msgstr "&Route Positie"
+ 
+ #: src/WeatherRoutingUI.cpp:209
+ msgid "&Weather Routing Table"
+-msgstr ""
++msgstr "&Weerrouteringstabel"
+ 
+ #: src/WeatherRoutingUI.cpp:213
+ msgid "&View"
+@@ -1521,7 +1532,7 @@ msgstr "Posities"
+ 
+ #: src/WeatherRoutingUI.cpp:552
+ msgid "Routings"
+-msgstr ""
++msgstr "Routeringen"
+ 
+ #: src/WeatherRoutingUI.cpp:576
+ msgid "Calculate weather route based on selected start/end positions and configuration"
+@@ -1529,7 +1540,7 @@ msgstr ""
+ 
+ #: src/WeatherRoutingUI.cpp:581
+ msgid "&Save as track"
+-msgstr ""
++msgstr "Als &track"
+ 
+ #: src/WeatherRoutingUI.cpp:584
+ msgid "Save the selected routing as a track in the 'Route & Mark' Manager"
+@@ -1537,7 +1548,7 @@ msgstr ""
+ 
+ #: src/WeatherRoutingUI.cpp:588
+ msgid "Save as &route"
+-msgstr ""
++msgstr "Als &route"
+ 
+ #: src/WeatherRoutingUI.cpp:591
+ msgid "Save the selected routing as a route in the 'Route & Mark' Manager"
+@@ -1545,7 +1556,7 @@ msgstr ""
+ 
+ #: src/WeatherRoutingUI.cpp:595
+ msgid "Export as GPX route file"
+-msgstr ""
++msgstr "Exporteer GPX"
+ 
+ #: src/WeatherRoutingUI.cpp:746
+ msgid "Display"
+@@ -1649,7 +1660,7 @@ msgstr ""
+ 
+ #: src/WeatherRoutingUI.cpp:1127
+ msgid "Start from boat"
+-msgstr ""
++msgstr "Vanaf boot"
+ 
+ #: src/WeatherRoutingUI.cpp:1130
+ msgid "Use current boat position as the starting point"
+@@ -1657,7 +1668,7 @@ msgstr ""
+ 
+ #: src/WeatherRoutingUI.cpp:1135
+ msgid "Start position"
+-msgstr ""
++msgstr "Startpositie"
+ 
+ #: src/WeatherRoutingUI.cpp:1138
+ msgid "Select a predefined position as the starting point"
+@@ -1669,7 +1680,7 @@ msgstr ""
+ 
+ #: src/WeatherRoutingUI.cpp:1153
+ msgid "Use current time"
+-msgstr ""
++msgstr "Huidige tijd gebruiken"
+ 
+ #: src/WeatherRoutingUI.cpp:1156
+ msgid "When enabled, uses the actual time at the moment the routing computation starts"
+@@ -2560,3 +2571,35 @@ msgstr "GRIB plugin-versie wordt niet ondersteund."
+ msgid "Climatology plugin version not supported, no climatology data."
+ msgstr "De versie van de Klimatologie-plugin wordt niet ondersteund; geen klimatologiegegevens beschikbaar."
+ 
++#: opencpn-ios
++msgid "Motor if boat speed is below"
++msgstr "Motor als bootsnelheid lager is dan"
++
++#: opencpn-ios
++msgid "Threshold:"
++msgstr "Drempel:"
++
++#: opencpn-ios
++msgid "Motor speed:"
++msgstr "Motorsnelheid:"
++
++
++
++#: opencpn-ios
++msgid "Motoring"
++msgstr "Motor"
++
++msgid "Sailing Comfort"
++msgstr "Zeilcomfort"
++
++msgid "Heading (HDG)"
++msgstr "Stuurkoers (HDG)"
++
++msgid "Wave Dir"
++msgstr "Golfrichting"
++
++msgid "Wave Rel"
++msgstr "Golfhoek t.o.v. boot"
++
++msgid "Wave Period"
++msgstr "Golfperiode"

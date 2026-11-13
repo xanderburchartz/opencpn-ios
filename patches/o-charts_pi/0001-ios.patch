@@ -1,0 +1,288 @@
+diff --git a/libs/s52plib/src/Cs52_shaders.h b/libs/s52plib/src/Cs52_shaders.h
+index a7c9ee7..89a31cf 100644
+--- a/libs/s52plib/src/Cs52_shaders.h
++++ b/libs/s52plib/src/Cs52_shaders.h
+@@ -77,7 +77,7 @@ public:
+           auto log = std::unique_ptr<char>(new char[logLength]);
+           glGetShaderInfoLog(shaderId, logLength, &logLength, log.get());
+           printf("ERROR::SHADER::COMPILATION_FAILED\n%s\n", log.get());
+-#ifdef USE_ANDROID_GLES2
++#if defined(USE_ANDROID_GLES2) && !defined(__OCPN__IOS__)
+           qDebug() << "SHADER COMPILE ERROR  " << log.get();
+ #endif
+         }
+diff --git a/libs/s52plib/src/TexFont.cpp b/libs/s52plib/src/TexFont.cpp
+index 6911c04..c3f712c 100755
+--- a/libs/s52plib/src/TexFont.cpp
++++ b/libs/s52plib/src/TexFont.cpp
+@@ -41,6 +41,12 @@
+  #include <qopengl.h>
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)
++ // opencpn-ios: OpenGL ES via de iOS-SDK, zoals de OpenCPN-kern op iOS
++ #include <OpenGLES/ES2/gl.h>
++ #include <GL/gl_private.h>  // this is a cut-down version of gl.h
++ #include <GLES2/gl2.h>
++ typedef void (*  _GLUfuncptr)();
+ #elif defined(_WIN32)
+  #define GL_GLEXT_PROTOTYPES
+  #include <GL/gl.h>
+diff --git a/libs/wxcurl/src/base.cpp b/libs/wxcurl/src/base.cpp
+index b79adce..376a9ea 100644
+--- a/libs/wxcurl/src/base.cpp
++++ b/libs/wxcurl/src/base.cpp
+@@ -508,10 +508,22 @@ bool wxCurlBase::GetInfo(CURLINFO info, ...) const
+     return (res == CURLE_OK);
+ }
+ 
++#ifdef __OCPN__IOS__
++extern "C" int OcIosOchartsNetworkAllowed(void);
++#endif
++
+ bool wxCurlBase::Perform()
+ {
+     CURLcode res = CURLE_OK;
+ 
++#ifdef __OCPN__IOS__
++    // opencpn-ios: geen verkeer met o-charts zonder ontsleutelingsbibliotheek.
++    if (!OcIosOchartsNetworkAllowed()) {
++        m_iResponseCode = 0;
++        return false;
++    }
++#endif
++
+     if((m_nFlags & wxCURL_SEND_BEGINEND_EVENTS) && m_pEvtHandler)
+     {
+         wxString s = wxCURL_BUF2STRING(m_szCurrFullURL);
+diff --git a/po/nl_NL.po b/po/nl_NL.po
+index aa9f823..a1e3e1c 100644
+--- a/po/nl_NL.po
++++ b/po/nl_NL.po
+@@ -1141,3 +1141,16 @@ msgstr ""
+ msgid "Or, press CANCEL to disable o-charts support of TPM\n"
+ msgstr ""
+ 
++
++# opencpn-ios (app/ios/ocharts): melding zonder ontsleutelingsbibliotheek
++msgid ""
++"o-charts decryption is not available on iOS.\n"
++"\n"
++"The o-charts plugin is built into this app, but the decryption library from o-charts is not included yet. Encrypted o-charts charts cannot be shown, and this device cannot be registered in the o-charts shop. Other charts are not affected."
++msgstr ""
++"o-charts-ontsleuteling niet beschikbaar op iOS.\n"
++"\n"
++"De o-charts-plugin zit in deze app, maar de ontsleutelingsbibliotheek van o-charts nog niet. Versleutelde kaarten van o-charts kunnen niet worden getoond en dit toestel kan niet in de o-charts-winkel worden geregistreerd. Andere kaarten werken zoals altijd."
++
++msgid "Status: o-charts decryption not available on iOS"
++msgstr "Status: o-charts-ontsleuteling niet beschikbaar op iOS"
+diff --git a/src/Osenc.cpp b/src/Osenc.cpp
+index de9edbe..34276de 100644
+--- a/src/Osenc.cpp
++++ b/src/Osenc.cpp
+@@ -344,6 +344,9 @@ bool Osenc_instream::IsOk()
+ #endif
+ 
+ #if !defined(__WXMSW__) && !defined( __ANDROID__)   // i.e. linux and Mac
++#ifdef __OCPN__IOS__
++#include "ocharts_ios_pipe.h"  // opencpn-ios: FIFO's binnen de app
++#endif
+ //--------------------------------------------------------------------------
+ //      Osenc_instream implementation as Named Pipe
+ //--------------------------------------------------------------------------
+@@ -554,6 +557,9 @@ bool Osenc_instream::IsOk()
+     return m_OK;
+ }
+ 
++#ifdef __OCPN__IOS__
++#include "ocharts_ios_pipe_end.h"
++#endif
+ #elif defined(__WXMSW__)  //MSW
+ 
+ #include <windows.h>
+diff --git a/src/dychart.h b/src/dychart.h
+index c0bf9d0..e97861f 100755
+--- a/src/dychart.h
++++ b/src/dychart.h
+@@ -177,6 +177,12 @@
+  #include <qopengl.h>
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)
++ // opencpn-ios: OpenGL ES via de iOS-SDK, zoals de OpenCPN-kern op iOS
++ #include <OpenGLES/ES2/gl.h>
++ #include <GL/gl_private.h>  // this is a cut-down version of gl.h
++ #include <GLES2/gl2.h>
++ typedef void (*  _GLUfuncptr)();
+ #elif defined(_WIN32)
+  #include "GL/glew.h"
+  typedef void (__stdcall *  _GLUfuncptr)();
+diff --git a/src/o-charts_pi.cpp b/src/o-charts_pi.cpp
+index 8bd7156..6fc62a6 100755
+--- a/src/o-charts_pi.cpp
++++ b/src/o-charts_pi.cpp
+@@ -56,6 +56,9 @@
+ #include "s52plib.h"
+ #include "s52utils.h"
+ #include "Osenc.h"
++#ifdef __OCPN__IOS__
++#include "ocharts_ios_glue.h"
++#endif
+ #include "chartsymbols.h"
+ #include "../libs/wxJSON/include/wx/json_defs.h"
+ #include "../libs/wxJSON/include/wx/jsonwriter.h"
+@@ -635,6 +638,11 @@ int o_charts_pi::Init(void)
+     wxLogMessage(_T("OSX LIB DYLD_LIBRARY_PATH: ") + libDir);
+ #endif
+ 
++#ifdef __OCPN__IOS__
++    // opencpn-ios: geen apart programma; zie app/ios/ocharts/ocharts_ios_backend.h
++    g_sencutil_bin = _T(OCIOS_SENCUTIL_SENTINEL);
++#endif
++
+     // Account for possible "space" in Mac directory name.
+ #ifdef __WXOSX__
+       g_sencutil_bin.Prepend(_T("\""));
+@@ -2733,7 +2741,7 @@ void init_S52Library(void)
+ bool init_GLExtensions(void) {
+   // Initialize GLEW, as required
+ #ifndef __ANDROID__
+-  #ifndef __WXOSX__
++  #if !defined(__WXOSX__) && !defined(__OCPN__IOS__)  // iOS: GL ES direct
+     #ifdef __OCPN_USE_GLEW__
+       GLenum err = glewInit();
+ #ifdef GLEW_ERROR_NO_GLX_DISPLAY
+@@ -2878,7 +2886,13 @@ bool validate_SENC_server(void)
+     // Not running, so start it up...
+     wxString bin_test = g_sencutil_bin;
+ 
+-#ifndef __ANDROID__
++#if defined(__OCPN__IOS__)
++    // opencpn-ios: de ontsleuteling is een bibliotheek in de app. Lukt starten niet,
++    // dan heeft OcIosStartServer dat al gemeld ("niet beschikbaar op iOS").
++    g_serverProc = OcIosStartServer(g_serverDebug);
++    if (!g_serverProc)
++        return false;
++#elif !defined(__ANDROID__)
+     //Verify that oeserverd actually exists, and runs.
+     wxLogMessage(_T("Validation Path to oexserverd is: ") + g_sencutil_bin);
+ 
+@@ -3519,6 +3533,10 @@ oesencPrefsDialog::oesencPrefsDialog( wxWindow* parent, wxWindowID id, const wxS
+         bSizer2->Add( m_buttonNewDFPR, 0, wxALIGN_CENTER_HORIZONTAL, 50 );
+ 
+         m_buttonNewDFPR->Connect( wxEVT_COMMAND_BUTTON_CLICKED,wxCommandEventHandler(o_charts_pi_event_handler::OnNewDFPRClick), NULL, g_event_handler );
++#ifdef __OCPN__IOS__
++        // opencpn-ios: een iPhone of iPad heeft geen USB-dongle (SGLock).
++        m_buttonNewDFPR->Hide();
++#endif
+ 
+ #ifdef __WXMAC__
+         m_buttonShowFPR = new wxButton( scrollWin, wxID_ANY, _("Show In Finder"), wxDefaultPosition, wxDefaultSize, 0 );
+@@ -3863,6 +3881,13 @@ void o_charts_pi_event_handler::OnSendStatus( wxCommandEvent &event )
+ 
+ void o_charts_pi_event_handler::OnNewDFPRClick( wxCommandEvent &event )
+ {
++#ifdef __OCPN__IOS__
++    // opencpn-ios: zonder ontsleutelingsbibliotheek kan geen fingerprint gemaakt worden.
++    if (!OcIosBackendUsable()) {
++        OcIosReportUnavailable(true);
++        return;
++    }
++#endif
+ #ifndef __ANDROID__
+     wxString msg = _("To obtain a chart set, you must generate a Unique System Identifier File.\n");
+     msg += _("This file is also known as a\"fingerprint\" file.\n");
+@@ -3911,6 +3936,13 @@ void o_charts_pi_event_handler::OnNewDFPRClick( wxCommandEvent &event )
+ 
+ void o_charts_pi_event_handler::OnNewFPRClick( wxCommandEvent &event )
+ {
++#ifdef __OCPN__IOS__
++    // opencpn-ios: zonder ontsleutelingsbibliotheek kan geen fingerprint gemaakt worden.
++    if (!OcIosBackendUsable()) {
++        OcIosReportUnavailable(true);
++        return;
++    }
++#endif
+ #ifndef x__ANDROID__
+     wxString msg = _("To obtain a chart set, you must generate a Unique System Identifier File.\n");
+     msg += _("This file is also known as a\"fingerprint\" file.\n");
+diff --git a/src/ochartShop.cpp b/src/ochartShop.cpp
+index 0dcf9d8..3266f08 100644
+--- a/src/ochartShop.cpp
++++ b/src/ochartShop.cpp
+@@ -58,6 +58,13 @@
+ #include "eSENCChart.h"
+ #include "chart.h"
+ #include "tpm/tpmUtil.h"
++#ifdef __OCPN__IOS__
++#include "ocharts_ios_glue.h"
++// opencpn-ios: met wx 3.3 is _T() een brede tekst (L"..."), en std::string + L"..." bestaat
++// niet. Dit bestand telt std::string en _T() op; smal maken volstaat.
++#undef _T
++#define _T(x) x
++#endif
+ 
+ #include <wx/arrimpl.cpp>
+ WX_DEFINE_OBJARRAY(ArrayOfCharts);
+@@ -4831,6 +4838,16 @@ void shopPanel::OnButtonUpdate( wxCommandEvent& event )
+ 
+     m_shopLog->ClearLog();
+ 
++#ifdef __OCPN__IOS__
++    // opencpn-ios: zonder ontsleuteling kan dit toestel niet geregistreerd worden;
++    // geen verbinding met de winkel.
++    if (!OcIosBackendUsable()) {
++        setStatusText(_("Status: o-charts decryption not available on iOS"));
++        OcIosReportUnavailable(true);
++        return;
++    }
++#endif
++
+     // Deselect any selected chart
+     DeselectAllCharts();
+ 
+@@ -5403,7 +5420,7 @@ bool shopPanel::verifyInstallationDirectory(itemSlot *slot, itemChart *chart)
+ 
+   //Operate on installed chartset only
+   if ((status == STAT_CURRENT) || (status == STAT_STALE)){
+-    wxString oldinstallDir = slot->installLocation + wxFileName::GetPathSeparator() + slot->chartDirName;
++    wxString oldinstallDir = wxString(slot->installLocation) + wxFileName::GetPathSeparator() + slot->chartDirName;
+ 
+     //  Look for file ChartList.XML in the declared directory
+     wxString fileLook = oldinstallDir + wxFileName::GetPathSeparator() + "ChartList.XML";
+diff --git a/src/oernc_inStream.cpp b/src/oernc_inStream.cpp
+index 3045cd5..7fa2222 100644
+--- a/src/oernc_inStream.cpp
++++ b/src/oernc_inStream.cpp
+@@ -577,6 +577,9 @@ oernc_inStream &oernc_inStream::Read(void *buffer, size_t size)
+ #endif  //__ANDROID__
+ 
+ #if !defined(__WXMSW__) && !defined( __ANDROID__)   // i.e. linux and Mac
++#ifdef __OCPN__IOS__
++#include "ocharts_ios_pipe.h"  // opencpn-ios: FIFO's binnen de app
++#endif
+ 
+ //--------------------------------------------------------------------------
+ //      oernc_inStream implementation
+@@ -1091,6 +1094,9 @@ oernc_inStream &oernc_inStream::Read(void *buffer, size_t size)
+     }
+ }
+ 
++#ifdef __OCPN__IOS__
++#include "ocharts_ios_pipe_end.h"
++#endif
+ #endif   // linux/Mac
+ 
+ #if defined(__WXMSW__)   // Windows
+diff --git a/src/s57RegistrarMgr.h b/src/s57RegistrarMgr.h
+index 43d448c..bffb6b5 100644
+--- a/src/s57RegistrarMgr.h
++++ b/src/s57RegistrarMgr.h
+@@ -26,6 +26,7 @@
+ #define __S57REGISTRARMGR_H__
+ 
+ #include <wx/string.h>
++#include <wx/hashmap.h>
+ 
+ WX_DECLARE_STRING_HASH_MAP( int, CSVHash1 );
+ 
