@@ -30,8 +30,8 @@ Andere versies kunnen werken, maar zijn niet geprobeerd.
 
 ## 2. Broncode ophalen
 
-    git clone https://github.com/xanderburchartz/opencpn-for-ios.git
-    cd opencpn-for-ios
+    git clone https://github.com/xanderburchartz/opencpn-ios.git
+    cd opencpn-ios
     scripts/fetch-upstream.sh        # OpenCPN, wxWidgets, plugins, OpenSSL, curl, ... (~2 GB)
     scripts/apply-patches.sh         # de iOS-wijzigingen op die broncode zetten
 

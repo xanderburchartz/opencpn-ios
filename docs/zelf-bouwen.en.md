@@ -28,8 +28,8 @@ Other versions may work but have not been tried.
 
 ## 2. Getting the source
 
-    git clone https://github.com/xanderburchartz/opencpn-for-ios.git
-    cd opencpn-for-ios
+    git clone https://github.com/xanderburchartz/opencpn-ios.git
+    cd opencpn-ios
     scripts/fetch-upstream.sh        # OpenCPN, wxWidgets, plugins, OpenSSL, curl, ... (~2 GB)
     scripts/apply-patches.sh         # apply the iOS changes to that source
 

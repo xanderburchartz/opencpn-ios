@@ -20,7 +20,7 @@ DOEL="${1:-$ROOT/build/openbaar}"
 PATRONEN="$ROOT/prive/patronen.txt"
 
 # Werknotities: logboek, plan, lessen, sessie-afspraken en de afbeeldingen van het logboek.
-UITSLUITEN='^(CLAUDE\.md|PLAN\.md|lessen\.md|docs/logboek\.md|docs/overzicht-[^/]*\.md|docs/bronnen\.md|docs/img/.*|prive/.*)$'
+UITSLUITEN='^(CLAUDE\.md|PLAN\.md|lessen\.md|docs/logboek\.md|docs/overzicht-[^/]*\.md|docs/bronnen\.md|docs/concept-[^/]*|docs/img/.*|prive/.*)$'
 
 [ -f "$PATRONEN" ] || { echo "ontbreekt: $PATRONEN (lijst met persoonsgegevens)" >&2; exit 2; }
 case "$DOEL" in
@@ -29,9 +29,11 @@ case "$DOEL" in
 esac
 
 if [ -d "$DOEL" ]; then
-  # Alleen een eerdere export weggooien (herkenbaar aan het merkbestand).
+  # Alleen een eerdere export leegmaken (herkenbaar aan het merkbestand). De map .git blijft
+  # staan: build/openbaar is de werkkopie van de openbare repo, zodat een nieuwe export een
+  # gewone commit bovenop de vorige wordt.
   [ -f "$DOEL/.export-openbaar" ] || { echo "$DOEL bestaat en is geen eerdere export" >&2; exit 2; }
-  rm -rf -- "$DOEL"
+  find "$DOEL" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf -- {} +
 fi
 mkdir -p "$DOEL"
 touch "$DOEL/.export-openbaar"
