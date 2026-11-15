@@ -1,0 +1,1740 @@
+From 65d2924678f0604164a13a427dbdd04392d5690b Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 11/13] chartdldr_pi: group chart sources by continent, iOS
+ layout
+
+All platforms:
+- chart_sources.xml: sources grouped as Europe / North America / South
+  America / Asia and Oceania / World and basemaps. All 97 sources are
+  kept; the free European inland ENC catalogs were hidden in an unsorted
+  list.
+- Names in the tree are translatable and sorted by the shown name; the
+  continent of the system locale's country is expanded.
+- After adding a source its catalog is fetched at once, so the separate
+  "Update" step is no longer needed.
+
+iOS only (#ifdef __OCPN__IOS__): layout of the downloader pages on a phone.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ plugins/chartdldr_pi/data/chart_sources.xml | 1053 ++++++++++---------
+ plugins/chartdldr_pi/src/chartdldr_pi.cpp   |  161 ++-
+ plugins/chartdldr_pi/src/chartdldr_pi.h     |    5 +
+ plugins/chartdldr_pi/src/chartdldrgui.cpp   |  162 ++-
+ plugins/chartdldr_pi/src/chartdldrgui.h     |    5 +
+ 5 files changed, 865 insertions(+), 521 deletions(-)
+
+diff --git a/plugins/chartdldr_pi/data/chart_sources.xml b/plugins/chartdldr_pi/data/chart_sources.xml
+index 5a411e894..39186878a 100644
+--- a/plugins/chartdldr_pi/data/chart_sources.xml
++++ b/plugins/chartdldr_pi/data/chart_sources.xml
+@@ -2,479 +2,14 @@
+ <ChartCatalog>
+   <sections>
+     <section>
+-      <name>GSHHG basemap</name>
++      <name>Europe</name>
+       <catalogs>
+         <catalog>
+-          <name>All GSHHG basemaps</name>
+-          <type>GSHHG</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/GSHHG_Catalog.xml</location>
+-          <dir>{USERDATA}/GSHHG</dir>
+-        </catalog>
+-      </catalogs>
+-    </section>
+-    <section>
+-      <name>OSM basemap</name>
+-      <catalogs>
+-        <catalog>
+-          <name>All OSM basemaps</name>
+-          <type>SHP</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/OSMSHP_Catalog.xml</location>
+-          <dir>{USERDATA}/OSMSHP</dir>
+-        </catalog>
+-      </catalogs>
+-    </section>
+-    <section>
+-      <name>USA - NOAA &amp; Inland charts</name>
+-      <sections>
+-        <section>
+-          <name>ENC</name>
+-          <sections>
+-            <section>
+-              <name>All ENCs</name>
+-              <catalogs>
+-                <catalog>
+-                  <name>All</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US</dir>
+-                </catalog>
+-              </catalogs>
+-            </section>
+-            <section>
+-              <name>by Coast Guard Districts</name>
+-              <catalogs>
+-                <catalog>
+-                  <name>01 CGD - New England states, eastern New York, and northern New Jersey</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/01CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD01</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>05 CGD - Pennsylvania, southern New Jersey, Delaware, Maryland, Virginia, and North Carolina</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/05CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD05</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>07 CGD - South Carolina, Georgia, eastern Florida, Puerto Rico, and the U.S. Virgin Islands</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/07CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD07</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>08 CGD - Inland waters of the U.S. and the Gulf of Mexico</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/08CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD08</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>09 CGD - Great Lakes</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/09CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD09</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>11 CGD - California, Arizona, Nevada, and Utah</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/11CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD11</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>13 CGD - Oregon, Washington, Idaho and Montana</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/13CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD13</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>14 CGD - Hawaii and Pacific territories</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/14CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD14</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>17 CGD - Alaska</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/17CGD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CGD17</dir>
+-                </catalog>
+-              </catalogs>
+-            </section>
+-            <section>
+-              <name>by States</name>
+-              <catalogs>
+-                <catalog>
+-                  <name>AK - Alaska</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/AK_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_AK</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>AL - Alabama</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/AL_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_AL</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>CA - California</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/CA_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CA</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>CT - Connecticut</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/CT_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_CT</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>DE - Delaware</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/DE_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_DE</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>FL - Florida</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/FL_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_FL</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>GA - Georgia</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/GA_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_GA</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>HI - Hawaii</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/HI_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_HI</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>ID - Idaho</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/ID_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_ID</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>IL - Illinois</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/IL_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_IL</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>IN - Indiana</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/IN_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_IN</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>LA - Louisiana</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/LA_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_LA</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>MA - Massachusetts</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/MA_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_MA</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>MD - Maryland</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/MD_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_MD</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>ME - Maine</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/ME_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_ME</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>MI - Michigan</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/MI_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_MI</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>MN - Minnesota</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/MN_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_MN</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>MS - Mississippi</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/MS_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_MS</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>NC - North Carolina</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/NC_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_NC</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>NH - New Hampshire</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/NH_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_NH</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>NJ - New Jersey</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/NJ_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_NJ</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>NV - Nevada</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/NV_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_NV</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>NY - New York</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/NY_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_NY</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>OH - Ohio</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/OH_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_OH</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>OR - Oregon</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/OR_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_OR</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>PA - Pennsylvania</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/PA_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_PA</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>PO - Pacific Ocean</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/PO_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_PO</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>PR - Puerto Rico and Virgin Islands</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/PR_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_PR</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>RI - Rhode Island</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/RI_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_RI</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>SC - South Carolina</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/SC_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_SC</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>TX - Texas</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/TX_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_TX</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>VA - Virginia</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/VA_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_VA</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>VT - Vermont</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/VT_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_VT</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>WA - Washington</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/WA_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_WA</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>WI - Wisconsin</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/WI_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_WI</dir>
+-                </catalog>
+-              </catalogs>
+-            </section>
+-            <section>
+-              <name>by Region</name>
+-              <catalogs>
+-                <catalog>
+-                  <name>Region 02 - Block Island, RI to the Canadian Border</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/02Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION02</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 03 - New York to Nantucket and Cape May, NJ</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/03Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION03</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 04 - Chesapeake and Delaware Bays</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/04Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION04</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 06 - Norfolk, VA to Florida including the ICW</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/06Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION06</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 07 - Florida East Coast and the Keys</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/07Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION07</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 08 - Florida West Coast and the Keys</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/08Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION08</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 10 - Puerto Rico and the U.S. Virgin Islands</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/10Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION10</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 12 - Southern California: Point Arena to the Mexican Border</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/12Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION12</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 13 - Lake Michigan</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/13Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION13</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 14 - San Francisco to Cape Flattery</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/14Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION14</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 15 - Pacific Northwest: Puget Sound to the Canadian Border</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/15Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION15</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 17 - Mobile, AL to the Mexican Border</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/17Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION17</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 22 - Lake Superior and Lake Huron (U.S. Waters)</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/22Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION22</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 24 - Lake Erie (U.S. Waters)</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/24Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION24</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 26 - Lake Ontario (U.S. Waters)</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/26Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION26</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 30 - Southeast Alaska</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/30Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION30</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 32 - South Central Alaska: Yakutat to Kodiak</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/32Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION32</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 34 - Alaska: The Aleutians and Bristol Bay</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/34Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION34</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 36 - Alaska: Norton Sound to Beaufort Sea</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/36Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION36</dir>
+-                </catalog>
+-                <catalog>
+-                  <name>Region 40 - Hawaiian Islands and U.S. Territories</name>
+-                  <type>ENC</type>
+-                  <location>https://www.charts.noaa.gov/ENCs/40Region_ENCProdCat.xml</location>
+-                  <dir>{USERDATA}/ENC/US_REGION40</dir>
+-                </catalog>
+-              </catalogs>
+-            </section>
+-          </sections>
+-          <catalogs>
+-            <catalog>
+-              <name>US ACE Inland ENC charts</name>
+-              <location>https://ienccloud.us/ienc/products/catalog/IENCU37ProductsCatalog.xml</location>
+-              <dir>{USERDATA}/ENC/US_INLAND</dir>
+-            </catalog>
+-            <catalog>
+-              <name>US ACE Inland ENC Buoy Overlay</name>
+-              <location>https://ienccloud.us/ienc/products/catalog/IENCBuoyProductsCatalog.xml</location>
+-              <dir>{USERDATA}/ENC/US_INLAND_BUOYS</dir>
+-            </catalog>
+-            <catalog>
+-              <name>US ACE Inland ENC SW Pass Overlay</name>
+-              <location>https://ienccloud.us/ienc/products/catalog/IENCSWPassProductsCatalog.xml</location>
+-              <dir>{USERDATA}/ENC/US_INLAND_OVERLAYS</dir>
+-            </catalog>
+-          </catalogs>
+-        </section>
+-      </sections>
+-    </section>
+-    <section>
+-      <name>ChartCatalogs</name>
+-      <catalogs>
+-	<catalog>
+-	  <name>EURIS - All European waterways Inland ENC Charts</name>
++          <name>EURIS - All European waterways Inland ENC Charts</name>
+           <type>ENC</type>
+           <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/EURIS_IENC_Catalog.xml</location>
+           <dir>{USERDATA}/ENC/EURIS</dir>
+         </catalog>
+-        <catalog>
+-          <name>Argentina RNC Nautical Charts</name>
+-          <type>RNC</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/AR_RNC_Catalog.xml</location>
+-          <dir>{USERDATA}/RNC/ARGENTINA</dir>
+-        </catalog>
+         <catalog>
+           <name>Austria Inland ENC Charts</name>
+           <type>ENC</type>
+@@ -487,18 +22,6 @@
+           <location>https://charts.openwaterkaart.nl/OSM-raster-be/OSM-raster-be-catalog.xml</location>
+           <dir>{USERDATA}/RNC/BE_OSMRASTER</dir>
+         </catalog>
+-        <catalog>
+-          <name>Brasil RNC Nautical Charts</name>
+-          <type>RNC</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/BR_RNC_Catalog.xml</location>
+-          <dir>{USERDATA}/RNC/BRASIL</dir>
+-        </catalog>
+-        <catalog>
+-          <name>Brasil Inland ENC Charts</name>
+-          <type>RNC</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/BR_IENC_Catalog.xml</location>
+-          <dir>{USERDATA}/ENC/BRASIL_INLAND</dir>
+-        </catalog>
+         <catalog>
+           <name>Bulgaria Inland ENC Charts</name>
+           <type>ENC</type>
+@@ -535,12 +58,6 @@
+           <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/DE_IENC_Catalog.xml</location>
+           <dir>{USERDATA}/ENC/DE_INLAND</dir>
+         </catalog>
+-        <catalog>
+-          <name>GEBCO Global bathymetric and topographic shaded relief MBTiles</name>
+-          <type>MBTiles</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/refs/heads/master/GEBCO_MBTiles_Catalog.xml</location>
+-          <dir>{USERDATA}/MBTiles/GEBCO</dir>
+-        </catalog>
+         <catalog>
+           <name>Germany OSM Raster Charts</name>
+           <type>RNC</type>
+@@ -554,29 +71,17 @@
+           <dir>{USERDATA}/ENC/HU_INLAND</dir>
+         </catalog>
+         <catalog>
+-          <name>The Netherlands Inland ENC Charts</name>
++          <name>Netherlands Inland ENC Charts</name>
+           <type>ENC</type>
+           <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/NL_IENC_Catalog.xml</location>
+           <dir>{USERDATA}/ENC/NL_INLAND</dir>
+         </catalog>
+         <catalog>
+-          <name>The Netherlands OSM Raster Charts</name>
++          <name>Netherlands OSM Raster Charts</name>
+           <type>RNC</type>
+           <location>https://charts.openwaterkaart.nl/OSM-raster-nl/OSM-raster-nl-catalog.xml</location>
+           <dir>{USERDATA}/RNC/NL_OSMRASTER</dir>
+         </catalog>
+-        <catalog>
+-          <name>New Zealand RNC Nautical Charts</name>
+-          <type>RNC</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/NZ_RNC_Catalog.xml</location>
+-          <dir>{USERDATA}/RNC/NZ</dir>
+-        </catalog>
+-        <catalog>
+-          <name>Peru RNC Nautical Charts</name>
+-          <type>RNC</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/PE_RNC_Catalog.xml</location>
+-          <dir>{USERDATA}/RNC/PERU</dir>
+-        </catalog>
+         <catalog>
+           <name>Poland Inland ENC Charts</name>
+           <type>ENC</type>
+@@ -601,12 +106,6 @@
+           <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/SK_IENC_Catalog.xml</location>
+           <dir>{USERDATA}/ENC/SK_INLAND</dir>
+         </catalog>
+-        <catalog>
+-          <name>South China Sea ENC Charts</name>
+-          <type>ENC</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/SCS_ENC_Catalog.xml</location>
+-          <dir>{USERDATA}/ENC/SCS</dir>
+-        </catalog>
+         <catalog>
+           <name>Switzerland Inland ENC Charts</name>
+           <type>ENC</type>
+@@ -616,26 +115,552 @@
+       </catalogs>
+     </section>
+     <section>
+-      <name>US Pilot Charts</name>
++      <name>North America</name>
++      <sections>
++        <section>
++          <name>USA - NOAA &amp; Inland charts</name>
++          <sections>
++            <section>
++              <name>ENC</name>
++              <sections>
++                <section>
++                  <name>All ENCs</name>
++                  <catalogs>
++                    <catalog>
++                      <name>All</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US</dir>
++                    </catalog>
++                  </catalogs>
++                </section>
++                <section>
++                  <name>by Coast Guard Districts</name>
++                  <catalogs>
++                    <catalog>
++                      <name>01 CGD - New England states, eastern New York, and northern New Jersey</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/01CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD01</dir>
++                    </catalog>
++                    <catalog>
++                      <name>05 CGD - Pennsylvania, southern New Jersey, Delaware, Maryland, Virginia, and North Carolina</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/05CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD05</dir>
++                    </catalog>
++                    <catalog>
++                      <name>07 CGD - South Carolina, Georgia, eastern Florida, Puerto Rico, and the U.S. Virgin Islands</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/07CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD07</dir>
++                    </catalog>
++                    <catalog>
++                      <name>08 CGD - Inland waters of the U.S. and the Gulf of Mexico</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/08CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD08</dir>
++                    </catalog>
++                    <catalog>
++                      <name>09 CGD - Great Lakes</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/09CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD09</dir>
++                    </catalog>
++                    <catalog>
++                      <name>11 CGD - California, Arizona, Nevada, and Utah</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/11CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD11</dir>
++                    </catalog>
++                    <catalog>
++                      <name>13 CGD - Oregon, Washington, Idaho and Montana</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/13CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD13</dir>
++                    </catalog>
++                    <catalog>
++                      <name>14 CGD - Hawaii and Pacific territories</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/14CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD14</dir>
++                    </catalog>
++                    <catalog>
++                      <name>17 CGD - Alaska</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/17CGD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CGD17</dir>
++                    </catalog>
++                  </catalogs>
++                </section>
++                <section>
++                  <name>by States</name>
++                  <catalogs>
++                    <catalog>
++                      <name>AK - Alaska</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/AK_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_AK</dir>
++                    </catalog>
++                    <catalog>
++                      <name>AL - Alabama</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/AL_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_AL</dir>
++                    </catalog>
++                    <catalog>
++                      <name>CA - California</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/CA_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CA</dir>
++                    </catalog>
++                    <catalog>
++                      <name>CT - Connecticut</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/CT_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_CT</dir>
++                    </catalog>
++                    <catalog>
++                      <name>DE - Delaware</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/DE_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_DE</dir>
++                    </catalog>
++                    <catalog>
++                      <name>FL - Florida</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/FL_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_FL</dir>
++                    </catalog>
++                    <catalog>
++                      <name>GA - Georgia</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/GA_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_GA</dir>
++                    </catalog>
++                    <catalog>
++                      <name>HI - Hawaii</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/HI_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_HI</dir>
++                    </catalog>
++                    <catalog>
++                      <name>ID - Idaho</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/ID_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_ID</dir>
++                    </catalog>
++                    <catalog>
++                      <name>IL - Illinois</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/IL_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_IL</dir>
++                    </catalog>
++                    <catalog>
++                      <name>IN - Indiana</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/IN_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_IN</dir>
++                    </catalog>
++                    <catalog>
++                      <name>LA - Louisiana</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/LA_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_LA</dir>
++                    </catalog>
++                    <catalog>
++                      <name>MA - Massachusetts</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/MA_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_MA</dir>
++                    </catalog>
++                    <catalog>
++                      <name>MD - Maryland</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/MD_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_MD</dir>
++                    </catalog>
++                    <catalog>
++                      <name>ME - Maine</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/ME_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_ME</dir>
++                    </catalog>
++                    <catalog>
++                      <name>MI - Michigan</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/MI_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_MI</dir>
++                    </catalog>
++                    <catalog>
++                      <name>MN - Minnesota</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/MN_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_MN</dir>
++                    </catalog>
++                    <catalog>
++                      <name>MS - Mississippi</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/MS_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_MS</dir>
++                    </catalog>
++                    <catalog>
++                      <name>NC - North Carolina</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/NC_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_NC</dir>
++                    </catalog>
++                    <catalog>
++                      <name>NH - New Hampshire</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/NH_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_NH</dir>
++                    </catalog>
++                    <catalog>
++                      <name>NJ - New Jersey</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/NJ_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_NJ</dir>
++                    </catalog>
++                    <catalog>
++                      <name>NV - Nevada</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/NV_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_NV</dir>
++                    </catalog>
++                    <catalog>
++                      <name>NY - New York</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/NY_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_NY</dir>
++                    </catalog>
++                    <catalog>
++                      <name>OH - Ohio</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/OH_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_OH</dir>
++                    </catalog>
++                    <catalog>
++                      <name>OR - Oregon</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/OR_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_OR</dir>
++                    </catalog>
++                    <catalog>
++                      <name>PA - Pennsylvania</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/PA_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_PA</dir>
++                    </catalog>
++                    <catalog>
++                      <name>PO - Pacific Ocean</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/PO_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_PO</dir>
++                    </catalog>
++                    <catalog>
++                      <name>PR - Puerto Rico and Virgin Islands</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/PR_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_PR</dir>
++                    </catalog>
++                    <catalog>
++                      <name>RI - Rhode Island</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/RI_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_RI</dir>
++                    </catalog>
++                    <catalog>
++                      <name>SC - South Carolina</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/SC_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_SC</dir>
++                    </catalog>
++                    <catalog>
++                      <name>TX - Texas</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/TX_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_TX</dir>
++                    </catalog>
++                    <catalog>
++                      <name>VA - Virginia</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/VA_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_VA</dir>
++                    </catalog>
++                    <catalog>
++                      <name>VT - Vermont</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/VT_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_VT</dir>
++                    </catalog>
++                    <catalog>
++                      <name>WA - Washington</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/WA_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_WA</dir>
++                    </catalog>
++                    <catalog>
++                      <name>WI - Wisconsin</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/WI_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_WI</dir>
++                    </catalog>
++                  </catalogs>
++                </section>
++                <section>
++                  <name>by Region</name>
++                  <catalogs>
++                    <catalog>
++                      <name>Region 02 - Block Island, RI to the Canadian Border</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/02Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION02</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 03 - New York to Nantucket and Cape May, NJ</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/03Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION03</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 04 - Chesapeake and Delaware Bays</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/04Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION04</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 06 - Norfolk, VA to Florida including the ICW</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/06Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION06</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 07 - Florida East Coast and the Keys</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/07Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION07</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 08 - Florida West Coast and the Keys</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/08Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION08</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 10 - Puerto Rico and the U.S. Virgin Islands</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/10Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION10</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 12 - Southern California: Point Arena to the Mexican Border</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/12Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION12</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 13 - Lake Michigan</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/13Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION13</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 14 - San Francisco to Cape Flattery</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/14Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION14</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 15 - Pacific Northwest: Puget Sound to the Canadian Border</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/15Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION15</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 17 - Mobile, AL to the Mexican Border</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/17Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION17</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 22 - Lake Superior and Lake Huron (U.S. Waters)</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/22Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION22</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 24 - Lake Erie (U.S. Waters)</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/24Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION24</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 26 - Lake Ontario (U.S. Waters)</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/26Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION26</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 30 - Southeast Alaska</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/30Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION30</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 32 - South Central Alaska: Yakutat to Kodiak</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/32Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION32</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 34 - Alaska: The Aleutians and Bristol Bay</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/34Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION34</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 36 - Alaska: Norton Sound to Beaufort Sea</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/36Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION36</dir>
++                    </catalog>
++                    <catalog>
++                      <name>Region 40 - Hawaiian Islands and U.S. Territories</name>
++                      <type>ENC</type>
++                      <location>https://www.charts.noaa.gov/ENCs/40Region_ENCProdCat.xml</location>
++                      <dir>{USERDATA}/ENC/US_REGION40</dir>
++                    </catalog>
++                  </catalogs>
++                </section>
++              </sections>
++              <catalogs>
++                <catalog>
++                  <name>US ACE Inland ENC charts</name>
++                  <location>https://ienccloud.us/ienc/products/catalog/IENCU37ProductsCatalog.xml</location>
++                  <dir>{USERDATA}/ENC/US_INLAND</dir>
++                </catalog>
++                <catalog>
++                  <name>US ACE Inland ENC Buoy Overlay</name>
++                  <location>https://ienccloud.us/ienc/products/catalog/IENCBuoyProductsCatalog.xml</location>
++                  <dir>{USERDATA}/ENC/US_INLAND_BUOYS</dir>
++                </catalog>
++                <catalog>
++                  <name>US ACE Inland ENC SW Pass Overlay</name>
++                  <location>https://ienccloud.us/ienc/products/catalog/IENCSWPassProductsCatalog.xml</location>
++                  <dir>{USERDATA}/ENC/US_INLAND_OVERLAYS</dir>
++                </catalog>
++              </catalogs>
++            </section>
++          </sections>
++        </section>
++        <section>
++          <name>MBTiles</name>
++          <catalogs>
++            <catalog>
++              <name>NOAA (~500MB each, prefer the RNC charts)</name>
++              <type>MBTiles</type>
++              <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/NOAA_MBTiles_Catalog.xml</location>
++              <dir>{USERDATA}/MBTiles/NOAA</dir>
++            </catalog>
++          </catalogs>
++        </section>
++      </sections>
++    </section>
++    <section>
++      <name>South America</name>
+       <catalogs>
+         <catalog>
+-          <name>All Pilot Charts</name>
++          <name>Argentina RNC Nautical Charts</name>
+           <type>RNC</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/PILOT_Catalog.xml</location>
+-          <dir>{USERDATA}/PILOT_CHARTS</dir>
++          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/AR_RNC_Catalog.xml</location>
++          <dir>{USERDATA}/RNC/ARGENTINA</dir>
++        </catalog>
++        <catalog>
++          <name>Brasil Inland ENC Charts</name>
++          <type>RNC</type>
++          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/BR_IENC_Catalog.xml</location>
++          <dir>{USERDATA}/ENC/BRASIL_INLAND</dir>
++        </catalog>
++        <catalog>
++          <name>Brasil RNC Nautical Charts</name>
++          <type>RNC</type>
++          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/BR_RNC_Catalog.xml</location>
++          <dir>{USERDATA}/RNC/BRASIL</dir>
++        </catalog>
++        <catalog>
++          <name>Peru RNC Nautical Charts</name>
++          <type>RNC</type>
++          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/PE_RNC_Catalog.xml</location>
++          <dir>{USERDATA}/RNC/PERU</dir>
+         </catalog>
+       </catalogs>
+     </section>
+     <section>
+-      <name>MBTiles</name>
++      <name>Asia and Oceania</name>
+       <catalogs>
+         <catalog>
+-          <name>NOAA (~500MB each, prefer the RNC charts)</name>
+-          <type>MBTiles</type>
+-          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/NOAA_MBTiles_Catalog.xml</location>
+-          <dir>{USERDATA}/MBTiles/NOAA</dir>
++          <name>New Zealand RNC Nautical Charts</name>
++          <type>RNC</type>
++          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/NZ_RNC_Catalog.xml</location>
++          <dir>{USERDATA}/RNC/NZ</dir>
++        </catalog>
++        <catalog>
++          <name>South China Sea ENC Charts</name>
++          <type>ENC</type>
++          <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/SCS_ENC_Catalog.xml</location>
++          <dir>{USERDATA}/ENC/SCS</dir>
+         </catalog>
+       </catalogs>
+     </section>
++    <section>
++      <name>World and basemaps</name>
++      <sections>
++        <section>
++          <name>GSHHG basemap</name>
++          <catalogs>
++            <catalog>
++              <name>All GSHHG basemaps</name>
++              <type>GSHHG</type>
++              <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/GSHHG_Catalog.xml</location>
++              <dir>{USERDATA}/GSHHG</dir>
++            </catalog>
++          </catalogs>
++        </section>
++        <section>
++          <name>OSM basemap</name>
++          <catalogs>
++            <catalog>
++              <name>All OSM basemaps</name>
++              <type>SHP</type>
++              <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/OSMSHP_Catalog.xml</location>
++              <dir>{USERDATA}/OSMSHP</dir>
++            </catalog>
++          </catalogs>
++        </section>
++        <section>
++          <name>US Pilot Charts</name>
++          <catalogs>
++            <catalog>
++              <name>All Pilot Charts</name>
++              <type>RNC</type>
++              <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/master/PILOT_Catalog.xml</location>
++              <dir>{USERDATA}/PILOT_CHARTS</dir>
++            </catalog>
++          </catalogs>
++        </section>
++        <section>
++          <name>GEBCO bathymetry</name>
++          <catalogs>
++            <catalog>
++              <name>GEBCO Global bathymetric and topographic shaded relief MBTiles</name>
++              <type>MBTiles</type>
++              <location>https://raw.githubusercontent.com/chartcatalogs/catalogs/refs/heads/master/GEBCO_MBTiles_Catalog.xml</location>
++              <dir>{USERDATA}/MBTiles/GEBCO</dir>
++            </catalog>
++          </catalogs>
++        </section>
++      </sections>
++    </section>
+   </sections>
+ </ChartCatalog>
+diff --git a/plugins/chartdldr_pi/src/chartdldr_pi.cpp b/plugins/chartdldr_pi/src/chartdldr_pi.cpp
+index a580cbfc5..20792ada0 100644
+--- a/plugins/chartdldr_pi/src/chartdldr_pi.cpp
++++ b/plugins/chartdldr_pi/src/chartdldr_pi.cpp
+@@ -32,6 +32,11 @@
+ #include "wx/wx.h"
+ #endif  // precompiled headers
+ 
++#include <algorithm>
++#ifdef __OCPN__IOS__
++wxString ocpnios_DisplayPath(const wxString &path);  // app/ios/display_path.cpp
++#endif
++#include <vector>
+ #include "chartdldr_pi.h"
+ #include "wxWTranslateCatalog.h"
+ #include <wx/stdpaths.h>
+@@ -247,6 +252,19 @@ int chartdldr_pi::Init(void) {
+     wxString s1 = st.GetNextToken();
+     wxString s2 = st.GetNextToken();
+     wxString s3 = st.GetNextToken();
++#ifdef __OCPN__IOS__
++    // iOS: after a reinstall or update the app gets a new container, so the
++    // saved absolute path is stale. Map the part from "/Documents/" onto the
++    // current container.
++    if (!s3.IsEmpty() && !wxDirExists(s3)) {
++      int k = s3.Find("/Documents/");
++      if (k != wxNOT_FOUND) {
++        wxString docs = wxStandardPaths::Get().GetDocumentsDir();
++        wxString moved = docs + s3.Mid(k + wxStrlen("/Documents"));
++        if (wxDirExists(moved)) s3 = moved;
++      }
++    }
++#endif
+     if (!s2.IsEmpty())  // scrub empty sources.
+       m_ChartSources.push_back(std::make_unique<ChartSource>(s1, s2, s3));
+   }
+@@ -378,6 +396,11 @@ bool chartdldr_pi::SaveConfig(void) {
+     pConf->Write(_T ( "PreselectNew" ), m_preselect_new);
+     pConf->Write(_T ( "PreselectUpdated" ), m_preselect_updated);
+     pConf->Write(_T ( "AllowBulkUpdate" ), m_allow_bulk_update);
++#ifdef __OCPN__IOS__
++    // iOS terminates the app without a clean shutdown; without Flush a newly
++    // added chart source was lost after a restart.
++    pConf->Flush();
++#endif
+ 
+     return true;
+   } else
+@@ -683,10 +706,22 @@ void ChartDldrPanelImpl::SetSource(int id) {
+     FillFromFile(cs->GetUrl(), cs->GetDir(), pPlugIn->m_preselect_new,
+                  pPlugIn->m_preselect_updated);
+     wxURI url(cs->GetUrl());
++#ifdef __OCPN__IOS__
++    // iOS: show only the catalog name, wrapped to the width; the URL and
++    // directory ran off the right edge of the screen.
++    m_chartsLabel->SetLabel(wxString::Format(_("Charts: %s"), cs->GetName()));
++    {
++      // Use the notebook width: the page itself is not laid out yet the first
++      // time and would wrap after every word.
++      const int w = m_DLoadNB->GetClientSize().x - 24;
++      if (w > 200) m_chartsLabel->Wrap(w);
++    }
++#else
+     m_chartsLabel->SetLabel(wxString::Format(
+         _("Charts: %s"), (cs->GetName() + _(" from ") + url.BuildURI() +
+                           _T(" -> ") + cs->GetDir())
+                              .c_str()));
++#endif
+     if (::wxIsBusy()) ::wxEndBusyCursor();
+   } else {
+     pPlugIn->m_pChartSource = NULL;
+@@ -791,6 +826,9 @@ void ChartDldrPanelImpl::FillFromFile(wxString url, wxString dir, bool selnew,
+     }
+ 
+ #if !defined(CHART_LIST)  // wxDataViewListCtrl handles all of this AFAIK: Dan
++#ifdef __OCPN__IOS__
++    SyncAllChartsToggle();
++#endif
+     m_scrollWinChartList->ClearBackground();
+     m_scrollWinChartList->FitInside();
+     m_scrollWinChartList->GetSizer()->Layout();
+@@ -875,7 +913,11 @@ void ChartDldrPanelImpl::AppendCatalog(std::unique_ptr<ChartSource> &cs) {
+   long id = m_lbChartSources->GetItemCount();
+   m_lbChartSources->InsertItem(id, cs->GetName());
+   m_lbChartSources->SetItem(id, 1, _("(Please update first)"));
++#ifdef __OCPN__IOS__
++  m_lbChartSources->SetItem(id, 2, ocpnios_DisplayPath(cs->GetDir()));
++#else
+   m_lbChartSources->SetItem(id, 2, cs->GetDir());
++#endif
+   wxURI url(cs->GetUrl());
+   if (url.IsReference()) {
+     OCPNMessageBox_PlugIn(
+@@ -1047,7 +1089,11 @@ void ChartDldrPanelImpl::UpdateChartList(wxCommandEvent &event) {
+             id, 1,
+             pPlugIn->m_pChartCatalog.GetReleaseDate().Format(
+                 _T("%Y-%m-%d %H:%M")));
++#ifdef __OCPN__IOS__
++        m_lbChartSources->SetItem(id, 2, ocpnios_DisplayPath(cs->GetDir()));
++#else
+         m_lbChartSources->SetItem(id, 2, cs->GetDir());
++#endif
+ 
+       } else
+         OCPNMessageBox_PlugIn(
+@@ -1292,6 +1338,21 @@ void ChartDldrPanelImpl::CheckAllCharts(bool value) {
+ #endif /* CHART_LIST */
+ }
+ 
++#ifdef __OCPN__IOS__
++void ChartDldrPanelImpl::OnToggleAllCharts(wxCommandEvent &event) {
++  if (m_cbAllCharts) CheckAllCharts(m_cbAllCharts->GetValue());
++}
++
++// Keep the "select all" switch in sync with the list: on when all charts are
++// on.
++void ChartDldrPanelImpl::SyncAllChartsToggle() {
++  if (!m_cbAllCharts) return;
++  int n = GetChartCount();
++  m_cbAllCharts->Show(n > 1);
++  m_cbAllCharts->SetValue(n > 0 && GetCheckedChartCount() == n);
++}
++#endif
++
+ void ChartDldrPanelImpl::CheckNewCharts(bool value) {
+   for (int i = 0; i < GetChartCount(); i++) {
+ #if defined(CHART_LIST)
+@@ -1563,6 +1624,16 @@ ChartDldrPanelImpl::ChartDldrPanelImpl(chartdldr_pi *plugin, wxWindow *parent,
+     AppendCatalog(pPlugIn->m_ChartSources.at(i));
+   }
+   m_populated = true;
++#ifdef __OCPN__IOS__
++  // iOS: without a selected catalog the "Download Charts" tab was empty with no
++  // hint. Select the last used catalog, or else the first one.
++  if (m_lbChartSources->GetItemCount() > 0) {
++    int sel = pPlugIn->GetSourceId();
++    if (sel < 0 || sel >= m_lbChartSources->GetItemCount()) sel = 0;
++    SelectCatalog(sel);
++    SetSource(sel);  // wxQt sends no selection event on SetItemState
++  }
++#endif
+ }
+ 
+ void ChartDldrPanelImpl::OnPaint(wxPaintEvent &event) {
+@@ -1639,6 +1710,11 @@ void ChartDldrPanelImpl::AddSource(wxCommandEvent &event) {
+     SelectCatalog(m_lbChartSources->GetItemCount() - 1);
+     pPlugIn->m_ChartSources.push_back(std::move(cs));
+     pPlugIn->SaveConfig();
++    // Fetch the catalog right away instead of showing "(Please update first)"
++    // and making the user find Update. On success UpdateChartList opens the
++    // chart list.
++    wxCommandEvent update;
++    UpdateChartList(update);
+   }
+ #ifdef __ANDROID__
+   androidEnableRotation();
+@@ -2333,9 +2409,56 @@ bool ChartDldrGuiAddSourceDlg::LoadSources() {
+     }
+   }
+   wxDELETE(doc);
++  ExpandOwnRegion(tree);
+   return true;
+ }
+ 
++// Continent of the country from the locale (nl_NL -> NL -> Europe). Only used
++// for sort order and which group is expanded; all sources stay in the list.
++static wxString RegionOfCountry(const wxString &cc) {
++  static const char *eu[] = {
++      "AD", "AL", "AT", "BA", "BE", "BG", "BY", "CH", "CY", "CZ", "DE",   "DK",
++      "EE", "ES", "FI", "FO", "FR", "GB", "GI", "GR", "HR", "HU", "IE",   "IS",
++      "IT", "LI", "LT", "LU", "LV", "MC", "MD", "ME", "MK", "MT", "NL",   "NO",
++      "PL", "PT", "RO", "RS", "SE", "SI", "SK", "SM", "UA", "VA", nullptr};
++  static const char *na[] = {"US", "CA", "MX", "BS", "BM",   "CU", "DO",
++                             "HT", "JM", "PR", "TT", "BZ",   "CR", "GT",
++                             "HN", "NI", "PA", "SV", nullptr};
++  static const char *sa[] = {"AR", "BO", "BR", "CL", "CO", "EC",   "GY",
++                             "PE", "PY", "SR", "UY", "VE", nullptr};
++  static const char *ao[] = {"AU", "NZ", "CN", "HK", "ID",   "IN",
++                             "JP", "KR", "MY", "PH", "SG",   "TH",
++                             "TW", "VN", "FJ", "PG", nullptr};
++  struct R {
++    const char **list;
++    const char *name;
++  } regions[] = {{eu, "Europe"},
++                 {na, "North America"},
++                 {sa, "South America"},
++                 {ao, "Asia and Oceania"}};
++  for (auto &r : regions)
++    for (const char **p = r.list; *p; ++p)
++      if (cc == *p) return r.name;
++  return wxEmptyString;
++}
++
++void ChartDldrGuiAddSourceDlg::ExpandOwnRegion(const wxTreeItemId &root) {
++  wxString name =
++      wxLocale::GetLanguageCanonicalName(wxLocale::GetSystemLanguage());
++  wxString cc = name.AfterFirst('_').Left(2).Upper();
++  wxString region = RegionOfCountry(cc);
++  if (region.IsEmpty()) return;
++  wxString label = wxGetTranslation(region);
++  wxTreeItemIdValue cookie;
++  for (wxTreeItemId it = m_treeCtrlPredefSrcs->GetFirstChild(root, cookie);
++       it.IsOk(); it = m_treeCtrlPredefSrcs->GetNextChild(root, cookie)) {
++    if (m_treeCtrlPredefSrcs->GetItemText(it) == label) {
++      m_treeCtrlPredefSrcs->Expand(it);
++      return;
++    }
++  }
++}
++
+ bool ChartDldrGuiAddSourceDlg::LoadSections(const wxTreeItemId &root,
+                                             pugi::xml_node &node) {
+   for (pugi::xml_node element = node.first_child(); element;
+@@ -2354,7 +2477,9 @@ bool ChartDldrGuiAddSourceDlg::LoadSection(const wxTreeItemId &root,
+        element = element.next_sibling()) {
+     if (!strcmp(element.name(), "name")) {
+       item = m_treeCtrlPredefSrcs->AppendItem(
+-          root, wxString::FromUTF8(element.first_child().value()), 0, 0);
++          root,
++          wxGetTranslation(wxString::FromUTF8(element.first_child().value())),
++          0, 0);
+ 
+       wxFont *pFont = OCPNGetFont(_("Dialog"));
+       if (pFont) m_treeCtrlPredefSrcs->SetItemFont(item, *pFont);
+@@ -2368,10 +2493,27 @@ bool ChartDldrGuiAddSourceDlg::LoadSection(const wxTreeItemId &root,
+ 
+ bool ChartDldrGuiAddSourceDlg::LoadCatalogs(const wxTreeItemId &root,
+                                             pugi::xml_node &node) {
++  // Sort by the displayed (translated) name so the list is alphabetical in
++  // every language. Sources covering a whole region ("EURIS - All ...", "All
++  // ...") go first.
++  std::vector<std::pair<wxString, pugi::xml_node>> items;
+   for (pugi::xml_node element = node.first_child(); element;
+        element = element.next_sibling()) {
+-    if (!strcmp(element.name(), "catalog")) LoadCatalog(root, element);
+-  }
++    if (strcmp(element.name(), "catalog")) continue;
++    wxString n =
++        wxString::FromUTF8(element.child("name").first_child().value());
++    items.emplace_back(n, element);
++  }
++  auto key = [](const wxString &n) {
++    bool whole = n.StartsWith("EURIS") || n.StartsWith("All ");
++    return (whole ? wxString("0") : wxString("1")) +
++           wxGetTranslation(n).Lower();
++  };
++  std::stable_sort(items.begin(), items.end(),
++                   [&](const auto &a, const auto &b) {
++                     return key(a.first).CmpNoCase(key(b.first)) < 0;
++                   });
++  for (auto &it : items) LoadCatalog(root, it.second);
+ 
+   return true;
+ }
+@@ -2390,8 +2532,10 @@ bool ChartDldrGuiAddSourceDlg::LoadCatalog(const wxTreeItemId &root,
+     else if (!strcmp(element.name(), "dir"))
+       dir = wxString::FromUTF8(element.first_child().value());
+   }
+-  ChartSource *cs = new ChartSource(name, location, dir);
+-  wxTreeItemId id = m_treeCtrlPredefSrcs->AppendItem(root, name, 1, 1, cs);
++  // The name is shown and stored translated (the XML holds the English name).
++  ChartSource *cs = new ChartSource(wxGetTranslation(name), location, dir);
++  wxTreeItemId id =
++      m_treeCtrlPredefSrcs->AppendItem(root, wxGetTranslation(name), 1, 1, cs);
+ 
+   wxFont *pFont = OCPNGetFont(_("Dialog"));
+   if (pFont) m_treeCtrlPredefSrcs->SetItemFont(id, *pFont);
+@@ -2424,7 +2568,14 @@ void ChartDldrGuiAddSourceDlg::OnSourceSelected(wxTreeEvent &event) {
+ 
+     m_tSourceName->SetValue(cs->GetName());
+     m_tChartSourceUrl->SetValue(cs->GetUrl());
++#ifdef __OCPN__IOS__
++    // iOS: always propose the directory of the selected source. Upstream only
++    // did so if the directory was still the previous proposal; after tapping
++    // "Custom" the internal app directory stayed and the charts ended up there.
++    if (true) {
++#else
+     if (m_tcChartDirectory->GetValue() == m_last_path) {
++#endif
+       m_tcChartDirectory->SetValue(FixPath(cs->GetDir()));
+       m_panelChartDirectory->SetText(FixPath(cs->GetDir()));
+ 
+diff --git a/plugins/chartdldr_pi/src/chartdldr_pi.h b/plugins/chartdldr_pi/src/chartdldr_pi.h
+index 5d62cbfee..f9f893fd6 100644
+--- a/plugins/chartdldr_pi/src/chartdldr_pi.h
++++ b/plugins/chartdldr_pi/src/chartdldr_pi.h
+@@ -243,6 +243,10 @@ protected:
+   int GetCheckedChartCount();
+   bool isChartChecked(int i);
+   void CheckAllCharts(bool value);
++#ifdef __OCPN__IOS__
++  void OnToggleAllCharts(wxCommandEvent& event) override;
++  void SyncAllChartsToggle();
++#endif
+   void InvertCheckAllCharts();
+ 
+   void CheckNewCharts(bool value);
+@@ -279,6 +283,7 @@ protected:
+ 
+   bool LoadSources();
+   bool LoadSections(const wxTreeItemId& root, pugi::xml_node& node);
++  void ExpandOwnRegion(const wxTreeItemId& root);
+   bool LoadSection(const wxTreeItemId& root, pugi::xml_node& node);
+   bool LoadCatalogs(const wxTreeItemId& root, pugi::xml_node& node);
+   bool LoadCatalog(const wxTreeItemId& root, pugi::xml_node& node);
+diff --git a/plugins/chartdldr_pi/src/chartdldrgui.cpp b/plugins/chartdldr_pi/src/chartdldrgui.cpp
+index b64fb3aa2..0e9b7df0b 100644
+--- a/plugins/chartdldr_pi/src/chartdldrgui.cpp
++++ b/plugins/chartdldr_pi/src/chartdldrgui.cpp
+@@ -7,11 +7,17 @@
+ 
+ #include "chartdldr_pi.h"
+ #include "chartdldrgui.h"
++#include <wx/stdpaths.h>
++#include <wx/tokenzr.h>
+ #include "manual.h"
+ #include "../../../libs/manual/include/manual.h"
+ #include <wx/msgdlg.h>
+ #include <wx/scrolwin.h>
+ #include <wx/textwrapper.h>
++#ifdef __OCPN__IOS__
++#include <QCoreApplication>
++#include <QVariant>
++#endif
+ 
+ ///////////////////////////////////////////////////////////////////////////
+ 
+@@ -159,8 +165,29 @@ DLDR_OCPNChartDirPanel::DLDR_OCPNChartDirPanel(wxWindow* parent, wxWindowID id,
+ 
+ DLDR_OCPNChartDirPanel::~DLDR_OCPNChartDirPanel() {}
+ 
++#ifdef __OCPN__IOS__
++// iOS: the path as the Files app shows it, relative to the app's Documents
++// folder; the full container path (with UUIDs) means nothing to the user.
++wxString ocpnios_DisplayPath(const wxString& path);  // app/ios/display_path.cpp
++static wxString IosShownDir(const wxString& dir) {
++  return ocpnios_DisplayPath(dir);
++}
++#endif
++
+ void DLDR_OCPNChartDirPanel::SetText(wxString text) {
+   m_ChartDir = text;
++#ifdef __OCPN__IOS__
++  {
++    const int w = std::max(100, GetSize().x - 12);
++    DLDR_ChartDirPanelHardBreakWrapper wrapper(this, IosShownDir(m_ChartDir),
++                                               w);
++    SetMinSize(wxSize(
++        -1, (int)wrapper.GetLineArray().GetCount() * GetCharHeight() + 12));
++    GetParent()->Layout();
++    Refresh();
++    return;
++  }
++#endif
+ 
+   int maxWidth = GetParent()->GetSize().x * 75 / 100;
+   DLDR_ChartDirPanelHardBreakWrapper wrapper(this, m_ChartDir, maxWidth);
+@@ -176,6 +203,32 @@ void DLDR_OCPNChartDirPanel::OnPaint(wxPaintEvent& event) {
+   int width, height;
+   GetSize(&width, &height);
+   wxPaintDC dc(this);
++#ifdef __OCPN__IOS__
++  // iOS: plain grey text on the card instead of a light blue bordered box.
++  {
++    const bool dark =
++        QCoreApplication::instance() &&
++        QCoreApplication::instance()->property("ocpnios_dark").toBool();
++    dc.SetPen(*wxTRANSPARENT_PEN);
++    dc.SetBrush(wxBrush(dark ? wxColour(0x1c, 0x1c, 0x1e) : *wxWHITE));
++    dc.DrawRectangle(0, 0, width, height);
++    dc.SetFont(*GetOCPNScaledFont_PlugIn(_("Dialog")));
++    dc.SetTextForeground(dark ? wxColour(0x8d, 0x8d, 0x93)
++                              : wxColour(0x6d, 0x6d, 0x72));
++    DLDR_ChartDirPanelHardBreakWrapper wrapper(this, IosShownDir(m_ChartDir),
++                                               std::max(100, width - 12));
++    int y = 6;
++    for (const wxString& line : wrapper.GetLineArray()) {
++      dc.DrawText(line, 6, y);
++      y += GetCharHeight();
++    }
++    if (height < y + 6) {
++      SetMinSize(wxSize(-1, y + 6));
++      GetParent()->Layout();
++    }
++    return;
++  }
++#endif
+ 
+   dc.SetPen(*wxTRANSPARENT_PEN);
+   dc.SetBrush(wxBrush(GetBackgroundColour()));
+@@ -361,8 +414,17 @@ void AddSourceDlg::OnNbPage(wxNotebookEvent& event) {
+   if (event.GetSelection() == 1) {
+     m_buttonChartDirectory->Enable();
+     if (m_tcChartDirectory->GetValue().IsEmpty()) {
+-      m_tcChartDirectory->SetValue(*GetpPrivateApplicationDataLocation());
+-      m_panelChartDirectory->SetText(*GetpPrivateApplicationDataLocation());
++#ifdef __OCPN__IOS__
++      // iOS: do not propose the app's internal directory. It would be added as
++      // a chart directory and fully scanned on every database update (minutes
++      // on an iPhone). Use the downloader's chart directory in Documents
++      // instead.
++      wxString dir = wxStandardPaths::Get().GetDocumentsDir() + "/Charts";
++#else
++      wxString dir = *GetpPrivateApplicationDataLocation();
++#endif
++      m_tcChartDirectory->SetValue(dir);
++      m_panelChartDirectory->SetText(dir);
+     }
+   } else {
+     wxTreeItemId item = m_treeCtrlPredefSrcs->GetSelection();
+@@ -443,12 +505,23 @@ ChartDldrPanel::ChartDldrPanel(wxWindow* parent, wxWindowID id,
+ 
+   //   Sources list box
+   wxBoxSizer* activeListSizer = new wxBoxSizer(wxVERTICAL);
++#ifdef __OCPN__IOS__
++  catalogPanelBoxSizer->Add(activeListSizer, 1, wxALL | wxEXPAND,
++                            5);  // fills the rest
++#else
+   catalogPanelBoxSizer->Add(activeListSizer, 0, wxALL | wxEXPAND, 5);
++#endif
+ 
+   m_lbChartSources =
+       new wxListCtrl(catalogPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                      wxLC_NO_SORT_HEADER | wxLC_REPORT | wxLC_SINGLE_SEL);
++#ifdef __OCPN__IOS__
++  // iOS: no 60 pt right margin; the list is as wide as the buttons below it.
++  activeListSizer->Add(m_lbChartSources, 1, wxEXPAND);
++
++#else
+   activeListSizer->Add(m_lbChartSources, 1, wxEXPAND | wxRIGHT, 60);
++#endif
+   /// m_lbChartSources->SetMinSize( wxSize( -1, 10 * GetCharHeight() ) );
+ 
+   //  Buttons
+@@ -503,6 +576,18 @@ ChartDldrPanel::ChartDldrPanel(wxWindow* parent, wxWindowID id,
+   //  Chart list
+   m_chartsLabel = new wxStaticText(chartsPanel, wxID_ANY, _("Charts"));
+   chartsPanelBoxSizer->Add(m_chartsLabel, 0, wxALL, 4 * border_size);
++#if defined(__OCPN__IOS__) && !defined(CHART_LIST)
++  // iOS: toggle all charts at once. New charts are selected by default and
++  // "Select all"/ "Deselect all" is only in the right-click menu; with many
++  // charts, picking just one took many taps.
++  m_cbAllCharts = new wxCheckBox(chartsPanel, wxID_ANY, _("Select all"));
++  m_cbAllCharts->SetValue(true);
++  chartsPanelBoxSizer->Add(m_cbAllCharts, 0, wxEXPAND | wxLEFT | wxRIGHT,
++                           4 * border_size);
++  m_cbAllCharts->Connect(
++      wxEVT_COMMAND_CHECKBOX_CLICKED,
++      wxCommandEventHandler(ChartDldrPanel::OnToggleAllCharts), NULL, this);
++#endif
+ 
+ #if defined(CHART_LIST)
+   m_scrollWinChartList = new wxDataViewListCtrl(
+@@ -535,9 +620,23 @@ ChartDldrPanel::ChartDldrPanel(wxWindow* parent, wxWindowID id,
+ 
+   m_scrollWinChartList = new wxScrolledWindow(
+       chartsPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
++#ifdef __OCPN__IOS__
++  chartsPanelBoxSizer->Add(m_scrollWinChartList, 1,
++                           wxEXPAND);  // fills the rest
++#else
+   chartsPanelBoxSizer->Add(m_scrollWinChartList, 0, wxEXPAND);
++#endif
+   m_scrollWinChartList->SetScrollRate(5, 5);
+   m_scrollWinChartList->SetMinSize(wxSize(-1, 12 * GetCharHeight()));
++#ifdef __OCPN__IOS__
++  {
++    const bool dark =
++        QCoreApplication::instance() &&
++        QCoreApplication::instance()->property("ocpnios_dark").toBool();
++    m_scrollWinChartList->SetBackgroundColour(dark ? wxColour(0x1c, 0x1c, 0x1e)
++                                                   : *wxWHITE);
++  }
++#endif
+ 
+ #ifdef HAVE_WX_GESTURE_EVENTS
+   if (!m_scrollWinChartList->EnableTouchEvents(wxTOUCH_PRESS_GESTURES)) {
+@@ -593,11 +692,20 @@ ChartDldrPanel::ChartDldrPanel(wxWindow* parent, wxWindowID id,
+   m_bDnldCharts =
+       new wxButton(chartsPanel, wxID_ANY, _("Download selected charts"),
+                    wxDefaultPosition, wxDefaultSize, 0);
++#ifdef __OCPN__IOS__
++  // iOS: full width, like the buttons below the catalog list.
++  chartsPanelBoxSizer->Add(m_bDnldCharts, 0, wxEXPAND | wxALL, 5);
++#else
+   chartsPanelBoxSizer->Add(m_bDnldCharts, 0, wxALIGN_LEFT | wxALL, 5);
++#endif
+ 
+   m_stCatalogInfo = new wxStaticText(chartsPanel, wxID_ANY, "",
+                                      wxDefaultPosition, wxDefaultSize, 0);
++#ifdef __OCPN__IOS__
++  chartsPanelBoxSizer->Add(m_stCatalogInfo, 0, wxEXPAND | wxALL, 5);
++#else
+   chartsPanelBoxSizer->Add(m_stCatalogInfo, 1, wxEXPAND | wxALL, 5);
++#endif
+   /// mainSizer->Add( m_stCatalogInfo, 0, wxEXPAND| wxALL, 5 );
+ 
+ #endif /* CHART_LIST */
+@@ -764,6 +872,17 @@ void ChartDldrPanel::OnSize(wxSizeEvent& event) {
+   if (sz.y > sz.x)  // Portait mode
+     ratio = 0.8;
+ 
++#ifdef __OCPN__IOS__
++  // iOS: the estimate above assumes the whole options page and ignores our
++  // header bar; the list got 475 pt and "Update" fell below the screen. Use a
++  // small minimum height instead; the list fills the rest of the tab
++  // (proportion 1 in the constructor) and the buttons below stay visible.
++  m_lbChartSources->SetMinSize(wxSize(-1, 160));
++  m_scrollWinChartList->SetMinSize(wxSize(-1, 160));
++  Layout();
++  event.Skip();
++  return;
++#endif
+   m_lbChartSources->SetMinSize(wxSize(-1, yAvail * ratio));
+   m_scrollWinChartList->SetMinSize(wxSize(-1, yAvail * ratio));
+   Layout();
+@@ -777,6 +896,36 @@ ChartPanel::ChartPanel(wxWindow* parent, wxWindowID id, const wxPoint& pos,
+                        wxString latest, ChartDldrPanel* DldrPanel, bool bcheck)
+     : wxPanel(parent, id, pos, size, wxBORDER_NONE) {
+   wxString Descriptor = Name + _T("\n    ") + stat + _T("   ") + latest;
++#ifdef __OCPN__IOS__
++  // iOS: long chart names ran off the screen (a switch does not wrap its
++  // label). Wrap at word boundaries within the list width minus the switch.
++  {
++    // Use the whole panel width: the list itself is not laid out yet while
++    // filling.
++    int avail = parent->GetClientSize().x;
++    if (DldrPanel && DldrPanel->GetClientSize().x > avail)
++      avail = DldrPanel->GetClientSize().x;
++    avail -= 110;  // switch and margins
++    wxString wrapped, line;
++    if (avail > 120) {
++      wxStringTokenizer tk(Name, " ", wxTOKEN_RET_EMPTY);
++      while (tk.HasMoreTokens()) {
++        const wxString word = tk.GetNextToken();
++        const wxString cand = line.empty() ? word : line + " " + word;
++        if (!line.empty() && parent->GetTextExtent(cand).x > avail) {
++          wrapped += line + "\n";
++          line = word;
++        } else {
++          line = cand;
++        }
++      }
++      wrapped += line;
++    } else {
++      wrapped = Name;
++    }
++    Descriptor = wrapped + "\n" + stat + "   " + latest;
++  }
++#endif
+   wxColour bColor;
+   GetGlobalColor(_T("DILG0"), &bColor);
+   bool bUseSysColors = false;
+@@ -794,6 +943,15 @@ ChartPanel::ChartPanel(wxWindow* parent, wxWindowID id, const wxPoint& pos,
+     }
+   }
+ 
++#ifdef __OCPN__IOS__
++  // iOS: card color (as in an iOS list) instead of a grey block.
++  {
++    const bool dark =
++        QCoreApplication::instance() &&
++        QCoreApplication::instance()->property("ocpnios_dark").toBool();
++    bColor = dark ? wxColour(0x1c, 0x1c, 0x1e) : *wxWHITE;
++  }
++#endif
+ #ifndef __WXOSX__
+   SetBackgroundColour(bColor);
+ #endif
+diff --git a/plugins/chartdldr_pi/src/chartdldrgui.h b/plugins/chartdldr_pi/src/chartdldrgui.h
+index 616980e38..cfec64ebc 100644
+--- a/plugins/chartdldr_pi/src/chartdldrgui.h
++++ b/plugins/chartdldr_pi/src/chartdldrgui.h
+@@ -137,6 +137,11 @@ protected:
+   wxNotebook* m_DLoadNB;
+   wxString m_csTitle;
+   wxStaticText* m_chartsLabel;
++#ifdef __OCPN__IOS__
++  // iOS: toggle all charts at once (desktop: context menu).
++  wxCheckBox* m_cbAllCharts = nullptr;
++  virtual void OnToggleAllCharts(wxCommandEvent& event) { event.Skip(); }
++#endif
+ #if !defined(CHART_LIST)  // The chart list viewer does not use m_panelArray
+   std::vector<std::unique_ptr<ChartPanel>> m_panelArray;
+ #endif /* CHART_LIST */
+-- 
+2.50.1 (Apple Git-155)
+

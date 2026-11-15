@@ -1,0 +1,84 @@
+From 81895f83507167d3a537b7034abf5d7a5421eb21 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:14 +0100
+Subject: [PATCH] N2K net: send the PGN 126996 request at most once a minute
+
+PrepareForTX() runs before every transmit. While m_TX_available is false
+it sends an ISO request (PGN 59904) for PGN 126996 to all devices, and
+every device on the bus answers with a fast-packet Product Information
+message. m_TX_available only becomes true for a gateway whose model ID
+contains "YDEN", so with other gateways (e.g. a Yacht Devices YDNR-02)
+the request is repeated on every transmitted message for as long as
+OpenCPN runs. Measured on a boat bus with only the WMM plugin sending
+PGN 127258 once a second: 803 frames/s and one request per transmitted
+message, against 276 frames/s without OpenCPN.
+
+Remember when the request was last sent and repeat it at most once a
+minute. With this change the same test gives 287 frames/s and two
+requests in 123 s. Gateway detection itself is unchanged: a YDEN that
+answers late is still found by a later request, and transmitting does
+not depend on the result (SendN2KNetwork ignores the return value).
+
+Fixes the bus flood reported in #5537. Recognising other Yacht Devices
+gateways as TX-capable is left for a separate change.
+---
+ model/include/model/comm_drv_n2k_net.h |  4 ++++
+ model/src/comm_drv_n2k_net.cpp         | 13 +++++++++++++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/model/include/model/comm_drv_n2k_net.h b/model/include/model/comm_drv_n2k_net.h
+index dfae08b4d..37c08cb5a 100644
+--- a/model/include/model/comm_drv_n2k_net.h
++++ b/model/include/model/comm_drv_n2k_net.h
+@@ -25,6 +25,8 @@
+ #ifndef _COMMDRIVERN2KNET_H
+ #define _COMMDRIVERN2KNET_H
+ 
++#include <chrono>
++
+ #ifndef __WXMSW__
+ #include <sys/socket.h>  // needed for (some) Mac builds
+ #include <netinet/in.h>
+@@ -213,6 +215,8 @@ private:
+   char m_TX_flag;
+   bool m_TX_available;
+   wxTimer m_prodinfo_timer;
++  /** Last time PrepareForTX() sent the PGN 126996 broadcast request. */
++  std::chrono::steady_clock::time_point m_prodinfo_request_time;
+   int m_detect_count;  //  should we invoke DetectFormat?
+ 
+   obs::Listener resume_listener;
+diff --git a/model/src/comm_drv_n2k_net.cpp b/model/src/comm_drv_n2k_net.cpp
+index 12e2588ad..4037d5ca4 100644
+--- a/model/src/comm_drv_n2k_net.cpp
++++ b/model/src/comm_drv_n2k_net.cpp
+@@ -1818,6 +1818,9 @@ std::vector<std::vector<unsigned char>> CommDriverN2KNet::GetTxVector(
+   return tx_vector;
+ }
+ 
++/** Minimum time between two PGN 126996 broadcast requests in PrepareForTX(). */
++static constexpr auto kProdInfoRequestInterval = std::chrono::seconds(60);
++
+ bool CommDriverN2KNet::PrepareForTX() {
+   // We need to determine several items before TX operations can commence.
+   // 1.  Is the gateway configured at my ip present, and if so, which of
+@@ -1857,6 +1860,16 @@ bool CommDriverN2KNet::PrepareForTX() {
+   if (m_TX_available)
+     return true;
+   else {
++    // Every device on the bus answers this broadcast. If the gateway is never
++    // recognised (e.g. a Yacht Devices gateway whose model ID is not "YDEN"),
++    // m_TX_available stays false, so do not repeat the request on every
++    // transmit: at most once per kProdInfoRequestInterval.
++    const auto now = std::chrono::steady_clock::now();
++    if (m_prodinfo_request_time != std::chrono::steady_clock::time_point() &&
++        now - m_prodinfo_request_time < kProdInfoRequestInterval)
++      return false;
++    m_prodinfo_request_time = now;
++
+     // Send a broadcast request for PGN 126996, Product Information
+     std::vector<unsigned char> payload;
+     payload.push_back(0x14);
+-- 
+2.50.1 (Apple Git-155)
+

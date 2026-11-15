@@ -68,8 +68,25 @@ TestFlight is planned.
 | `docs/` | build guide, licence notes, o-charts notes |
 
 Third-party source is not stored here. `scripts/fetch-upstream.sh` downloads every component
-at a fixed commit into `upstream/`; builds go into `build/`. Most comments in the code and the
-script messages are in Dutch.
+at a fixed commit into `upstream/`; builds go into `build/`. The script messages and most code
+in `app/` are in Dutch.
+
+## The changes to OpenCPN
+
+The changes to OpenCPN itself are kept as a series of small commits, each about one subject and
+each with an English explanation. They live in a fork of OpenCPN,
+[xanderburchartz/OpenCPN](https://github.com/xanderburchartz/OpenCPN), on two branches:
+
+- [`ios-port`](https://github.com/xanderburchartz/OpenCPN/tree/ios-port): the series on top
+  of OpenCPN `master`. This is where the work happens and what is offered for review.
+- [`ios-port-5.14.2`](https://github.com/xanderburchartz/OpenCPN/tree/ios-port-5.14.2): the
+  same commits on the OpenCPN 5.14.2 release. The app is built from this branch.
+
+The same release series is in `patches/OpenCPN/` as `git format-patch` files, so that
+`scripts/apply-patches.sh` can rebuild the source tree from a plain OpenCPN checkout. Fixes that
+are not specific to iOS go to OpenCPN as separate pull requests; the first one is in
+`patches/OpenCPN-fixes/n2k-126996-request-backoff/`
+([OpenCPN#5550](https://github.com/OpenCPN/OpenCPN/pull/5550)).
 
 ## Licence
 

@@ -110,16 +110,22 @@ from your instruments) and your location (built-in GPS).
 ## 7. Making changes
 
 - The iOS-specific code is in `app/` (own code) and in `patches/` (changes to third-party
-  source). If you change something in `upstream/<project>`, regenerate the patch, for example
-  for OpenCPN:
+  source). The OpenCPN changes are a series of small commits on top of `Release_5.14.2`
+  (`patches/OpenCPN/0001-*.patch` and following, applied with `git am`). To change OpenCPN,
+  commit in `upstream/OpenCPN` (a new small commit per topic) and regenerate the series:
 
-      git -C upstream/OpenCPN add -A && git -C upstream/OpenCPN diff --cached Release_5.14.2 > patches/OpenCPN/0001-ios-port.patch
+      rm patches/OpenCPN/*.patch
+      git -C upstream/OpenCPN format-patch --no-signature -o "$PWD/patches/OpenCPN" Release_5.14.2
+
+  For the other projects regenerate the single patch, e.g.
+  `git -C upstream/radar_pi diff > patches/radar_pi/0001-ios.patch`.
 
 - Rebuilding after a change: `scripts/build-ocpn-ios.sh device-release build` (only what has
   changed). After a change to `app/cmake/ios-plugins.cmake`, or in a plugin with fixups:
   `... device-release all`.
 
-Comments in the code and the script messages are mostly in Dutch.
+Comments in the patches are in English; the script messages and the code in `app/` are
+mostly in Dutch.
 
 ## 8. Troubleshooting
 

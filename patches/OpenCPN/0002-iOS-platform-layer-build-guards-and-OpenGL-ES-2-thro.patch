@@ -1,0 +1,1449 @@
+From 414efa3ee02d4a10132b821ff78c01c63cd70537 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 02/13] iOS: platform layer, build guards and OpenGL ES 2
+ through Qt
+
+Make OpenCPN build and run on iOS (wxWidgets on Qt, static build, app
+sandbox). These two parts only build together, so they are one commit.
+
+OpenGL ES 2 through Qt:
+- On iOS OpenCPN renders with OpenGL ES 2 through Qt (qopengl.h), like the
+  Android build but without the Android GLES headers. Add an iOS branch next
+  to the Android branch in the GL include blocks, use the GLES2 shader path
+  and skip GL calls that GLES does not have.
+
+Platform layer:
+- Exclude code that needs IOKit, SocketCAN, CoreGraphics display IDs,
+  serial ports or system(), none of which exist on iOS.
+- Paths in the app sandbox: private data under Library/Application
+  Support, shared data and translations in the app bundle, the log file
+  in Documents so it shows in the Files app.
+- Sound through AVFoundation; device GPS, compass and barometer through
+  the existing Android internal-GPS driver, fed by the iOS app layer.
+- Startup: create no windows before iOS reports the app active, show a
+  busy indicator, no GL probe helper (OpenGL ES is always present), and
+  plugin instrument panes float instead of docking.
+- Safe-mode question as an alert; the online manual opens in Safari.
+- grib_pi email.cpp: no sendmail or shell on iOS; a GRIB request opens the
+  Mail app through a mailto: link.
+- svg_utils: hash long cache file names, which exceeded 255 characters in
+  the iOS container.
+
+All changes are inside #ifdef __OCPN__IOS__ (or exclude iOS from an
+existing macOS branch); other platforms are unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/include/gui/about_frame_impl.h       |  4 ++
+ gui/include/gui/canvas_options.h         | 14 ++++++
+ gui/include/gui/chcanv.h                 | 27 ++++++++++-
+ gui/include/gui/connection_edit.h        |  5 ++
+ gui/include/gui/dychart.h                |  7 +++
+ gui/include/gui/gl_headers.h             |  4 ++
+ gui/include/gui/mark_info.h              | 18 +++++++
+ gui/include/gui/ocpn_frame.h             |  6 +++
+ gui/include/gui/options.h                | 45 +++++++++++++++++-
+ gui/include/gui/shaders.h                |  7 +++
+ gui/src/displays.cpp                     | 29 +++++++++++-
+ gui/src/gl_chart_canvas.cpp              | 60 ++++++++++++++++++++----
+ gui/src/gl_texture_descr.cpp             |  3 ++
+ gui/src/gl_texture_mgr.cpp               |  3 ++
+ gui/src/mark_info.cpp                    |  9 ++++
+ gui/src/mbtiles/mbtiles.cpp              |  3 +-
+ gui/src/ocpn_app.cpp                     | 34 ++++++++++++--
+ gui/src/ocpn_platform.cpp                | 39 +++++++++++++--
+ gui/src/safe_mode_gui.cpp                |  9 ++++
+ gui/src/shaders.cpp                      |  2 +
+ gui/src/viewport.cpp                     |  3 ++
+ libs/geoprim/src/LLRegion.cpp            |  3 ++
+ libs/gl_headers/android/GL/gl_private.h  | 15 ++++++
+ libs/manual/src/manual.cpp               | 21 +++++++++
+ libs/o_sound/src/factory.cpp             | 10 +++-
+ libs/o_sound/src/system_cmd_sound.cpp    |  5 ++
+ libs/s52plib/src/Cs52_shaders.cpp        |  2 +
+ libs/s52plib/src/Cs52_shaders.h          |  2 +-
+ libs/s52plib/src/TexFont.cpp             |  3 ++
+ libs/s52plib/src/chartsymbols.cpp        |  3 ++
+ libs/s52plib/src/chartsymbols.h          |  3 ++
+ libs/s52plib/src/mygeom.cpp              |  4 ++
+ libs/s52plib/src/mygeom.h                |  6 +++
+ libs/s52plib/src/s52plibGL.h             |  3 ++
+ libs/serial/src/impl/unix.cc             |  4 +-
+ model/include/model/comm_can_util.h      |  2 +-
+ model/src/base_platform.cpp              | 47 +++++++++++++++++++
+ model/src/comm_drv_factory.cpp           |  5 +-
+ model/src/comm_drv_n0183_android_int.cpp |  5 ++
+ model/src/macutils.c                     |  2 +-
+ model/src/ser_ports.cpp                  |  5 ++
+ model/src/std_instance_chk.cpp           |  7 ++-
+ model/src/svg_utils.cpp                  | 15 ++++++
+ plugins/grib_pi/src/email.cpp            | 28 +++++++++++
+ 44 files changed, 500 insertions(+), 31 deletions(-)
+
+diff --git a/gui/include/gui/about_frame_impl.h b/gui/include/gui/about_frame_impl.h
+index a97ab4258..c01b47c6c 100644
+--- a/gui/include/gui/about_frame_impl.h
++++ b/gui/include/gui/about_frame_impl.h
+@@ -67,6 +67,10 @@ protected:
+   }
+ 
+   void RecalculateSize(void);
++#ifdef __OCPN__IOS__
++  void IosPhoneLayout();   // iOS: app/ios/dialogs_ios.cpp
++  void IosLaunchManual();  // iOS: app/ios/dialogs_ios.cpp
++#endif
+ 
+ public:
+   ~AboutFrameImpl() {};
+diff --git a/gui/include/gui/canvas_options.h b/gui/include/gui/canvas_options.h
+index 6f1f00f5e..685d50c0f 100644
+--- a/gui/include/gui/canvas_options.h
++++ b/gui/include/gui/canvas_options.h
+@@ -113,6 +113,10 @@ enum {
+   IDCO_ENCDATAQUALITY_CHECKBOX,
+ };
+ 
++#ifdef __OCPN__IOS__
++class ChartCanvas;
++#endif
++
+ /**
+  * Represents the Canvas Options dialog. Implements a dialog that allows users
+  * to configure various options for the chart canvas display.
+@@ -158,6 +162,16 @@ private:
+   wxCheckBox *pCBShowAIS, *pCBAttenAIS, *pCBENCVisibleSectors,
+       *pCBENCDataQuality;
+   bool m_bmode_change_while_hidden;  // Coming from compass icon click
++#ifdef __OCPN__IOS__
++  // iOS: toggles that were only in the menu bar, which is removed on iOS.
++  wxCheckBox *m_iosNavobjects = nullptr, *m_iosChartBar = nullptr,
++             *m_iosHideMoored = nullptr, *m_iosAISTracks = nullptr,
++             *m_iosCPADialog = nullptr, *m_iosCPASound = nullptr,
++             *m_iosCPAWarn = nullptr;
++  // iOS hooks, defined in app/ios/canvas_ios.cpp
++  void IosRefreshControlValues(ChartCanvas *parentCanvas);
++  void IosUpdateCanvasOptions(ChartCanvas *parentCanvas, bool &b_needRefresh);
++#endif
+ 
+   DECLARE_EVENT_TABLE()
+ };
+diff --git a/gui/include/gui/chcanv.h b/gui/include/gui/chcanv.h
+index f7ca76b93..b5dd3680d 100644
+--- a/gui/include/gui/chcanv.h
++++ b/gui/include/gui/chcanv.h
+@@ -63,11 +63,12 @@
+ #include "rollover_win.h"
+ #include "s57_sector.h"
+ #include "tc_win.h"
++#include "ocpn_region.h"  // iOS: m_ocpnios_cache_rendered
+ #include "undo.h"
+ 
+ WX_DEFINE_ARRAY_PTR(ChartCanvas *, arrayofCanvasPtr);
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(__OCPN__IOS__)  // iOS: 2 fields
+ #define STAT_FIELD_TICK -1
+ #define STAT_FIELD_SOGCOG 0
+ #define STAT_FIELD_CURSOR_LL -1
+@@ -479,6 +480,13 @@ public:
+    */
+   void DoMovement(long dt);
+   void StopMovement();
++#ifdef __OCPN__IOS__
++  // iOS: stop drag inertia immediately (database rebuild).
++  void StopDragInertia() {
++    m_chart_drag_inertia_timer.Stop();
++    m_chart_drag_inertia_active = false;
++  }
++#endif
+ 
+   void StartTimedMovementVP(double target_lat, double target_lon, int nstep);
+   void DoTimedMovementVP();
+@@ -1355,6 +1363,23 @@ private:
+   wxLongLong m_chart_drag_inertia_time;
+   wxLongLong m_chart_drag_inertia_start_time;
+   bool m_chart_drag_inertia_active;
++#ifdef __OCPN__IOS__
++  bool m_ocpnios_pinch_seen = false;  // iOS: no inertia after a pinch
++  double m_ocpnios_compass_cs =
++      0;  // iOS: Retina factor at last compass scaling
++  // iOS: chart area (screen pixels) drawn into m_cached_chart_bm
++  OCPNRegion m_ocpnios_cache_rendered;
++  // iOS hooks, defined in app/ios/canvas_ios.cpp
++  void IosOnZoom(wxZoomGestureEvent &event);
++  bool IosClampDragTime(size_t n_vel, double &tacc);
++  void IosCapDragVelocity(size_t n_vel, double tacc);
++  void IosClampViewPoint(double &lat, double &scale_ppm, int projection);
++  void IosOnSizeScale();
++  void IosRedrawNewCoverage(wxMemoryDC &temp_dc, ViewPort &svp,
++                            OCPNRegion &chart_get_region,
++                            OCPNRegion &update_region, int dx, int dy);
++  void IosUpdateCompassScale(bool &b_update);
++#endif
+   double m_last_elapsed;
+   std::vector<int> m_drag_vec_x;
+   std::vector<int> m_drag_vec_y;
+diff --git a/gui/include/gui/connection_edit.h b/gui/include/gui/connection_edit.h
+index e03896eae..5a6c4b22e 100644
+--- a/gui/include/gui/connection_edit.h
++++ b/gui/include/gui/connection_edit.h
+@@ -153,6 +153,11 @@ public:
+   void AddOKCancelButtons();
+   wxStdDialogButtonSizer *m_btnSizer;
+   wxBoxSizer *m_btnSizerBox;
++#ifdef __OCPN__IOS__
++  wxStaticText *m_iosNavTitle = nullptr;  // title between Cancel and Done
++  wxString m_iosPropsLabel;
++  void IosAddNavButtons();  // app/ios/connections_ios.cpp
++#endif
+ 
+   wxButton *m_btnOK;
+   wxButton *m_btnCancel;
+diff --git a/gui/include/gui/dychart.h b/gui/include/gui/dychart.h
+index 369e6efb4..0d5127ff3 100644
+--- a/gui/include/gui/dychart.h
++++ b/gui/include/gui/dychart.h
+@@ -44,6 +44,13 @@
+ 
+ #ifdef __ANDROID__
+ #include "qdebug.h"
++#elif defined(__OCPN__IOS__)  // iOS: qDebug in shaders.h
++// N2kDef.h (libs/N2KParser) defines F(str), which breaks qscopeguard.h from
++// Qt 6.
++#pragma push_macro("F")
++#undef F
++#include "qdebug.h"
++#pragma pop_macro("F")
+ #endif
+ 
+ //    Profiling support
+diff --git a/gui/include/gui/gl_headers.h b/gui/include/gui/gl_headers.h
+index 9361a2f8d..2de95025d 100644
+--- a/gui/include/gui/gl_headers.h
++++ b/gui/include/gui/gl_headers.h
+@@ -26,6 +26,10 @@
+ #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+ #include <GLES2/gl2.h>
+ 
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++#include <qopengl.h>
++#include <GL/gl_private.h>
++
+ #elif defined(ocpnUSE_GL)
+ #if defined(_WIN32)
+ #include <glew.h>
+diff --git a/gui/include/gui/mark_info.h b/gui/include/gui/mark_info.h
+index 9568e33ea..55a1b8519 100644
+--- a/gui/include/gui/mark_info.h
++++ b/gui/include/gui/mark_info.h
+@@ -146,6 +146,23 @@ WX_DECLARE_OBJARRAY(wxBitmap, ArrayOfBitmaps);
+  * provide a combobox with custom-drawn items, specifically for selecting
+  * waypoint icons.
+  */
++#ifdef __OCPN__IOS__
++// iOS: wxOwnerDrawnComboBox (generic combo with its own popup) does not work in
++// wxQt: the popup showed one item ("tempsub") over other fields. Use a plain
++// wxChoice (QComboBox) with the icons as a QIcon per item instead.
++class OCPNIconCombo : public wxChoice {
++public:
++  OCPNIconCombo(wxWindow* parent, wxWindowID id, const wxString& value = _T(""),
++                const wxPoint& pos = wxDefaultPosition,
++                const wxSize& size = wxDefaultSize, int n = 0,
++                const wxString choices[] = NULL, long style = 0,
++                const wxValidator& validator = wxDefaultValidator,
++                const wxString& name = _T("OCPNIconCombo"));
++  int Append(const wxString& item, wxBitmap bmp);
++  void Clear(void);
++  void SetPopupMaxHeight(int) {}
++};
++#else
+ class OCPNIconCombo : public wxOwnerDrawnComboBox {
+ public:
+   OCPNIconCombo(wxWindow* parent, wxWindowID id, const wxString& value = "",
+@@ -168,6 +185,7 @@ private:
+   int itemHeight;
+   ArrayOfBitmaps bmpArray;
+ };
++#endif  // __OCPN__IOS__
+ 
+ //    LatLonTextCtrl Specification
+ //    We need a derived wxText control for lat/lon input in the MarkProp dialog
+diff --git a/gui/include/gui/ocpn_frame.h b/gui/include/gui/ocpn_frame.h
+index bf360d34a..7106866fb 100644
+--- a/gui/include/gui/ocpn_frame.h
++++ b/gui/include/gui/ocpn_frame.h
+@@ -523,6 +523,12 @@ private:
+   void CalculateCOGAverage();
+ 
+   void ODoSetSize(void);
++#ifdef __OCPN__IOS__
++  // iOS: app/ios/frame_ios.cpp
++  void ODoSetSizeBody();  // body of ODoSetSize (ocpn_frame.cpp)
++  void IosOnSize();
++  void IosRescaleCanvases();
++#endif
+   void DoCOGSet(void);
+ 
+   void UpdateAllToolbars(ColorScheme cs);
+diff --git a/gui/include/gui/options.h b/gui/include/gui/options.h
+index 62188b1cf..eb34561c7 100644
+--- a/gui/include/gui/options.h
++++ b/gui/include/gui/options.h
+@@ -295,7 +295,22 @@ public:
+ 
+   void OnClose(wxCloseEvent &event);
+ 
+-  void ShowOKButtons(bool _show) { m_OK_Cancel_Apply_buttons->Show(_show); }
++  void ShowOKButtons(bool _show) {
++    m_OK_Cancel_Apply_buttons->Show(_show);
++#ifdef __OCPN__IOS__
++    // iOS: hide the whole header row (Back/Cancel/Apply/Done) while a
++    // connection is being edited; the edit panel has its own Cancel/Done
++    // (connection_edit.cpp).
++    if (m_iosBackButton) m_iosBackButton->Show(_show && m_iosLevel > 0);
++    if (m_CancelButton) m_CancelButton->Show(_show && m_iosLevel == 0);
++    if (m_OKButton) m_OKButton->Show(_show);
++    if (m_ApplyButton) m_ApplyButton->Show(_show);
++    // Also the large title ("Connections"): the edit panel has its own titled
++    // header; two stacked titles with buttons in between are confusing.
++    if (m_iosTitle) m_iosTitle->Show(_show);
++    Layout();
++#endif
++  }
+ 
+   void CreateListbookIcons();
+   void CreateControls(void);
+@@ -404,6 +419,34 @@ public:
+ #else
+   wxNotebook *m_pListbook;
+ #endif
++#ifdef __OCPN__IOS__
++  // iOS: settings as iOS-style navigation (list, then page with a back button).
++  // Levels: 0 = categories, 1 = sections of a category (the tabs of a
++  // wxNotebook page), 2 = the page itself.
++  void IosShowList(bool list);
++  void IosGoLevel(int level);
++  void IosOpenCategory();
++  void IosOpenSubPage(int idx);
++  void IosBack();
++  void IosApplyLayout();
++  void IosApplyLook();
++  int m_iosLookDark = -1;  // last applied dark mode (IosApplyLayout)
++  wxNotebook *IosCurrentNotebook();
++  void IosFitPage(wxWindow *page);
++  bool m_iosListMode = true;
++  int m_iosLevel = 0;
++  wxButton *m_iosBackButton = nullptr;
++  wxStaticText *m_iosTitle = nullptr;
++  wxBoxSizer *m_iosHead = nullptr;
++  wxListBox *m_iosSubList = nullptr;
++  // Parts of CreateControls / CreatePanel_Units (app/ios/options_ios.cpp).
++  void IosCreateHeader(options *itemDialog1, wxBoxSizer *itemBoxSizer2,
++                       int border_size);
++  void IosSetupNavLists();
++  void IosMoveButtonsToHeader(int border_size);
++  void IosAddMagVarRow(wxScrolledWindow *panelUnits,
++                       wxFlexGridSizer *unitsSizer, int group_item_spacing);
++#endif
+ 
+   wxBoxSizer *m_OK_Cancel_Apply_buttons;
+ 
+diff --git a/gui/include/gui/shaders.h b/gui/include/gui/shaders.h
+index 3244d0422..970b0a116 100644
+--- a/gui/include/gui/shaders.h
++++ b/gui/include/gui/shaders.h
+@@ -34,6 +34,13 @@
+ #ifdef __ANDROID__
+ #include <QDebug>
+ #include "qlogging.h"
++#elif defined(__OCPN__IOS__)
++// iOS: qDebug below (USE_ANDROID_GLES2). N2kDef.h (libs/N2KParser)
++// defines F(str), which breaks qscopeguard.h from Qt 6.
++#pragma push_macro("F")
++#undef F
++#include <QDebug>
++#pragma pop_macro("F")
+ #endif
+ 
+ class GLShaderProgram;  // forward
+diff --git a/gui/src/displays.cpp b/gui/src/displays.cpp
+index 6ebc255f7..0367d210c 100644
+--- a/gui/src/displays.cpp
++++ b/gui/src/displays.cpp
+@@ -38,8 +38,12 @@
+ #include <ShellScalingApi.h>
+ #include <locale>
+ #include <codecvt>
+-#elif __APPLE__
++#elif defined(__APPLE__) && \
++    !defined(__OCPN__IOS__)  // iOS: CGDisplay is macOS only
+ #include <CoreGraphics/CoreGraphics.h>
++#elif defined(__OCPN__IOS__)
++#include <QGuiApplication>
++#include <QScreen>
+ #endif
+ 
+ std::vector<OCPN_MonitorInfo> g_monitor_info;
+@@ -221,7 +225,8 @@ void EnumerateMonitors() {
+       }
+     }
+   }
+-#elif __APPLE__
++#elif defined(__APPLE__) && \
++    !defined(__OCPN__IOS__)  // iOS: CGDisplay is macOS only
+   CGDirectDisplayID displayArray[32];
+   uint32_t displayCount;
+   CGGetOnlineDisplayList(32, displayArray, &displayCount);
+@@ -248,6 +253,26 @@ void EnumerateMonitors() {
+          static_cast<size_t>(pixel_width), static_cast<size_t>(pixel_height),
+          100});
+   }
++#elif defined(__OCPN__IOS__)
++  // iOS: screen size via Qt. QScreen::physicalSize() uses a per-device pixel
++  // density table on iOS. Without this OpenCPN used the fallback "Dummy
++  // monitor", 340 mm wide: text and symbols too small, and no compact Settings
++  // layout (which applies below 80 mm).
++  if (QGuiApplication::instance() && !getenv("OCPNIOS_DUMMY_DISPLAY")) {
++    if (QScreen* scr = QGuiApplication::primaryScreen()) {
++      const QSizeF mm = scr->physicalSize();
++      const QSize pt = scr->size();
++      const double dpr = scr->devicePixelRatio();
++      if (mm.width() > 0 && pt.width() > 0) {
++        g_monitor_info.push_back(
++            {"iOS", static_cast<size_t>(mm.width() + 0.5),
++             static_cast<size_t>(mm.height() + 0.5),
++             static_cast<size_t>(pt.width()), static_cast<size_t>(pt.height()),
++             static_cast<size_t>(pt.width() * dpr + 0.5),
++             static_cast<size_t>(pt.height() * dpr + 0.5), 100});
++      }
++    }
++  }
+ #endif
+   if (g_monitor_info.size() == 0) {
+     // This should never happen, but just in case...
+diff --git a/gui/src/gl_chart_canvas.cpp b/gui/src/gl_chart_canvas.cpp
+index 1264d846b..cddd2a416 100644
+--- a/gui/src/gl_chart_canvas.cpp
++++ b/gui/src/gl_chart_canvas.cpp
+@@ -105,13 +105,34 @@
+ #include "viewport.h"
+ 
+ #ifdef USE_ANDROID_GLES2
++#ifndef __OCPN__IOS__  // iOS: qopengl.h provides the GLES2 headers
+ #include <GLES2/gl2.h>
++#endif
+ #include "linmath.h"
+ #include "shaders.h"
+ #endif
+ 
++#ifdef __OCPN__IOS__
++// iOS: under wxQt wxGLCanvas is a QOpenGLWidget, which renders into its own
++// framebuffer (not 0) and then puts that image on the screen. OpenCPN binds
++// framebuffer 0 to draw "to the screen", which gave a black chart area. Here 0
++// means the framebuffer of the current context
++// (QOpenGLContext::defaultFramebufferObject).
++#include <QOpenGLContext>
++static inline void OcpnIosBindFramebuffer(GLenum target, GLuint fb) {
++  if (fb == 0) {
++    if (QOpenGLContext *ctx = QOpenGLContext::currentContext())
++      fb = ctx->defaultFramebufferObject();
++  }
++  glBindFramebuffer(target, fb);
++}
++#define glBindFramebuffer OcpnIosBindFramebuffer
++#endif
++
+ #ifdef __ANDROID__
+ #include "androidUTIL.h"
++#elif defined(__OCPN__IOS__)
++// iOS: no GLX
+ #elif defined(__WXQT__) || defined(__WXGTK__)
+ #include <GL/glx.h>
+ #endif
+@@ -131,6 +152,8 @@ int __cdecl printf2(const char *format, ...);
+ 
+ #if defined(__ANDROID__)
+ #include "androidUTIL.h"
++#elif defined(__OCPN__IOS__)
++// iOS: no GLEW; GL via qopengl.h
+ #elif defined(__WXQT__) || defined(__WXGTK__) || defined(FLATPAK)
+ #include <GL/glew.h>
+ #endif
+@@ -146,10 +169,6 @@ extern "C" void glOrthof(float left, float right, float bottom, float top,
+ 
+ #endif
+ 
+-#ifdef USE_ANDROID_GLES2
+-#include <GLES2/gl2.h>
+-#endif
+-
+ #if defined(USE_ANDROID_GLES2) || defined(ocpnUSE_GLSL)
+ #include "linmath.h"
+ #include "shaders.h"
+@@ -372,8 +391,9 @@ void glChartCanvas::Init() {
+   m_gldc.SetDPIFactor(g_BasePlatform->GetDisplayDIPMult(GetParent()));
+ 
+   m_displayScale = 1.0;
+-#if defined(__WXOSX__) || defined(__WXGTK3__)
++#if defined(__WXOSX__) || defined(__WXGTK3__) || defined(__OCPN__IOS__)
+   // Support scaled HDPI displays.
++  // iOS: Retina factor here too, the same as ChartCanvas in the GL path.
+   m_displayScale = GetContentScaleFactor();
+ #endif
+   m_pParentCanvas->VPoint.SetPixelScale(m_displayScale);
+@@ -449,7 +469,16 @@ void glChartCanvas::Init() {
+ 
+ //  Gesture support for platforms other than Android
+ #ifdef HAVE_WX_GESTURE_EVENTS
++#ifdef __OCPN__IOS__
++  // iOS: no wx long-press gesture (see chcanv.cpp). QTapAndHoldGesture passed
++  // on the position of an earlier tap, so the menu missed the route under the
++  // finger
++  // ("Activate" was missing), and it aborted the touch for the iOS touch
++  // filter.
++  if (!EnableTouchEvents(wxTOUCH_ZOOM_GESTURE)) {
++#else
+   if (!EnableTouchEvents(wxTOUCH_ZOOM_GESTURE | wxTOUCH_PRESS_GESTURES)) {
++#endif
+     wxLogError("Failed to enable touch events");
+   }
+ 
+@@ -1006,7 +1035,7 @@ void glChartCanvas::SetupOpenGL() {
+   msg += m_GLSLversion;
+   wxLogMessage(msg);
+ 
+-#ifndef __ANDROID__
++#if !defined(__ANDROID__) && !defined(__OCPN__IOS__)  // iOS: no GLEW
+ #ifndef __WXOSX__
+   GLenum err = glewInit();
+ #ifdef GLEW_ERROR_NO_GLX_DISPLAY
+@@ -1086,7 +1115,10 @@ void glChartCanvas::SetupOpenGL() {
+   wxLogMessage(wxString::Format("OpenGL-> Texture rectangle format: %x",
+                                 g_texture_rectangle_format));
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(__OCPN__IOS__)
++  // iOS: OpenGL ES 3 on iOS supports NPOT textures but reports none of the
++  // extension names above; without this the format stayed 0 and all overlay
++  // textures (toolbar, text) were garbled.
+   g_texture_rectangle_format = GL_TEXTURE_2D;
+ #endif
+ 
+@@ -3841,7 +3873,7 @@ void glChartCanvas::Render() {
+ 
+ #endif
+ 
+-#ifdef __WXOSX__
++#if defined(__WXOSX__) || defined(__OCPN__IOS__)
+   // Support scaled HDPI displays.
+   m_displayScale = GetContentScaleFactor();
+ #endif
+@@ -4223,7 +4255,8 @@ void glChartCanvas::Render() {
+     useFBO = true;
+   }
+ 
+-#ifndef __ANDROID__
++#if !defined(__ANDROID__) && \
++    !defined(__OCPN__IOS__)  // iOS: fixed-function GL, not in GLES2
+   if (VPoint.tilt) {
+     glMatrixMode(GL_PROJECTION);
+     glLoadIdentity();
+@@ -5391,6 +5424,15 @@ void glChartCanvas::OnEvtPanGesture(wxPanGestureEvent &event) {
+ 
+ //  Generic wxWidgets gesture event processor
+ void glChartCanvas::OnEvtZoomGesture(wxZoomGestureEvent &event) {
++#ifdef __OCPN__IOS__
++  // iOS: pinch zoom goes through ChartCanvas::OnZoom, which really redraws the
++  // chart on every step. The mobile path below (FastZoom/ZoomProject) shows a
++  // stretched cached image with a fill image around it while pinching, which
++  // gave black areas. The events arrive here because the touch lands on the
++  // GL window.
++  if (m_pParentCanvas) m_pParentCanvas->GetEventHandler()->ProcessEvent(event);
++  return;
++#endif
+   if (g_true_zoom) {
+     float zoom_gain = 1.0;
+     float zout_gain = 1.0;
+diff --git a/gui/src/gl_texture_descr.cpp b/gui/src/gl_texture_descr.cpp
+index 19eab45ff..8592e5feb 100644
+--- a/gui/src/gl_texture_descr.cpp
++++ b/gui/src/gl_texture_descr.cpp
+@@ -27,6 +27,9 @@
+ 
+ #if defined(__ANDROID__)
+ #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++#include <qopengl.h>
++#include <GL/gl_private.h>
+ #elif defined(__WXQT__) || defined(__WXGTK__)
+ #include <GL/glew.h>
+ #endif
+diff --git a/gui/src/gl_texture_mgr.cpp b/gui/src/gl_texture_mgr.cpp
+index da2469fc0..c1856c27a 100644
+--- a/gui/src/gl_texture_mgr.cpp
++++ b/gui/src/gl_texture_mgr.cpp
+@@ -33,6 +33,9 @@
+ 
+ #if defined(__ANDROID__)
+ #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++#include <qopengl.h>
++#include <GL/gl_private.h>
+ #elif defined(__WXQT__) || defined(__WXGTK__)
+ #include <GL/glew.h>
+ #endif
+diff --git a/gui/src/mark_info.cpp b/gui/src/mark_info.cpp
+index 24100f77b..749cb98b2 100644
+--- a/gui/src/mark_info.cpp
++++ b/gui/src/mark_info.cpp
+@@ -75,6 +75,7 @@ WX_DEFINE_OBJARRAY(ArrayOfBitmaps);
+ 
+ MarkInfoDlg* g_pMarkInfoDialog;
+ 
++#ifndef __OCPN__IOS__  // iOS version: app/ios/connections_ios.cpp
+ OCPNIconCombo::OCPNIconCombo(wxWindow* parent, wxWindowID id,
+                              const wxString& value, const wxPoint& pos,
+                              const wxSize& size, int n,
+@@ -137,6 +138,7 @@ void OCPNIconCombo::Clear() {
+   wxOwnerDrawnComboBox::Clear();
+   bmpArray.Clear();
+ }
++#endif  // __OCPN__IOS__
+ 
+ //-------------------------------------------------------------------------------
+ //
+@@ -339,7 +341,9 @@ void MarkInfoDlg::Create() {
+   m_bcomboBoxIcon->SetMinSize(wxSize(-1, icon_size));
+ 
+   wxStaticText* icon_label = new wxStaticText(props_panel, wxID_ANY, _("Icon"));
++#ifndef __OCPN__IOS__  // iOS: label above the field, a fixed width truncated it
+   icon_label->SetMinSize(wxSize(label_size, -1));
++#endif
+   props_sizer->Add(icon_label, 0, wxALIGN_CENTER_VERTICAL);
+   props_sizer->Add(m_bcomboBoxIcon, 0, wxEXPAND);
+ 
+@@ -813,6 +817,11 @@ void MarkInfoDlg::RecalculateSize() {
+ 
+   m_defaultClientSize = GetClientSize();
+   Center();
++#elif defined(__OCPN__IOS__)
++  // iOS: full screen; window_fit.cpp keeps it below the status bar.
++  // Otherwise it opened over the lower half and wider than an iPhone.
++  Layout();
++  SetSize(GetParent()->GetClientSize());
+ #else
+   wxSize dsize = GetParent()->GetClientSize();
+   SetSize(-1, wxMax(GetSize().y, dsize.y / 1.5));
+diff --git a/gui/src/mbtiles/mbtiles.cpp b/gui/src/mbtiles/mbtiles.cpp
+index 0170d9800..8841b353f 100644
+--- a/gui/src/mbtiles/mbtiles.cpp
++++ b/gui/src/mbtiles/mbtiles.cpp
+@@ -652,7 +652,8 @@ bool ChartMbTiles::GetTileTexture(SharedTilePtr tile) {
+   } else {
+     // The tile has been decompressed to memory : load it into OpenGL texture
+     // memory
+-#ifndef __ANDROID__
++#if !defined(__ANDROID__) && \
++    !defined(__OCPN__IOS__)  // iOS: not available in GLES
+     glEnable(GL_COLOR_MATERIAL);
+ #endif
+     glGenTextures(1, &tile->m_gl_texture_name);
+diff --git a/gui/src/ocpn_app.cpp b/gui/src/ocpn_app.cpp
+index bfc686054..376bf0231 100644
+--- a/gui/src/ocpn_app.cpp
++++ b/gui/src/ocpn_app.cpp
+@@ -165,6 +165,12 @@ void gdk_window_set_override_redirect(GdkWindow *window,
+ #include "navutil.h"
+ #include "observable.h"
+ #include "ocpn_app.h"
++#ifdef __OCPN__IOS__
++void ocpnios_WaitUntilActive();
++void ocpnios_ShowStartupBusy();
++void ocpnios_TidyDocuments();                      // app/ios/screen_capture.mm
++void ocpnios_FloatPluginPanes(wxAuiManager *mgr);  // app/ios/frame_ios.cpp
++#endif
+ #include "ocpn_aui_manager.h"
+ #include "ocpn_frame.h"
+ #include "ocpn_platform.h"
+@@ -837,12 +843,23 @@ bool MyApp::OnInit() {
+     wxLogFatalError(getenv("OPENCPN_FATAL_ERROR"));
+   }
+ 
++#ifdef __OCPN__IOS__
++  // iOS: create no windows before iOS reports the app active, otherwise the
++  // window's GL layer fails and stays black (app/ios/app_active.cpp).
++  ocpnios_WaitUntilActive();
++#endif
++
+ #ifndef __ANDROID__
+   // Check if last run failed, set up safe_mode.
+   if (!safe_mode::get_mode()) {
+     safe_mode::check_last_start();
+   }
+ #endif
++#ifdef __OCPN__IOS__
++  // iOS: busy indicator until startup is done (app/ios/startup_busy.mm).
++  ocpnios_ShowStartupBusy();
++  ocpnios_TidyDocuments();
++#endif
+ 
+   //  Perform first stage initialization
+   OCPNPlatform::Initialize_1();
+@@ -952,7 +969,8 @@ bool MyApp::OnInit() {
+   //    Initialize embedded PNG icon graphics
+   ::wxInitAllImageHandlers();
+ 
+-#ifdef __WXQT__
++#if defined(__WXQT__) && \
++    !defined(__OCPN__IOS__)  // iOS: Android-only function (androidUTIL)
+   //  Now we can configure the Qt StyleSheets, if present
+   prepareAndroidStyleSheets();
+ #endif
+@@ -1166,7 +1184,8 @@ bool MyApp::OnInit() {
+   wxLogMessage("wxLocale support not available");
+ #endif
+ 
+-#ifndef __ANDROID__
++#if !defined(__ANDROID__) && \
++    !defined(__OCPN__IOS__)  // iOS: no wizard, like Android
+   //  Now that locale is established, possibly run the startup wizard.
+   if (g_config_wizard || b_initial_load) {
+     FirstUseWizImpl wiz(gFrame, pConfig);
+@@ -1536,6 +1555,10 @@ void MyApp::BuildMainFrame() {
+   gFrame->SetAllToolbarScale();
+   gFrame->SetAndApplyColorScheme(global_color_scheme);
+   if (g_bframemax) gFrame->Maximize(true);
++#ifdef __OCPN__IOS__
++  // iOS: there is no window manager; the main window always fills the screen.
++  gFrame->Maximize(true);
++#endif
+ 
+ #ifdef __ANDROID__
+   if (g_bresponsive && (gFrame->GetPrimaryCanvas()->GetPixPerMM() > 4.0))
+@@ -1650,9 +1673,12 @@ void MyApp::BuildMainFrame() {
+   }
+ 
+   if (!bno_load) g_pauimgr->LoadPerspective(perspective, false);
++#ifdef __OCPN__IOS__
++  ocpnios_FloatPluginPanes(g_pauimgr);
++#endif
+ 
+-    // Touch up the AUI manager
+-    //  Make sure that any pane width is reasonable default value
++  // Touch up the AUI manager
++  //  Make sure that any pane width is reasonable default value
+ #if 0  // TODO nees this?
+   for (unsigned int i = 0; i < g_canvasArray.GetCount(); i++) {
+     ChartCanvas *cc = g_canvasArray.Item(i);
+diff --git a/gui/src/ocpn_platform.cpp b/gui/src/ocpn_platform.cpp
+index 072eec23d..dfa78540a 100644
+--- a/gui/src/ocpn_platform.cpp
++++ b/gui/src/ocpn_platform.cpp
+@@ -533,7 +533,7 @@ void OCPNPlatform::Initialize_3() {
+ #endif
+ 
+   bool bAndroid = false;
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(__OCPN__IOS__)  // iOS: always GL
+   bAndroid = true;
+ #endif
+ 
+@@ -556,6 +556,11 @@ void OCPNPlatform::Initialize_3() {
+     g_GLOptions.m_bUseAcceleratedPanning = true;
+     g_GLOptions.m_bTextureCompression = true;
+     g_GLOptions.m_bTextureCompressionCaching = true;
++#ifdef __OCPN__IOS__
++    // iOS: S3TC/ETC1 texture compression under GLES2 is untested on iOS; off.
++    g_GLOptions.m_bTextureCompression = false;
++    g_GLOptions.m_bTextureCompressionCaching = false;
++#endif
+ 
+     g_GLOptions.m_iTextureDimension = 512;
+     g_GLOptions.m_iTextureMemorySize = 64;
+@@ -832,7 +837,14 @@ bool OCPNPlatform::BuildGLCaps(void *pbuf) {
+ bool OCPNPlatform::IsGLCapable() {
+ #ifdef ocpnUSE_GL
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(__OCPN__IOS__)
++  // iOS: the GL test via a separate helper program is not possible on iOS;
++  // OpenGL ES is always there. The setting (Display Options > Extended >
++  // OpenGL) decides whether the GL path is used. Escape hatch: OCPNIOS_NO_GL=1
++  // forces raster.
++#ifdef __OCPN__IOS__
++  if (wxGetenv("OCPNIOS_NO_GL")) return false;
++#endif
+   return true;
+ #elif defined(CLI)
+   return false;
+@@ -912,6 +924,15 @@ void OCPNPlatform::SetLocaleSearchPrefixes() {
+   wxString locale_location = GetSharedDataDir() + "locale";
+   wxLocale::AddCatalogLookupPathPrefix(locale_location);
+ 
++#elif defined(__OCPN__IOS__)
++
++  // iOS: translations in the app bundle (SharedSupport/locale/<lang>/
++  // LC_MESSAGES/opencpn.mo and wxstd-3.3.mo), as on Android. The Unix branch
++  // below looked in /usr/local/share/locale, which does not exist on iOS.
++  wxString locale_location = GetSharedDataDir() + _T("locale");
++  wxLocale::AddCatalogLookupPathPrefix(locale_location);
++  wxLogMessage(_T("Adding catalog lookup path:  ") + locale_location);
++
+ #elif defined(__UNIX__) && !defined(__WINE__)
+ 
+   // On Unix, wxWidgets defaults to installation prefix of its own, usually
+@@ -1170,6 +1191,10 @@ void OCPNPlatform::SetDefaultOptions() {
+   g_n_ownship_min_mm = 8;
+   g_bShowMuiZoomButtons = true;
+   g_bresponsive = false;
++#ifdef __OCPN__IOS__
++  // iOS: scale toolbar and compass to the screen size, as on Android.
++  g_bresponsive = true;
++#endif
+ 
+   // Initial S52/S57 options
+   if (pConfig) {
+@@ -1614,7 +1639,11 @@ MyConfig *OCPNPlatform::GetConfigObject() {
+ //--------------------------------------------------------------------------
+ 
+ bool OCPNPlatform::hasInternalGPS(wxString profile) {
+-#ifdef __ANDROID__
++#ifdef __OCPN__IOS__
++  // iOS: Core Location is always present (iPad without cellular: Wi-Fi
++  // position).
++  return true;
++#elif defined(__ANDROID__)
+   bool t = androidDeviceHasGPS();
+   //    qDebug() << "androidDeviceHasGPS" << t;
+   return t;
+@@ -1650,7 +1679,9 @@ long OCPNPlatform::GetDefaultToolbarOrientation() {
+ }
+ 
+ int OCPNPlatform::GetStatusBarFieldCount() {
+-#ifdef __ANDROID__
++  // iOS: as on Android, 1 or 2 fields on a narrow screen; otherwise 5 fields in
++  // 440 pt width and an unreadably small font.
++#if defined(__ANDROID__) || defined(__OCPN__IOS__)
+   int count = 1;
+ 
+   //  Make a horizontal measurement...
+diff --git a/gui/src/safe_mode_gui.cpp b/gui/src/safe_mode_gui.cpp
+index eca17da5b..03790e75e 100644
+--- a/gui/src/safe_mode_gui.cpp
++++ b/gui/src/safe_mode_gui.cpp
+@@ -30,6 +30,10 @@
+ #include <wx/filename.h>
+ #include <wx/sizer.h>
+ 
++#ifdef __OCPN__IOS__
++#include <QVariant>
++#include <QWidget>
++#endif
+ #include "model/cmdline.h"
+ #include "model/ocpn_utils.h"
+ #include "model/safe_mode.h"
+@@ -87,6 +91,11 @@ void check_last_start() {
+ 
+   dlg.AddHtmlContent(html);
+ 
++#ifdef __OCPN__IOS__
++  // iOS: as an alert with its own buttons ("Safe mode start" / "Normal start"),
++  // not as a sheet: there "Done" chose safe mode, which nobody expects.
++  if (dlg.GetHandle()) dlg.GetHandle()->setProperty("ocpnios_alert", true);
++#endif
+   int reply = dlg.ShowModal();
+   safe_mode = reply == wxID_OK;
+ }
+diff --git a/gui/src/shaders.cpp b/gui/src/shaders.cpp
+index 944898bfa..1fdfd2082 100644
+--- a/gui/src/shaders.cpp
++++ b/gui/src/shaders.cpp
+@@ -26,7 +26,9 @@
+ #if defined(USE_ANDROID_GLES2) || defined(ocpnUSE_GLSL)
+ 
+ #ifdef USE_ANDROID_GLES2
++#ifndef __OCPN__IOS__  // iOS: GLES2 via qopengl.h (dychart.h)
+ #include <GLES2/gl2.h>
++#endif
+ #include "qdebug.h"
+ #endif
+ 
+diff --git a/gui/src/viewport.cpp b/gui/src/viewport.cpp
+index 8415c6e9b..e15a24268 100644
+--- a/gui/src/viewport.cpp
++++ b/gui/src/viewport.cpp
+@@ -33,6 +33,9 @@
+ 
+ #if defined(__ANDROID__)
+ #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++#include <qopengl.h>
++#include <GL/gl_private.h>
+ #elif defined(__WXQT__) || defined(__WXGTK__)
+ #include <GL/glew.h>
+ #endif
+diff --git a/libs/geoprim/src/LLRegion.cpp b/libs/geoprim/src/LLRegion.cpp
+index 35455971b..127b2d69f 100755
+--- a/libs/geoprim/src/LLRegion.cpp
++++ b/libs/geoprim/src/LLRegion.cpp
+@@ -36,6 +36,9 @@
+  #include <qopengl.h>
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++ #include <qopengl.h>
++ #include <GL/gl_private.h>
+ #elif defined(__MSVC__)
+  #include "glew.h"
+  #include <GL/glu.h>
+diff --git a/libs/gl_headers/android/GL/gl_private.h b/libs/gl_headers/android/GL/gl_private.h
+index 01d4fbefe..45ee1eb16 100644
+--- a/libs/gl_headers/android/GL/gl_private.h
++++ b/libs/gl_headers/android/GL/gl_private.h
+@@ -65,6 +65,21 @@ typedef double          GLdouble;       /* double precision float */
+ #endif
+ #endif
+ 
++// iOS: OpenGL ES on iOS lacks GLdouble too
++#ifdef __OCPN__IOS__
++typedef double          GLdouble;       /* double precision float */
++#define GL_DOUBLE                               0x140A
++#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
++#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT   0x83F0  /* value from glext.h */
++#endif
++#ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
++#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT  0x83F1  /* value from glext.h */
++#endif
++#ifndef GL_DEPTH24_STENCIL8_OES
++#define GL_DEPTH24_STENCIL8_OES           0x88F0  /* OES_packed_depth_stencil */
++#endif
++#endif
++
+ GLAPI void GLAPIENTRY glPushAttrib( GLbitfield mask );
+ GLAPI void GLAPIENTRY glPopAttrib( void );
+ GLAPI void GLAPIENTRY glEnd( void );
+diff --git a/libs/manual/src/manual.cpp b/libs/manual/src/manual.cpp
+index e5b8586aa..6e9f7b859 100644
+--- a/libs/manual/src/manual.cpp
++++ b/libs/manual/src/manual.cpp
+@@ -43,6 +43,20 @@ static const char* const kWikiRoot =
+     "https://opencpn.org/wiki/dokuwiki/doku.php";
+ 
+ 
++#ifdef __OCPN__IOS__
++// iOS: the manuals site has moved; the old paths under /opencpn-plugins/ return
++// 404. Current paths.
++static const std::unordered_map<std::string, std::string> kOnlineEntries = {
++  // iOS: index.html is only a list of manuals; go straight to the user manual.
++  {"Toc", "https://opencpn.org/wiki/dokuwiki/doku.php?id=opencpn:manual_basic"},
++  {"Chartdldr", "@ONLINE_ROOT@/chartdldr/index.html"},
++  {"Wmm", "@ONLINE_ROOT@/wmm/index.html"},
++  {"Dashboard", "@ONLINE_ROOT@/dashboard/index.html"},
++  {"Grib", "@ONLINE_ROOT@/grib/index.html"},
++  {"Hotkeys",
++    "@WIKI_ROOT@?id=opencpn:manual_basic:ui_user_interface:keyboard_shortcuts" }
++};
++#else
+ static const std::unordered_map<std::string, std::string> kOnlineEntries = {
+   {"Toc", "@ONLINE_ROOT@/index.html"},
+   {"Chartdldr",
+@@ -53,6 +67,7 @@ static const std::unordered_map<std::string, std::string> kOnlineEntries = {
+   {"Hotkeys",
+     "@WIKI_ROOT@?id=opencpn:manual_basic:ui_user_interface:keyboard_shortcuts" }
+ };
++#endif
+ 
+ static bool replace(std::string& str, const std::string& from,
+                     const std::string& to) {
+@@ -95,7 +110,13 @@ bool Manual::Launch(const std::string& entrypoint) {
+   replace(path, "@ONLINE_PLUGROOT@", kOnlinePlugroot);
+   replace(path, "@ONLINE_ROOT@", kOnlineRoot);
+   replace(path, "@WIKI_ROOT@", kWikiRoot);
++#ifdef __OCPN__IOS__
++  // iOS: the "manual" plugin does not exist on iOS; open the online manual
++  // in Safari directly instead of showing a message about it.
++  wxLaunchDefaultBrowser(path);
++#else
+   ManualDlg dlg(m_parent, path);
+   dlg.ShowModal();
++#endif
+   return true;
+ }
+diff --git a/libs/o_sound/src/factory.cpp b/libs/o_sound/src/factory.cpp
+index d4d77c7f8..f94886951 100644
+--- a/libs/o_sound/src/factory.cpp
++++ b/libs/o_sound/src/factory.cpp
+@@ -41,13 +41,21 @@
+ #include "msw_sound.h"
+ #endif
+ 
++#if defined(__OCPN__IOS__)
++// iOS: AVFoundation (app/ios/ios_sound.mm); wxSound does not work under wxQt/iOS.
++o_sound::Sound* ocpnios_NewSound();
++#endif
++
+ namespace o_sound {
+ 
+ using namespace  o_sound_private;
+ 
+ Sound *g_anchorwatch_sound = Factory();
+ 
+-#if defined(__ANDROID__)
++#if defined(__OCPN__IOS__)
++Sound* Factory(const char* not_used) { return ::ocpnios_NewSound(); }
++
++#elif defined(__ANDROID__)
+ Sound* Factory(const char* not_used) { return new AndroidSound(); }
+ 
+ #elif defined(HAVE_PORTAUDIO)
+diff --git a/libs/o_sound/src/system_cmd_sound.cpp b/libs/o_sound/src/system_cmd_sound.cpp
+index b729f3e6c..f2cf46d28 100644
+--- a/libs/o_sound/src/system_cmd_sound.cpp
++++ b/libs/o_sound/src/system_cmd_sound.cpp
+@@ -55,7 +55,12 @@ static int do_play(const char* cmd, const char* path) {
+   snprintf(buff, sizeof(buff), cmd, path);
+   wxLogDebug("Sound command: %s", buff);
+ 
++#ifdef __OCPN__IOS__
++  // iOS: iOS has no system(); playing sound via an external command is impossible.
++  int status = -1;
++#else
+   int status = system(buff);
++#endif
+   if (status == -1) {
+     wxLogWarning("Cannot fork process running %s", buff);
+     return -1;
+diff --git a/libs/s52plib/src/Cs52_shaders.cpp b/libs/s52plib/src/Cs52_shaders.cpp
+index 41574a682..b1fb5247d 100644
+--- a/libs/s52plib/src/Cs52_shaders.cpp
++++ b/libs/s52plib/src/Cs52_shaders.cpp
+@@ -26,7 +26,9 @@
+ #if defined(USE_ANDROID_GLES2) || defined(ocpnUSE_GLSL)
+ 
+ #ifdef USE_ANDROID_GLES2
++#ifndef __OCPN__IOS__  // iOS: GLES2 via qopengl.h (s52plibGL.h)
+ #include <GLES2/gl2.h>
++#endif
+ #include "qdebug.h"
+ #endif
+ 
+diff --git a/libs/s52plib/src/Cs52_shaders.h b/libs/s52plib/src/Cs52_shaders.h
+index 5e8bf5bdf..9ae96f493 100644
+--- a/libs/s52plib/src/Cs52_shaders.h
++++ b/libs/s52plib/src/Cs52_shaders.h
+@@ -31,7 +31,7 @@
+ 
+ #include "s52plibGL.h"
+ 
+-#ifdef __OCPN__ANDROID__
++#if defined(__OCPN__ANDROID__) || defined(__OCPN__IOS__)  // iOS: qDebug in the GLES2 path
+ #include "qdebug.h"
+ #endif
+ 
+diff --git a/libs/s52plib/src/TexFont.cpp b/libs/s52plib/src/TexFont.cpp
+index 40245b744..b08d6dbf4 100755
+--- a/libs/s52plib/src/TexFont.cpp
++++ b/libs/s52plib/src/TexFont.cpp
+@@ -41,6 +41,9 @@
+  #include <qopengl.h>
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++ #include <qopengl.h>
++ #include <GL/gl_private.h>
+ #elif defined(_WIN32)
+  #define GL_GLEXT_PROTOTYPES
+  #include <GL/gl.h>
+diff --git a/libs/s52plib/src/chartsymbols.cpp b/libs/s52plib/src/chartsymbols.cpp
+index b13a8b05e..5b715c2c9 100644
+--- a/libs/s52plib/src/chartsymbols.cpp
++++ b/libs/s52plib/src/chartsymbols.cpp
+@@ -37,6 +37,9 @@
+  #include <qopengl.h>
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++ #include <qopengl.h>
++ #include <GL/gl_private.h>
+ #elif defined(__MSVC__)
+  #include "glew.h"
+ #elif defined(__WXOSX__)
+diff --git a/libs/s52plib/src/chartsymbols.h b/libs/s52plib/src/chartsymbols.h
+index f6261063a..cd34b9a68 100755
+--- a/libs/s52plib/src/chartsymbols.h
++++ b/libs/s52plib/src/chartsymbols.h
+@@ -44,6 +44,9 @@
+  #include <qopengl.h>
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++ #include <qopengl.h>
++ #include <GL/gl_private.h>
+ #elif defined(_WIN32)
+  #define GL_GLEXT_PROTOTYPES
+  #include <GL/gl.h>
+diff --git a/libs/s52plib/src/mygeom.cpp b/libs/s52plib/src/mygeom.cpp
+index 47f7cc013..b2ef00e57 100644
+--- a/libs/s52plib/src/mygeom.cpp
++++ b/libs/s52plib/src/mygeom.cpp
+@@ -37,6 +37,10 @@
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
+  #define GLU_TESS_MAX_COORD 1.0e150
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++ #include <qopengl.h>
++ #include <GL/gl_private.h>
++ #define GLU_TESS_MAX_COORD 1.0e150
+ #elif defined(__MSVC__)
+  #include "glew.h"
+ #elif defined(__WXOSX__)
+diff --git a/libs/s52plib/src/mygeom.h b/libs/s52plib/src/mygeom.h
+index 50ae402d9..cdecb675f 100644
+--- a/libs/s52plib/src/mygeom.h
++++ b/libs/s52plib/src/mygeom.h
+@@ -39,6 +39,9 @@
+  #include <qopengl.h>
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++ #include <qopengl.h>
++ #include <GL/gl_private.h>
+ #elif defined(__MSVC__)
+  #include "glew.h"
+ #elif defined(__WXOSX__)
+@@ -56,6 +59,9 @@
+ #include <qopengl.h>
+ #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+ #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++ #include <qopengl.h>
++ #include <GL/gl_private.h>
+ #else
+ #ifdef ocpnUSE_GL
+ #if defined(__MSVC__)
+diff --git a/libs/s52plib/src/s52plibGL.h b/libs/s52plib/src/s52plibGL.h
+index 60401c94d..617f9833e 100644
+--- a/libs/s52plib/src/s52plibGL.h
++++ b/libs/s52plib/src/s52plibGL.h
+@@ -41,6 +41,9 @@
+  #include <qopengl.h>
+  #include <GL/gl_private.h>  // this is a cut-down version of gl.h
+  #include <GLES2/gl2.h>
++#elif defined(__OCPN__IOS__)  // iOS: GL via Qt (OpenGL ES)
++ #include <qopengl.h>
++ #include <GL/gl_private.h>
+ #elif defined(__MSVC__)
+  #include "glew.h"
+ #elif defined(__WXOSX__)
+diff --git a/libs/serial/src/impl/unix.cc b/libs/serial/src/impl/unix.cc
+index 4309aa6b3..14db0a23e 100644
+--- a/libs/serial/src/impl/unix.cc
++++ b/libs/serial/src/impl/unix.cc
+@@ -42,7 +42,7 @@
+ #endif
+ #endif
+ 
+-#if defined(MAC_OS_X_VERSION_10_3) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_3)
++#if defined(MAC_OS_X_VERSION_10_3) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_3) && !defined(__OCPN__IOS__)  // iOS: no IOKit
+ #include <IOKit/serial/ioss.h>
+ #endif
+ 
+@@ -305,7 +305,7 @@ Serial::SerialImpl::reconfigurePort ()
+   default:
+     custom_baud = true;
+     // OS X support
+-#if defined(MAC_OS_X_VERSION_10_4) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_4)
++#if defined(MAC_OS_X_VERSION_10_4) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_4) && !defined(__OCPN__IOS__)  // iOS
+     // Starting with Tiger, the IOSSIOSPEED ioctl can be used to set arbitrary baud rates
+     // other than those specified by POSIX. The driver for the underlying serial hardware
+     // ultimately determines which baud rates can be used. This ioctl sets both the input
+diff --git a/model/include/model/comm_can_util.h b/model/include/model/comm_can_util.h
+index 7f8f5a005..6d915d65a 100644
+--- a/model/include/model/comm_can_util.h
++++ b/model/include/model/comm_can_util.h
+@@ -45,7 +45,7 @@ struct can_frame {
+ };
+ #endif
+ 
+-#if defined(__WXMAC__)
++#if defined(__WXMAC__) || defined(__OCPN__IOS__)  // iOS: no SocketCAN
+ #define CAN_MAX_DLEN 8
+ 
+ struct can_frame {
+diff --git a/model/src/base_platform.cpp b/model/src/base_platform.cpp
+index 40790849f..ed5931acf 100644
+--- a/model/src/base_platform.cpp
++++ b/model/src/base_platform.cpp
+@@ -232,6 +232,13 @@ wxString& AbstractPlatform::GetHomeDir() {
+     m_homeDir.Append("opencpn");
+ #endif
+ 
++#ifdef __OCPN__IOS__
++    // iOS: everything OpenCPN writes lives in the app sandbox under
++    // Library/Application Support/opencpn; create that dir fully here.
++    m_homeDir = wxGetHomeDir() + "/Library/Application Support/opencpn";
++    wxFileName::Mkdir(m_homeDir, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
++#endif
++
+     appendOSDirSlash(&m_homeDir);
+   }
+ 
+@@ -276,6 +283,10 @@ wxString& AbstractPlatform::GetSharedDataDir() {
+ #ifdef __ANDROID__
+     m_SData_Dir = androidGetSharedDir();
+ #endif
++#ifdef __OCPN__IOS__
++    // iOS: shared data is in the app bundle under SharedSupport/
++    m_SData_Dir = wxFileName(GetExePath()).GetPath() + "/SharedSupport/";
++#endif
+ 
+     if (g_bportable) m_SData_Dir = GetHomeDir();
+   }
+@@ -367,6 +378,11 @@ wxString& AbstractPlatform::DefaultPrivateDataDir() {
+ 
+ #ifdef __ANDROID__
+     m_PrivateDataDir = androidGetPrivateDir();
++#endif
++#ifdef __OCPN__IOS__
++    m_PrivateDataDir = GetHomeDir();  // iOS: see GetHomeDir()
++    if (m_PrivateDataDir.Last() == wxFileName::GetPathSeparator())
++      m_PrivateDataDir.RemoveLast();
+ #endif
+   }
+   return m_PrivateDataDir;
+@@ -642,6 +658,9 @@ wxString& AbstractPlatform::GetConfigFileName() {
+     m_config_file_name = androidGetPrivateDir();
+     appendOSDirSlash(&m_config_file_name);
+     m_config_file_name += "opencpn.conf";
++#endif
++#ifdef __OCPN__IOS__
++    m_config_file_name = GetHomeDir() + "opencpn.conf";  // iOS
+ #endif
+     if (!g_configdir.empty()) {
+       m_config_file_name = g_configdir;
+@@ -669,6 +688,11 @@ bool BasePlatform::InitializeLogFile() {
+                               // ~/Library/Logs which makes it accessible to
+                               // Applications/Utilities/Console....
+ #endif
++#ifdef __OCPN__IOS__
++  // iOS: log file in Documents/log, so it shows in the Files app under
++  // "OpenCPN > log", apart from charts and other files.
++  mlog_file = wxStandardPaths::Get().GetDocumentsDir() + "/log/";
++#endif
+ 
+   // create the opencpn "home" directory if we need to
+   wxFileName wxHomeFiledir(GetHomeDir());
+@@ -747,6 +771,10 @@ wxString AbstractPlatform::GetPluginDataPath() {
+ #ifdef __ANDROID__
+   wxString pluginDir = GetPrivateDataDir() + "/plugins";
+   dirs += pluginDir;
++#elif defined(__OCPN__IOS__)
++  // Built-in plugins: data in the app bundle,
++  // SharedSupport/plugins/<name>/data.
++  dirs = GetSharedDataDir() + "plugins";
+ #else
+   auto const osSystemId = wxPlatformInfo::Get().GetOperatingSystemId();
+   if (isFlatpacked()) {
+@@ -781,6 +809,18 @@ void AbstractPlatform::ShowBusySpinner() {
+     m_isBusy = true;
+   }
+ }
++#elif defined(__OCPN__IOS__)
++// iOS: there is no busy cursor on iOS, so e.g. while preparing a new ENC chart
++// the app seemed to hang. Show a small busy indicator with a spinner
++// (app/ios/startup_busy.mm).
++void ocpnios_ShowBusyHud();
++void ocpnios_HideBusyHud();
++void AbstractPlatform::ShowBusySpinner() {
++  if (!m_isBusy) {
++    ocpnios_ShowBusyHud();
++    m_isBusy = true;
++  }
++}
+ #else
+ void AbstractPlatform::ShowBusySpinner() {
+   if (!m_isBusy) {
+@@ -797,6 +837,13 @@ void AbstractPlatform::HideBusySpinner() {
+     m_isBusy = false;
+   }
+ }
++#elif defined(__OCPN__IOS__)
++void AbstractPlatform::HideBusySpinner() {
++  if (m_isBusy) {
++    ocpnios_HideBusyHud();
++    m_isBusy = false;
++  }
++}
+ #else
+ void AbstractPlatform::HideBusySpinner() {
+   if (m_isBusy) {
+diff --git a/model/src/comm_drv_factory.cpp b/model/src/comm_drv_factory.cpp
+index 255ac8379..111d7db3a 100644
+--- a/model/src/comm_drv_factory.cpp
++++ b/model/src/comm_drv_factory.cpp
+@@ -135,12 +135,15 @@ void MakeCommDriver(const ConnectionParams* params) {
+     }
+ #endif
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(__OCPN__IOS__)
++    // iOS: same driver; the sensors are provided by app/ios/internal_gps.mm.
+     case INTERNAL_GPS: {
+       auto driver = std::make_unique<CommDriverN0183AndroidInt>(params, msgbus);
+       registry.Activate(std::move(driver));
+       break;
+     }
++#endif
++#ifdef __ANDROID__
+ 
+     case INTERNAL_BT: {
+       auto driver = std::make_unique<CommDriverN0183AndroidBT>(params, msgbus);
+diff --git a/model/src/comm_drv_n0183_android_int.cpp b/model/src/comm_drv_n0183_android_int.cpp
+index 40c23122c..02f309f3d 100644
+--- a/model/src/comm_drv_n0183_android_int.cpp
++++ b/model/src/comm_drv_n0183_android_int.cpp
+@@ -47,6 +47,11 @@
+ #ifdef __ANDROID__
+ #include "androidUTIL.h"
+ #endif
++#ifdef __OCPN__IOS__
++// iOS: device GPS, compass and barometer (app/ios/internal_gps.mm).
++extern bool androidStartGPS(wxEvtHandler* consumer);
++extern bool androidStopGPS();
++#endif
+ 
+ typedef enum DS_ENUM_BUFFER_STATE {
+   DS_RX_BUFFER_EMPTY,
+diff --git a/model/src/macutils.c b/model/src/macutils.c
+index b680bfc9b..1eb78661e 100644
+--- a/model/src/macutils.c
++++ b/model/src/macutils.c
+@@ -21,7 +21,7 @@
+  * Implement macutils.h -- MacOS hardware probing functions
+  */
+ 
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__OCPN__IOS__)  // iOS: no IOKit
+ 
+ #include <errno.h>
+ #include <fcntl.h>
+diff --git a/model/src/ser_ports.cpp b/model/src/ser_ports.cpp
+index a0638ee6a..d210ce483 100644
+--- a/model/src/ser_ports.cpp
++++ b/model/src/ser_ports.cpp
+@@ -502,6 +502,11 @@ wxArrayString* EnumerateSerialPorts() { return EnumerateUdevSerialPorts(); }
+ 
+ wxArrayString* EnumerateSerialPorts() { return androidGetSerialPortsArray(); }
+ 
++#elif defined(__OCPN__IOS__)
++
++// iOS: an iPad/iPhone has no serial ports; NMEA comes over the network.
++wxArrayString* EnumerateSerialPorts(void) { return new wxArrayString; }
++
+ #elif defined(__WXOSX__)
+ 
+ wxArrayString* EnumerateSerialPorts() {
+diff --git a/model/src/std_instance_chk.cpp b/model/src/std_instance_chk.cpp
+index 20310c29b..47897196f 100644
+--- a/model/src/std_instance_chk.cpp
++++ b/model/src/std_instance_chk.cpp
+@@ -24,10 +24,13 @@
+ #ifdef _WIN32
+ #include <winsock2.h>
+ #include <windows.h>
+-#elif defined(__APPLE__)
++#elif defined(__APPLE__) && !defined(__OCPN__IOS__)  // iOS: no libproc
+ #include <errno.h>
+ #include <libproc.h>
+ #endif
++#ifdef __OCPN__IOS__
++#include <errno.h>
++#endif
+ 
+ #include <chrono>
+ #include <cstdio>
+@@ -69,7 +72,7 @@ static bool DoesProcessExist(int pid) {
+   DWORD ret = WaitForSingleObject(process, 0);
+   CloseHandle(process);
+   return ret == WAIT_TIMEOUT;
+-#elif defined(__APPLE__)
++#elif defined(__APPLE__) && !defined(__OCPN__IOS__)  // iOS: no libproc
+   char pathbuf[PROC_PIDPATHINFO_MAXSIZE];
+   bool is_active;
+   int rv = proc_pidpath(pid, pathbuf, sizeof(pathbuf));
+diff --git a/model/src/svg_utils.cpp b/model/src/svg_utils.cpp
+index ce7b968a7..b83f34d44 100644
+--- a/model/src/svg_utils.cpp
++++ b/model/src/svg_utils.cpp
+@@ -26,6 +26,7 @@
+ #include "qdebug.h"
+ #endif
+ 
++#include <functional>
+ #include <wx/filename.h>
+ #include <wx/dir.h>
+ 
+@@ -236,6 +237,20 @@ std::string SVGBitmapCache::MakeKey(wxString file_path, const int width,
+   std::replace(file_path.begin(), file_path.end(), '*', '_');
+ 
+   std::ostringstream ss;
++#ifdef __OCPN__IOS__
++  // iOS: the full path as file name is longer than 255 chars in the iOS
++  // container ("File name too long"), so these icons were never cached. For a
++  // long path use a hash plus the last part of the name.
++  {
++    std::string fp = file_path.ToStdString();
++    if (fp.size() > 160) {
++      std::ostringstream h;
++      h << std::hex << std::hash<std::string>{}(fp) << "_"
++        << fp.substr(fp.size() - 100);
++      file_path = h.str();
++    }
++  }
++#endif
+   ss << file_path << "_" << width << "x" << height;
+   return ss.str();
+ }
+diff --git a/plugins/grib_pi/src/email.cpp b/plugins/grib_pi/src/email.cpp
+index 101c4090e..50b4e4fd9 100644
+--- a/plugins/grib_pi/src/email.cpp
++++ b/plugins/grib_pi/src/email.cpp
+@@ -74,6 +74,34 @@ bool wxEmail::Send(wxMailMessage& message, int sendMethod,
+     return session.Send(message);
+ #endif
+ }
++#elif defined(__OCPN__IOS__)
++// iOS: no shell or sendmail. A mailto: link opens the Mail app with the request
++// filled in; the user sends it from there.
++static wxString IosMailtoEscape(const wxString& s) {
++  wxString out;
++  for (unsigned char c : std::string(s.ToUTF8())) {
++    if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~' ||
++        c == '@' || c == ',')
++      out << (char)c;
++    else
++      out << wxString::Format("%%%02X", c);
++  }
++  return out;
++}
++
++bool wxEmail::Send(wxMailMessage& message, int sendMethod,
++                   const wxString& profileName, const wxString& sendMail2,
++                   const wxString& sendMail1, const wxString& sendMail0) {
++  wxString addr;
++  for (size_t rcpt = 0; rcpt < message.m_to.GetCount(); rcpt++) {
++    if (rcpt > 0) addr << ",";
++    addr << message.m_to[rcpt];
++  }
++  wxString url = "mailto:" + IosMailtoEscape(addr) +
++                 "?subject=" + IosMailtoEscape(message.m_subject) +
++                 "&body=" + IosMailtoEscape(message.m_body);
++  return wxLaunchDefaultBrowser(url);
++}
+ #elif defined(__UNIX__)
+ bool wxEmail::Send(wxMailMessage& message, int sendMethod,
+                    const wxString& profileName, const wxString& sendMail2,
+-- 
+2.50.1 (Apple Git-155)
+

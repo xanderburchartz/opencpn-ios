@@ -1,0 +1,1149 @@
+From 326d63db46950d9d1a6862ef2cd6c84402187fcd Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 13/13] nl_NL: Dutch translations
+
+Dutch translations for strings that had none, and for the continent names
+of the chart downloader. Translation updates only; normally these go
+through Crowdin.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ plugins/chartdldr_pi/po/nl_NL.po | 138 ++++++++++++++++++++-
+ plugins/grib_pi/po/nl_NL.po      | 112 ++++++++---------
+ po/opencpn_nl_NL.po              | 204 +++++++++++++++++++------------
+ 3 files changed, 317 insertions(+), 137 deletions(-)
+
+diff --git a/plugins/chartdldr_pi/po/nl_NL.po b/plugins/chartdldr_pi/po/nl_NL.po
+index be4d7a12f..efd1d1570 100644
+--- a/plugins/chartdldr_pi/po/nl_NL.po
++++ b/plugins/chartdldr_pi/po/nl_NL.po
+@@ -91,7 +91,7 @@ msgstr "Kaart: %s"
+ 
+ #: src/chartdldr_pi.cpp:687
+ msgid " from "
+-msgstr " vanaf"
++msgstr " van "
+ 
+ #: src/chartdldr_pi.cpp:693 src/chartdldrgui.cpp:504
+ msgid "Charts"
+@@ -473,3 +473,139 @@ msgstr "Nieuwe kaartbron"
+ #: src/chartdldrgui.h:227
+ msgid "Chart Downloader Preferences"
+ msgstr "Voorkeuren Kaart Downloader"
++
++#: data/chart_sources.xml
++msgid "Europe"
++msgstr "Europa"
++
++#: data/chart_sources.xml
++msgid "North America"
++msgstr "Noord-Amerika"
++
++#: data/chart_sources.xml
++msgid "South America"
++msgstr "Zuid-Amerika"
++
++#: data/chart_sources.xml
++msgid "Asia and Oceania"
++msgstr "Azië en Oceanië"
++
++#: data/chart_sources.xml
++msgid "World and basemaps"
++msgstr "Wereld en basiskaarten"
++
++#: data/chart_sources.xml
++msgid "GEBCO bathymetry"
++msgstr "GEBCO-dieptekaart"
++
++#: data/chart_sources.xml
++msgid "EURIS - All European waterways Inland ENC Charts"
++msgstr "EURIS - alle Europese binnenwateren (binnenvaart-ENC)"
++
++#: data/chart_sources.xml
++msgid "Austria Inland ENC Charts"
++msgstr "Oostenrijk - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Belgium OSM Raster Charts"
++msgstr "België - OSM-rasterkaarten"
++
++#: data/chart_sources.xml
++msgid "Bulgaria Inland ENC Charts"
++msgstr "Bulgarije - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Croatia Inland ENC Charts"
++msgstr "Kroatië - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Czech Republic Inland ENC Charts"
++msgstr "Tsjechië - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "France Inland ENC Charts"
++msgstr "Frankrijk - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "France Inland ENC Charts for Rhone"
++msgstr "Frankrijk - binnenvaart-ENC Rhône"
++
++#: data/chart_sources.xml
++msgid "Germany Inland ENC Charts"
++msgstr "Duitsland - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Germany OSM Raster Charts"
++msgstr "Duitsland - OSM-rasterkaarten"
++
++#: data/chart_sources.xml
++msgid "Hungary Inland ENC Charts"
++msgstr "Hongarije - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Netherlands Inland ENC Charts"
++msgstr "Nederland - binnenvaart-ENC (incl. Waddenzee en Zeeland)"
++
++#: data/chart_sources.xml
++msgid "Netherlands OSM Raster Charts"
++msgstr "Nederland - OSM-rasterkaarten"
++
++#: data/chart_sources.xml
++msgid "Poland Inland ENC Charts"
++msgstr "Polen - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Romania Inland ENC Charts"
++msgstr "Roemenië - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Serbia Inland ENC Charts"
++msgstr "Servië - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Slovakia Inland ENC Charts"
++msgstr "Slowakije - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Switzerland Inland ENC Charts"
++msgstr "Zwitserland - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Argentina RNC Nautical Charts"
++msgstr "Argentinië - rasterzeekaarten"
++
++#: data/chart_sources.xml
++msgid "Brasil Inland ENC Charts"
++msgstr "Brazilië - binnenvaart-ENC"
++
++#: data/chart_sources.xml
++msgid "Brasil RNC Nautical Charts"
++msgstr "Brazilië - rasterzeekaarten"
++
++#: data/chart_sources.xml
++msgid "Peru RNC Nautical Charts"
++msgstr "Peru - rasterzeekaarten"
++
++#: data/chart_sources.xml
++msgid "New Zealand RNC Nautical Charts"
++msgstr "Nieuw-Zeeland - rasterzeekaarten"
++
++#: data/chart_sources.xml
++msgid "South China Sea ENC Charts"
++msgstr "Zuid-Chinese Zee - ENC"
++
++#: data/chart_sources.xml
++msgid "GSHHG basemap"
++msgstr "GSHHG-basiskaart"
++
++#: data/chart_sources.xml
++msgid "OSM basemap"
++msgstr "OSM-basiskaart"
++
++#: data/chart_sources.xml
++msgid "US Pilot Charts"
++msgstr "Pilot charts (VS)"
++
++#: data/chart_sources.xml
++msgid "USA - NOAA & Inland charts"
++msgstr "VS - NOAA en binnenwateren"
+diff --git a/plugins/grib_pi/po/nl_NL.po b/plugins/grib_pi/po/nl_NL.po
+index 90a61831c..00314d800 100644
+--- a/plugins/grib_pi/po/nl_NL.po
++++ b/plugins/grib_pi/po/nl_NL.po
+@@ -19,7 +19,7 @@ msgstr ""
+ 
+ #: src/GribUIDialog.cpp:427
+ msgid "Start a download request"
+-msgstr ""
++msgstr "Download aanvragen"
+ 
+ #: src/GribUIDialog.cpp:466
+ msgid "File: "
+@@ -79,7 +79,7 @@ msgstr "Instellingen"
+ 
+ #: src/GribUIDialog.cpp:1019
+ msgid "Request forecast data"
+-msgstr ""
++msgstr "Verwachting aanvragen"
+ 
+ #: src/GribUIDialog.cpp:1021
+ msgid "Draw requested Area or Click here to stop request"
+@@ -309,7 +309,7 @@ msgstr "Deze optie impliceert dat u interpolatie gebruikt\n"
+ 
+ #: src/GribUIDialog.h:289 src/GribUIDialogBase.cpp:2376
+ msgid "Choose GRIB File Directory"
+-msgstr ""
++msgstr "Kies de map voor GRIB-bestanden"
+ 
+ #: src/GribUIDialogBase.cpp:49 src/GribUIDialogBase.cpp:174
+ msgid "Previous"
+@@ -405,16 +405,16 @@ msgstr "Windpijlen"
+ 
+ #: src/GribUIDialogBase.cpp:1215
+ msgid "Default Color"
+-msgstr ""
++msgstr "Standaardkleur"
+ 
+ #: src/GribUIDialogBase.cpp:1216
+ msgid "Controlled Colors"
+-msgstr ""
++msgstr "Kleur naar waarde"
+ 
+ #: src/GribUIDialogBase.cpp:1232 src/GribUIDialogBase.cpp:1336
+ #: src/GribUIDialogBase.cpp:1409
+ msgid "Spacing (pixels)"
+-msgstr ""
++msgstr "Afstand (pixels)"
+ 
+ #: src/GribUIDialogBase.cpp:1238 src/GribUIDialogBase.cpp:1341
+ #: src/GribUIDialogBase.cpp:1414
+@@ -478,11 +478,11 @@ msgstr "Generiek"
+ 
+ #: src/GribUIDialogBase.cpp:1390
+ msgid "REFC"
+-msgstr ""
++msgstr "REFC"
+ 
+ #: src/GribUIDialogBase.cpp:1390
+ msgid "Windy"
+-msgstr ""
++msgstr "Windy"
+ 
+ #: src/GribUIDialogBase.cpp:1399 src/CursorData.cpp:652 src/CursorData.cpp:658
+ #: src/CursorData.cpp:663 src/CursorData.cpp:672 src/CursorData.cpp:677
+@@ -516,7 +516,7 @@ msgstr "Afspeelopties"
+ 
+ #: src/GribUIDialogBase.cpp:1511
+ msgid "Speed Control"
+-msgstr "Snelheidsregeling: %s"
++msgstr "Snelheid"
+ 
+ #: src/GribUIDialogBase.cpp:1524
+ msgid "Slow"
+@@ -580,11 +580,11 @@ msgstr "Zichtbaarheid knoppen"
+ 
+ #: src/GribUIDialogBase.cpp:1674
+ msgid "Attached icon bar"
+-msgstr "Vaste pictogrammenbalk"
++msgstr "Vaste balk"
+ 
+ #: src/GribUIDialogBase.cpp:1681
+ msgid "Isolated icon bar"
+-msgstr "Losse pictogrammenbalk"
++msgstr "Losse balk"
+ 
+ #: src/GribUIDialogBase.cpp:1692
+ msgid "Geopot. Height Choice"
+@@ -663,11 +663,11 @@ msgstr "Opties voor Laden Bestand"
+ 
+ #: src/GribUIDialogBase.cpp:2197
+ msgid "Grib File Directory"
+-msgstr ""
++msgstr "Map voor GRIB-bestanden"
+ 
+ #: src/GribUIDialogBase.cpp:2204
+ msgid "Browse..."
+-msgstr ""
++msgstr "Bladeren..."
+ 
+ #: src/GribUIDialogBase.cpp:2210 src/GribUIDialogBase.cpp:2331
+ msgid "Start at the first forecast in GRIB file"
+@@ -699,7 +699,7 @@ msgstr "Gebiedsselectie"
+ 
+ #: src/GribUIDialogBase.cpp:2402
+ msgid "Current View"
+-msgstr ""
++msgstr "Huidig kaartbeeld"
+ 
+ #: src/GribUIDialogBase.cpp:2404
+ msgid "Manual Selection"
+@@ -707,7 +707,7 @@ msgstr "Handmatige selectie"
+ 
+ #: src/GribUIDialogBase.cpp:2426
+ msgid "Click to select the download area, or Shift + Click + Drag on the canvas"
+-msgstr ""
++msgstr "Klik om het downloadgebied te kiezen, of Shift + klik + sleep op de kaart"
+ 
+ #: src/GribUIDialogBase.cpp:2437
+ msgid "Max Lat"
+@@ -752,27 +752,27 @@ msgstr "Altijd dit gebied gebruiken"
+ #: src/GribUIDialogBase.cpp:2522 src/GribUIDialogBase.cpp:2598
+ #: src/GribRequestDialog.cpp:786
+ msgid "Download grib..."
+-msgstr ""
++msgstr "GRIB downloaden..."
+ 
+ #: src/GribUIDialogBase.cpp:2531
+ msgid "Forecast length"
+-msgstr ""
++msgstr "Verwachtingsduur"
+ 
+ #: src/GribUIDialogBase.cpp:2536
+ msgid "24 hours"
+-msgstr ""
++msgstr "24 uur"
+ 
+ #: src/GribUIDialogBase.cpp:2536
+ msgid "3 days"
+-msgstr ""
++msgstr "3 dagen"
+ 
+ #: src/GribUIDialogBase.cpp:2537
+ msgid "Maximum"
+-msgstr ""
++msgstr "Maximaal"
+ 
+ #: src/GribUIDialogBase.cpp:2546
+ msgid "Model"
+-msgstr ""
++msgstr "Model"
+ 
+ #: src/GribUIDialogBase.cpp:2564 src/GribUIDialogBase.cpp:2613
+ #: src/GribRequestDialog.cpp:601 src/GribRequestDialog.cpp:675
+@@ -783,11 +783,11 @@ msgstr ""
+ #: src/GribRequestDialog.cpp:2180 src/GribRequestDialog.cpp:2206
+ #: src/GribRequestDialog.cpp:2238
+ msgid "Download"
+-msgstr ""
++msgstr "Downloaden"
+ 
+ #: src/GribUIDialogBase.cpp:2607
+ msgid "Update Catalog"
+-msgstr ""
++msgstr "Catalogus bijwerken"
+ 
+ #: src/GribUIDialogBase.cpp:2643
+ msgid "Profile"
+@@ -908,19 +908,19 @@ msgstr "Verzenden"
+ 
+ #: src/GribUIDialogBase.cpp:3053
+ msgid "World"
+-msgstr ""
++msgstr "Wereld"
+ 
+ #: src/GribUIDialogBase.cpp:3057
+ msgid "Local models"
+-msgstr ""
++msgstr "Lokale modellen"
+ 
+ #: src/GribUIDialogBase.cpp:3061
+ msgid "e-mail"
+-msgstr ""
++msgstr "E-mail"
+ 
+ #: src/GribUIDialogBase.cpp:3068
+ msgid "XyGrib"
+-msgstr ""
++msgstr "XyGrib"
+ 
+ #: src/GribUIDialogBase.cpp:3585
+ msgid "Data at Position:"
+@@ -941,7 +941,7 @@ msgstr "Dialoog"
+ 
+ #: src/GribUIDialogBase.cpp:3659
+ msgid "Project position"
+-msgstr ""
++msgstr "Positie vooruitberekenen"
+ 
+ #: src/smapi.cpp:121
+ msgid "MAIL Error: MAPI32.DLL is not installed or invalid on this computer!"
+@@ -953,7 +953,7 @@ msgstr "Voorkeuren"
+ 
+ #: src/GribUIDialogBase.h:603
+ msgid "Get forecast..."
+-msgstr ""
++msgstr "Verwachting ophalen"
+ 
+ #: src/GribUIDialogBase.h:631
+ msgid "Grib Data Table"
+@@ -1093,15 +1093,15 @@ msgstr "Stroomsnelheid"
+ 
+ #: src/GribRequestDialog.cpp:98
+ msgid "<h1>OpenCPN ECMWF forecast</h1><p>Free service based on ECMWF Open Data published under the terms of Creative Commons CC-4.0-BY license</p><p>The IFS model GRIB files include information about surface temperature, atmospheric pressure, wind strength, wind direction, wave height and direction for the whole world on a 0.25 degree resolution grid with 3 hour step in the first 144 hours and 6 hour step up to 10 days.</p>The AIFS model contains data for wind, pressure and temperature on a 0.25 degree grid with 6 hour step for up to 15 days<p>The data is updated twice a day as soon as the 00z and 12z model runs finish and the results are published by ECMWF, which usually means new forecast data is available shortly after 8AM and 8PM UTC.</p><p>The grib downloaded covers the area of the primary chart canvas.</p><p>The service is provided on best effort basis and comes with no guarantees. The server is hosted by a volunteer and the service is provided free of charge and without accepting any liability whatsoever for its continuous availability, or for any loss or damage arising from its use. If you find the service useful, please consider making a donation to the OpenCPN project.</p><p>This service is based on data and products of the European Centre for Medium-Range Weather Forecasts (ECMWF).</p><p>Source: www.ecmwf.int</p><p>Disclaimer: ECMWF does not accept any liability whatsoever for any error or omission in the data, their availability, or for any loss or damage arising from their use.</p></font></body></html>"
+-msgstr ""
++msgstr "<h1>OpenCPN ECMWF-verwachting</h1><p>Gratis dienst op basis van ECMWF Open Data, gepubliceerd onder de Creative Commons CC-4.0-BY-licentie</p><p>De GRIB-bestanden van het IFS-model bevatten oppervlaktetemperatuur, luchtdruk, windkracht, windrichting, golfhoogte en golfrichting voor de hele wereld op een raster van 0,25 graad, met stappen van 3 uur in de eerste 144 uur en van 6 uur tot 10 dagen.</p>Het AIFS-model bevat wind, luchtdruk en temperatuur op een raster van 0,25 graad met stappen van 6 uur tot 15 dagen<p>De gegevens worden twee keer per dag bijgewerkt, zodra de modelruns van 00z en 12z klaar zijn en ECMWF de resultaten publiceert; meestal is er kort na 8 en 20 uur UTC een nieuwe verwachting.</p><p>Het gedownloade GRIB-bestand beslaat het gebied van het hoofdkaartvenster.</p><p>De dienst wordt naar beste kunnen geleverd, zonder garanties. De server wordt beheerd door een vrijwilliger; de dienst is gratis en zonder enige aansprakelijkheid voor de beschikbaarheid of voor verlies of schade door het gebruik. Vind je de dienst nuttig, overweeg dan een donatie aan het OpenCPN-project.</p><p>Deze dienst gebruikt gegevens en producten van het European Centre for Medium-Range Weather Forecasts (ECMWF).</p><p>Bron: www.ecmwf.int</p><p>Disclaimer: ECMWF aanvaardt geen enkele aansprakelijkheid voor fouten of weglatingen in de gegevens, de beschikbaarheid ervan, of voor verlies of schade door het gebruik.</p></font></body></html>"
+ 
+ #: src/GribRequestDialog.cpp:139
+ msgid "<h1>Grib weather forecasts</h1><p>Collection of local weather models from various sources available for download over the internet.</p></font></body></html>"
+-msgstr ""
++msgstr "<h1>GRIB-weersverwachtingen</h1><p>Verzameling van lokale weermodellen uit verschillende bronnen, te downloaden via internet.</p></font></body></html>"
+ 
+ #: src/GribRequestDialog.cpp:255
+ msgid "OK"
+-msgstr ""
++msgstr "OK"
+ 
+ #: src/GribRequestDialog.cpp:274
+ msgid "Address used to send request eMail. (Mandatory for LINUX)"
+@@ -1126,61 +1126,61 @@ msgstr "Voer uw verwachte koers in"
+ #: src/GribRequestDialog.cpp:535
+ #, c-format
+ msgid "Downloading... %s kB / %s kB (%li%%)"
+-msgstr ""
++msgstr "Downloaden... %s kB / %s kB (%li%%)"
+ 
+ #: src/GribRequestDialog.cpp:540
+ #, c-format
+ msgid "Downloading... %s kB / ???"
+-msgstr ""
++msgstr "Downloaden... %s kB / ???"
+ 
+ #: src/GribRequestDialog.cpp:602 src/GribRequestDialog.cpp:808
+ #: src/GribRequestDialog.cpp:861 src/GribRequestDialog.cpp:912
+ msgid "Download canceled"
+-msgstr ""
++msgstr "Download geannuleerd"
+ 
+ #: src/GribRequestDialog.cpp:615
+ msgid "Preparing data on server..."
+-msgstr ""
++msgstr "Gegevens worden op de server klaargezet..."
+ 
+ #: src/GribRequestDialog.cpp:659 src/GribRequestDialog.cpp:983
+ #, c-format
+ msgid "Download complete: %s"
+-msgstr ""
++msgstr "Download voltooid: %s"
+ 
+ #: src/GribRequestDialog.cpp:672 src/GribRequestDialog.cpp:843
+ #: src/GribRequestDialog.cpp:908 src/GribRequestDialog.cpp:924
+ #: src/GribRequestDialog.cpp:938 src/GribRequestDialog.cpp:997
+ #: src/GribRequestDialog.cpp:2257
+ msgid "Download failed"
+-msgstr ""
++msgstr "Download mislukt"
+ 
+ #: src/GribRequestDialog.cpp:714
+ msgid "Local high resolution forecasts"
+-msgstr ""
++msgstr "Lokale verwachtingen met hoge resolutie"
+ 
+ #: src/GribRequestDialog.cpp:790
+ msgid "Select grib..."
+-msgstr ""
++msgstr "Kies GRIB..."
+ 
+ #: src/GribRequestDialog.cpp:821
+ msgid "Downloading catalog update..."
+-msgstr ""
++msgstr "Catalogus-update downloaden..."
+ 
+ #: src/GribRequestDialog.cpp:841
+ msgid "Catalog update complete."
+-msgstr ""
++msgstr "Catalogus bijgewerkt."
+ 
+ #: src/GribRequestDialog.cpp:874
+ msgid "Downloading grib..."
+-msgstr ""
++msgstr "GRIB downloaden..."
+ 
+ #: src/GribRequestDialog.cpp:880
+ msgid "Download can't be started."
+-msgstr ""
++msgstr "De download kan niet starten."
+ 
+ #: src/GribRequestDialog.cpp:981
+ msgid "Grib download complete."
+-msgstr ""
++msgstr "GRIB-download voltooid."
+ 
+ #: src/GribRequestDialog.cpp:1184
+ msgid "Sorry...\n"
+@@ -1246,11 +1246,11 @@ msgstr "Doorgaan..."
+ #: src/GribRequestDialog.cpp:1886
+ msgid "Sender or recipient e-mail address seems invalid.\n"
+ "Please correct it in the configuration file."
+-msgstr ""
++msgstr "Het e-mailadres van afzender of ontvanger lijkt ongeldig.\nPas het aan in het configuratiebestand."
+ 
+ #: src/GribRequestDialog.cpp:1888
+ msgid "Error"
+-msgstr ""
++msgstr "Fout"
+ 
+ #: src/GribRequestDialog.cpp:1918 src/GribRequestDialog.cpp:1924
+ msgid "Your request is ready. An email is prepared in your email environment. \n"
+@@ -1278,41 +1278,41 @@ msgstr "Het verzoek kan niet verzonden worden. Controleer uw\n"
+ 
+ #: src/GribRequestDialog.cpp:2086
+ msgid "Download cancelled"
+-msgstr ""
++msgstr "Download geannuleerd"
+ 
+ #: src/GribRequestDialog.cpp:2097
+ #, c-format
+ msgid "Can't download GRIB file bigger than %d MB"
+-msgstr ""
++msgstr "Kan geen GRIB-bestand groter dan %d MB downloaden"
+ 
+ #: src/GribRequestDialog.cpp:2112
+ msgid "Preparing GRIB file on server..."
+-msgstr ""
++msgstr "GRIB-bestand wordt op de server klaargezet..."
+ 
+ #: src/GribRequestDialog.cpp:2145
+ msgid "Grib request failed"
+-msgstr ""
++msgstr "GRIB-aanvraag mislukt"
+ 
+ #: src/GribRequestDialog.cpp:2179
+ msgid "Server Error"
+-msgstr ""
++msgstr "Serverfout"
+ 
+ #: src/GribRequestDialog.cpp:2205
+ msgid "Error parsing XML file from server"
+-msgstr ""
++msgstr "Fout bij het lezen van het XML-bestand van de server"
+ 
+ #: src/GribRequestDialog.cpp:2212
+ msgid "Downloading GRIB file"
+-msgstr ""
++msgstr "GRIB-bestand downloaden"
+ 
+ #: src/GribRequestDialog.cpp:2243
+ msgid "Download complete"
+-msgstr ""
++msgstr "Download voltooid"
+ 
+ #: src/GribRequestDialog.cpp:2352 src/GribRequestDialog.cpp:2358
+ #: src/GribRequestDialog.cpp:2483 src/GribRequestDialog.cpp:2489
+ msgid "Latest"
+-msgstr ""
++msgstr "Nieuwste"
+ 
+ #: src/CursorData.cpp:288
+ msgid "Data at cursor position"
+diff --git a/po/opencpn_nl_NL.po b/po/opencpn_nl_NL.po
+index 6e2947559..6c3d12225 100644
+--- a/po/opencpn_nl_NL.po
++++ b/po/opencpn_nl_NL.po
+@@ -3472,11 +3472,11 @@ msgstr "Zet koers uit naar hier"
+ 
+ #: gui/src/canvas_menu.cpp:496 gui/src/ocpn_frame.cpp:3592
+ msgid "Course Up Mode"
+-msgstr "Koers-Boven presentatie"
++msgstr "Koers-Boven"
+ 
+ #: gui/src/canvas_menu.cpp:498
+ msgid "Heading Up Mode"
+-msgstr "Koers-Boven modus"
++msgstr "Kop-Boven"
+ 
+ #: gui/src/canvas_menu.cpp:500 gui/src/canvas_menu.cpp:507
+ #: gui/src/ocpn_frame.cpp:3307 gui/src/ocpn_frame.cpp:3591
+@@ -3778,7 +3778,7 @@ msgstr "Koers-Boven"
+ 
+ #: gui/src/canvas_options.cpp:156 gui/src/compass.cpp:250
+ msgid "Heading Up"
+-msgstr "Koers-Boven"
++msgstr "Kop-Boven"
+ 
+ #: gui/src/canvas_options.cpp:165 gui/src/options.cpp:4015
+ #: gui/src/options.cpp:4206
+@@ -3787,7 +3787,7 @@ msgstr "Kijk-Vooruit presentatie"
+ 
+ #: gui/src/canvas_options.cpp:176 gui/src/options.cpp:1893
+ msgid "Display Options"
+-msgstr "Weergaveopties Eigen Schip"
++msgstr "Weergaveopties"
+ 
+ #: gui/src/canvas_options.cpp:181 gui/src/ocpn_frame.cpp:3616
+ #: gui/src/ocpn_frame.cpp:3621 gui/src/options.cpp:4030 gui/src/options.cpp:4221
+@@ -4513,7 +4513,7 @@ msgstr "Deze template toepassen om terug te keren naar een bekende veilige confi
+ #: gui/src/connection_edit.cpp:295 gui/src/connection_edit.cpp:813
+ #: gui/src/connections_dlg.cpp:1179 gui/src/connections_dlg.cpp:1203
+ msgid "Edit Selected Connection"
+-msgstr "Wijzig geselecteerde verbinding"
++msgstr "Verbinding wijzigen"
+ 
+ #: gui/src/connection_edit.cpp:329 gui/src/conn_params_panel.cpp:428
+ msgid "Built-in GPS"
+@@ -4646,7 +4646,7 @@ msgstr "als autopilot of NMEA repeater"
+ 
+ #: gui/src/connection_edit.cpp:628
+ msgid "Advanced: "
+-msgstr ""
++msgstr "Uitgebreid: "
+ 
+ #: gui/src/connection_edit.cpp:636
+ msgid "Auth Token"
+@@ -4658,7 +4658,7 @@ msgstr "Gebruik Garmin (GRMN) modus voor invoer"
+ 
+ #: gui/src/connection_edit.cpp:661
+ msgid " UDP Multicast"
+-msgstr ""
++msgstr " UDP-multicast"
+ 
+ #: gui/src/connection_edit.cpp:669
+ msgid "APB bearing precision"
+@@ -4734,23 +4734,23 @@ msgstr "Signal K server niet gevonden."
+ 
+ #: gui/src/connection_edit.cpp:1727
+ msgid "There is an enabled UDP input connection that uses the same data port."
+-msgstr ""
++msgstr "Er is een ingeschakelde UDP-invoerverbinding die dezelfde datapoort gebruikt."
+ 
+ #: gui/src/connection_edit.cpp:1730
+ msgid "Please apply a filter on both connections to avoid a feedback loop."
+-msgstr ""
++msgstr "Zet een filter op beide verbindingen om een terugkoppellus te voorkomen."
+ 
+ #: gui/src/connection_edit.cpp:1735
+ msgid "There is a disabled UDP Input connection that uses the same Dataport."
+-msgstr ""
++msgstr "Er is een uitgeschakelde UDP-invoerverbinding die dezelfde datapoort gebruikt."
+ 
+ #: gui/src/connection_edit.cpp:1738
+ msgid "If you enable that input please apply a filter on both connections to avoid a  feedback loop."
+-msgstr ""
++msgstr "Schakel je die invoer in, zet dan een filter op beide verbindingen om een terugkoppellus te voorkomen."
+ 
+ #: gui/src/connection_edit.cpp:1742
+ msgid "Or consider using a different data port for one of them"
+-msgstr ""
++msgstr "Of gebruik voor een van beide een andere datapoort"
+ 
+ #: gui/src/connection_edit.cpp:1744 gui/src/options.cpp:8221
+ #: gui/src/routeman_gui.cpp:63
+@@ -4836,23 +4836,23 @@ msgstr "Nieuwe verbinding toevoegen..."
+ 
+ #: gui/src/connections_dlg.cpp:403
+ msgid "Status"
+-msgstr ""
++msgstr "Status"
+ 
+ #: gui/src/connections_dlg.cpp:483 gui/src/connections_dlg.cpp:754
+ msgid "Enabled, click to disable"
+-msgstr ""
++msgstr "Ingeschakeld, tik om uit te schakelen"
+ 
+ #: gui/src/connections_dlg.cpp:485 gui/src/connections_dlg.cpp:756
+ msgid "Disabled, click to enable"
+-msgstr ""
++msgstr "Uitgeschakeld, tik om in te schakelen"
+ 
+ #: gui/src/connections_dlg.cpp:492
+ msgid "Edit connection"
+-msgstr ""
++msgstr "Verbinding bewerken"
+ 
+ #: gui/src/connections_dlg.cpp:494
+ msgid "Delete connection"
+-msgstr ""
++msgstr "Verbinding verwijderen"
+ 
+ #: gui/src/connections_dlg.cpp:680 gui/src/pluginmanager.cpp:2222
+ msgid "Disabled"
+@@ -4864,23 +4864,23 @@ msgstr "Geen driver gegevens beschikbaar"
+ 
+ #: gui/src/connections_dlg.cpp:696
+ msgid "No data flowing through connection"
+-msgstr ""
++msgstr "Er komen geen gegevens binnen via deze verbinding"
+ 
+ #: gui/src/connections_dlg.cpp:704
+ msgid "The device is unavailable"
+-msgstr ""
++msgstr "Het apparaat is niet beschikbaar"
+ 
+ #: gui/src/connections_dlg.cpp:712
+ msgid "Data is flowing"
+-msgstr ""
++msgstr "Er komen gegevens binnen"
+ 
+ #: gui/src/connections_dlg.cpp:785
+ msgid "Ok to delete connection on "
+-msgstr ""
++msgstr "Verbinding verwijderen op "
+ 
+ #: gui/src/connections_dlg.cpp:786
+ msgid "Delete connection?"
+-msgstr ""
++msgstr "Verbinding verwijderen?"
+ 
+ #: gui/src/connections_dlg.cpp:817 gui/src/options.cpp:3975
+ msgid "General"
+@@ -4888,31 +4888,31 @@ msgstr "Algemeen"
+ 
+ #: gui/src/connections_dlg.cpp:835
+ msgid "Adjust Nav data priorities..."
+-msgstr ""
++msgstr "Prioriteiten navigatiegegevens..."
+ 
+ #: gui/src/connections_dlg.cpp:849
+ msgid "Upload Format"
+-msgstr ""
++msgstr "Uploadformaat"
+ 
+ #: gui/src/connections_dlg.cpp:884
+ msgid "Generic NMEA 0183"
+-msgstr ""
++msgstr "Algemeen NMEA 0183"
+ 
+ #: gui/src/connections_dlg.cpp:884
+ msgid "Garmin Host mode"
+-msgstr ""
++msgstr "Garmin Host-modus"
+ 
+ #: gui/src/connections_dlg.cpp:884
+ msgid "Furuno GP4X"
+-msgstr ""
++msgstr "Furuno GP4X"
+ 
+ #: gui/src/connections_dlg.cpp:902 gui/src/connections_dlg.cpp:908
+ msgid "Advanced "
+-msgstr ""
++msgstr "Uitgebreid "
+ 
+ #: gui/src/connections_dlg.cpp:936
+ msgid "Use magnetic bearing in output sentence APB"
+-msgstr ""
++msgstr "Magnetische peiling gebruiken in uitvoerzin APB"
+ 
+ #: gui/src/connections_dlg.cpp:949 gui/src/connections_dlg.cpp:973
+ msgid "Always send RMB and RMC NMEA0183 data"
+@@ -4920,11 +4920,11 @@ msgstr ""
+ 
+ #: gui/src/connections_dlg.cpp:991
+ msgid "Filter NMEA course and speed data. Filter period: "
+-msgstr ""
++msgstr "NMEA-koers- en snelheidsgegevens filteren. Filterperiode: "
+ 
+ #: gui/src/connections_dlg.cpp:1025
+ msgid "NMEA 0183 Talker Id: "
+-msgstr ""
++msgstr "NMEA 0183 Talker-ID: "
+ 
+ #: gui/src/connections_dlg.cpp:1031
+ msgid "Enter a two-letter talker ID to override the default ID in NMEA sentences generated by OpenCPN (e.g., GP, HC, EC). This affects only sentences created by OpenCPN, not those forwarded from other devices."
+@@ -4932,15 +4932,15 @@ msgstr ""
+ 
+ #: gui/src/connections_dlg.cpp:1055
+ msgid "Netmask: "
+-msgstr ""
++msgstr "Netmasker: "
+ 
+ #: gui/src/connections_dlg.cpp:1057
+ msgid "length (bits): "
+-msgstr ""
++msgstr "lengte (bits): "
+ 
+ #: gui/src/connections_dlg.cpp:1211
+ msgid "Configure new connection"
+-msgstr "Nieuwe verbinding configureren"
++msgstr "Nieuwe verbinding"
+ 
+ #: gui/src/connections_dlg.cpp:1259
+ msgid "Driver creation warning"
+@@ -4948,7 +4948,7 @@ msgstr ""
+ 
+ #: gui/src/connections_dlg.cpp:1268
+ msgid "Unable to create a connection as configured. Connected port or address was missing."
+-msgstr ""
++msgstr "Kan de verbinding niet maken zoals ingesteld. De poort of het adres ontbreekt."
+ 
+ #: gui/src/conn_params_panel.cpp:149
+ msgid "Enable"
+@@ -4989,43 +4989,43 @@ msgstr "Driver"
+ 
+ #: gui/src/data_monitor.cpp:311
+ msgid "Quick filter:"
+-msgstr ""
++msgstr "Snelfilter:"
+ 
+ #: gui/src/data_monitor.cpp:405
+ msgid "All data"
+-msgstr ""
++msgstr "Alle gegevens"
+ 
+ #: gui/src/data_monitor.cpp:406
+ msgid "All NMEA data"
+-msgstr ""
++msgstr "Alle NMEA-gegevens"
+ 
+ #: gui/src/data_monitor.cpp:407
+ msgid "Default settings"
+-msgstr ""
++msgstr "Standaardinstellingen"
+ 
+ #: gui/src/data_monitor.cpp:408
+ msgid "Malformed messages"
+-msgstr ""
++msgstr "Onjuiste berichten"
+ 
+ #: gui/src/data_monitor.cpp:409
+ msgid "NMEA input data"
+-msgstr ""
++msgstr "NMEA-invoer"
+ 
+ #: gui/src/data_monitor.cpp:410
+ msgid "NMEA output data"
+-msgstr ""
++msgstr "NMEA-uitvoer"
+ 
+ #: gui/src/data_monitor.cpp:411
+ msgid "Messages to plugins"
+-msgstr ""
++msgstr "Berichten naar plugins"
+ 
+ #: gui/src/data_monitor.cpp:460
+ msgid "Resume"
+-msgstr ""
++msgstr "Hervatten"
+ 
+ #: gui/src/data_monitor.cpp:460
+ msgid "Pause"
+-msgstr ""
++msgstr "Pauze"
+ 
+ #: gui/src/data_monitor.cpp:501 gui/src/options.cpp:1050
+ #: gui/src/options.cpp:1920 gui/src/options.cpp:2032
+@@ -5037,31 +5037,31 @@ msgstr "standaard"
+ 
+ #: gui/src/data_monitor.cpp:508
+ msgid "Log format"
+-msgstr ""
++msgstr "Logformaat"
+ 
+ #: gui/src/data_monitor.cpp:517
+ msgid "Change..."
+-msgstr ""
++msgstr "Wijzigen..."
+ 
+ #: gui/src/data_monitor.cpp:520
+ msgid "Overwrite existing file"
+-msgstr ""
++msgstr "Bestaand bestand overschrijven"
+ 
+ #: gui/src/data_monitor.cpp:524
+ msgid "Log file"
+-msgstr ""
++msgstr "Logbestand"
+ 
+ #: gui/src/data_monitor.cpp:547
+ msgid "Select logfile"
+-msgstr ""
++msgstr "Kies logbestand"
+ 
+ #: gui/src/data_monitor.cpp:565
+ msgid "Logging setup"
+-msgstr ""
++msgstr "Loginstellingen"
+ 
+ #: gui/src/data_monitor.cpp:608
+ msgid "Use colors"
+-msgstr ""
++msgstr "Kleuren gebruiken"
+ 
+ #: gui/src/data_monitor.cpp:609
+ msgid "Colors..."
+@@ -5073,19 +5073,19 @@ msgstr ""
+ 
+ #: gui/src/data_monitor.cpp:611
+ msgid "Logging..."
+-msgstr ""
++msgstr "Loggen..."
+ 
+ #: gui/src/data_monitor.cpp:613
+ msgid "Create new..."
+-msgstr ""
++msgstr "Nieuw maken..."
+ 
+ #: gui/src/data_monitor.cpp:614
+ msgid "Edit..."
+-msgstr ""
++msgstr "Bewerken..."
+ 
+ #: gui/src/data_monitor.cpp:615
+ msgid "Delete..."
+-msgstr ""
++msgstr "Verwijderen..."
+ 
+ #: gui/src/data_monitor.cpp:616
+ msgid "Rename..."
+@@ -5093,7 +5093,7 @@ msgstr ""
+ 
+ #: gui/src/data_monitor.cpp:617
+ msgid "Filters..."
+-msgstr ""
++msgstr "Filters..."
+ 
+ #: gui/src/data_monitor.cpp:619 gui/src/data_monitor.cpp:672
+ msgid "Edit active filter"
+@@ -5113,7 +5113,7 @@ msgstr "Stop loggen"
+ 
+ #: gui/src/data_monitor.cpp:757
+ msgid "Start logging"
+-msgstr ""
++msgstr "Start loggen"
+ 
+ #: gui/src/data_monitor.cpp:793
+ msgid "Open quick filter"
+@@ -5140,7 +5140,7 @@ msgstr "Spreadsheet csv bestand (*.csv)fting *.csv"
+ #: gui/src/data_monitor.cpp:950 gui/src/ocpn_frame.cpp:3701
+ #: gui/src/ocpn_frame.cpp:3706
+ msgid "Data Monitor"
+-msgstr ""
++msgstr "Datamonitor"
+ 
+ #: gui/src/detail_slider.cpp:83
+ msgid "CM93 Detail Level"
+@@ -5795,7 +5795,7 @@ msgstr "dubbele waypoints gedetecteerd tijdens het importeren en genegeerd."
+ 
+ #: gui/src/notification_manager_gui.cpp:133
+ msgid "Repeat:"
+-msgstr ""
++msgstr "Herhaald:"
+ 
+ #: gui/src/notification_manager_gui.cpp:294
+ msgid "OpenCPN Notifications"
+@@ -5803,7 +5803,7 @@ msgstr ""
+ 
+ #: gui/src/notification_manager_gui.cpp:310
+ msgid "Acknowledge All"
+-msgstr ""
++msgstr "Alles bevestigen"
+ 
+ #: gui/src/ocpn_app.cpp:407
+ msgid "\n"
+@@ -5812,7 +5812,12 @@ msgid "\n"
+ "OpenCPN must only be used in conjunction with approved paper charts and traditional methods of navigation.\n\n"
+ "DO NOT rely upon OpenCPN for safety of life or property.\n\n"
+ "Please click \"Agree\" and proceed, or \"Cancel\" to quit.\n"
+-msgstr ""
++msgstr "\n"
++"OpenCPN wordt verspreid in de hoop dat het nuttig is, maar ZONDER ENIGE GARANTIE; zelfs zonder de impliciete garantie van VERKOOPBAARHEID of GESCHIKTHEID VOOR EEN BEPAALD DOEL.\n\n"
++"Zie de GNU General Public License voor meer details.\n\n"
++"OpenCPN mag alleen worden gebruikt samen met goedgekeurde papieren kaarten en traditionele navigatiemethoden.\n\n"
++"Vertrouw voor de veiligheid van mensen of eigendommen NIET op OpenCPN.\n\n"
++"Tik op \"Akkoord\" om verder te gaan, of op \"Annuleren\" om te stoppen.\n"
+ 
+ #: gui/src/ocpn_app.cpp:421
+ msgid "OpenCPN for Android"
+@@ -5824,7 +5829,7 @@ msgstr "Welkom bij OpenCPN"
+ 
+ #: gui/src/ocpn_app.cpp:432
+ msgid "Agree"
+-msgstr ""
++msgstr "Akkoord"
+ 
+ #: gui/src/ocpn_app.cpp:557
+ msgid "Cannot load route or waypoint file: "
+@@ -6460,7 +6465,7 @@ msgstr "Toevoegen MMSI-eigenschappen"
+ 
+ #: gui/src/options.cpp:1698 gui/src/options.cpp:2000 gui/src/options.cpp:2180
+ msgid "Nautical miles"
+-msgstr "zeemijl (NM of NMi)"
++msgstr "zeemijl"
+ 
+ #: gui/src/options.cpp:1699
+ msgid "Statute miles"
+@@ -6708,7 +6713,7 @@ msgstr "Automatische dagelijkse tracks vanaf"
+ 
+ #: gui/src/options.cpp:2120
+ msgid "Computer"
+-msgstr "Computer"
++msgstr "Dit apparaat"
+ 
+ #: gui/src/options.cpp:2145
+ msgid "Highlight Tracks"
+@@ -6776,7 +6781,7 @@ msgstr "Toon markeringspunten alleen bij kaartschaal groter dan 1:"
+ 
+ #: gui/src/options.cpp:2313
+ msgid "Show marks only at a chartscale smaller than 1 :"
+-msgstr ""
++msgstr "Toon markeringspunten alleen bij kaartschaal kleiner dan 1:"
+ 
+ #: gui/src/options.cpp:2322
+ msgid "Override the settings for chartscale based visibility and show always"
+@@ -6853,7 +6858,7 @@ msgstr "Forceer volledige herbouw van database"
+ 
+ #: gui/src/options.cpp:2552
+ msgid "Rebuild Chart Database"
+-msgstr ""
++msgstr "Kaartdatabase opnieuw opbouwen"
+ 
+ #: gui/src/options.cpp:2556
+ msgid "Prepare all ENC Charts"
+@@ -7186,7 +7191,7 @@ msgstr "Diepte"
+ 
+ #: gui/src/options.cpp:4443 gui/src/options.cpp:4656
+ msgid "Height"
+-msgstr ""
++msgstr "Hoogte"
+ 
+ #: gui/src/options.cpp:4461 gui/src/options.cpp:4672
+ msgid "Temperature"
+@@ -7260,7 +7265,7 @@ msgstr "Toon magnetische koersen en peilingen."
+ 
+ #: gui/src/options.cpp:4760 gui/src/options.cpp:6307
+ msgid "WMM Plugin calculated magnetic variation"
+-msgstr "Door WMM Plugin berekende magn. variatie"
++msgstr "Magn. variatie (WMM)"
+ 
+ #: gui/src/options.cpp:4778
+ msgid " To set the magnetic variation manually,\n"
+@@ -7607,7 +7612,7 @@ msgstr "Kies letterkleur..."
+ 
+ #: gui/src/options.cpp:5578
+ msgid "Reset to Default"
+-msgstr ""
++msgstr "Standaard herstellen"
+ 
+ #: gui/src/options.cpp:5582
+ msgid "Sample"
+@@ -7639,7 +7644,7 @@ msgstr "Verberg werkbalk na"
+ 
+ #: gui/src/options.cpp:5652
+ msgid "Enable Debug in root context menu"
+-msgstr ""
++msgstr "Debug in het hoofdcontextmenu inschakelen"
+ 
+ #: gui/src/options.cpp:5661
+ msgid "Play Ships Bells"
+@@ -7695,7 +7700,7 @@ msgstr "Muiswiel zoom gevoeligheid"
+ 
+ #: gui/src/options.cpp:6054
+ msgid "Ok"
+-msgstr ""
++msgstr "OK"
+ 
+ #: gui/src/options.cpp:6063
+ msgid "Apply"
+@@ -7732,7 +7737,7 @@ msgstr "Plugins"
+ 
+ #: gui/src/options.cpp:6312
+ msgid "User set magnetic variation"
+-msgstr "Gebruikersinstelling magn. variatie"
++msgstr "Magn. variatie"
+ 
+ #: gui/src/options.cpp:6781
+ msgid "feet"
+@@ -7869,7 +7874,7 @@ msgstr "Software OpenGL (OpenCPN herstarten)"
+ 
+ #: gui/src/options.cpp:9515
+ msgid "Use Accelerated Panning"
+-msgstr "Gebruik versnelde planning"
++msgstr "Gebruik versneld pannen"
+ 
+ #: gui/src/options.cpp:9517
+ msgid "Texture Settings"
+@@ -8250,7 +8255,7 @@ msgstr "Track-naam"
+ 
+ #: gui/src/routemanagerdialog.cpp:612
+ msgid "Start Date"
+-msgstr ""
++msgstr "Startdatum"
+ 
+ #: gui/src/routemanagerdialog.cpp:614
+ msgid "Length"
+@@ -8270,11 +8275,11 @@ msgstr "Verstuur naar 2ᵉ OpenCPN"
+ 
+ #: gui/src/routemanagerdialog.cpp:709
+ msgid "Show all marks"
+-msgstr ""
++msgstr "Toon alle markeringen"
+ 
+ #: gui/src/routemanagerdialog.cpp:747
+ msgid "Mark Name"
+-msgstr ""
++msgstr "Markeringsnaam"
+ 
+ #: gui/src/routemanagerdialog.cpp:749
+ msgid "Distance from own ship"
+@@ -8417,7 +8422,7 @@ msgstr "Klaar."
+ 
+ #: gui/src/routemanagerdialog.cpp:2345
+ msgid "Are you sure you want to delete <ALL> tracks?"
+-msgstr "Weet u zeker dat u <ALL> tracks wilt verwijderen?"
++msgstr "Weet u zeker dat u ALLE tracks wilt verwijderen?"
+ 
+ #: gui/src/routemanagerdialog.cpp:2415
+ msgid "Overruled"
+@@ -8429,7 +8434,7 @@ msgstr "Het waypoint dat u wilt verwijderen wordt gebruikt in een route. Weet u
+ 
+ #: gui/src/routemanagerdialog.cpp:2849
+ msgid "Are you sure you want to delete <ALL> waypoints?"
+-msgstr "Weet u zeker dat u <ALL> waypoints wilt verwijderen?"
++msgstr "Weet u zeker dat u ALLE waypoints wilt verwijderen?"
+ 
+ #: gui/src/routemanagerdialog.cpp:2854
+ msgid "There are some waypoints used in routes or anchor alarms.\n"
+@@ -8565,7 +8570,7 @@ msgstr "LMT@Lokatie"
+ #: gui/src/route_prop_dlg.cpp:252 gui/src/track_prop_dlg.cpp:448
+ #: gui/src/track_prop_dlg.cpp:474 gui/src/track_prop_dlg.cpp:851
+ msgid "Honor Global Settings"
+-msgstr ""
++msgstr "Volgens algemene instelling"
+ 
+ #: gui/src/route_prop_dlg.cpp:310 gui/src/track_prop_dlg.cpp:523
+ #: gui/src/track_prop_dlg.cpp:765
+@@ -9210,3 +9215,42 @@ msgstr ""
+ #: gui/src/user_colors_dlg.cpp:139
+ msgid "Restore defaults"
+ msgstr ""
++
++#: gui/src/options.cpp (opencpn-ios)
++msgid "Back"
++msgstr "Terug"
++
++#: app/ios/source_scan.cpp (opencpn-ios)
++msgid "Find sources..."
++msgstr "Zoek bronnen..."
++
++msgid "Find sources"
++msgstr "Bronnen zoeken"
++
++msgid "Looking for navigation data sources, this may take a while..."
++msgstr "Zoeken naar navigatiebronnen, dit kan even duren..."
++
++msgid "Looking for UDP data feeds..."
++msgstr "Luisteren naar UDP-gegevens..."
++
++msgid "Looking for TCP servers..."
++msgstr "Zoeken naar TCP-servers..."
++
++msgid "Looking for Signal K servers..."
++msgstr "Zoeken naar Signal K-servers..."
++
++msgid "TCP port %d..."
++msgstr "TCP-poort %d..."
++
++msgid "No navigation data sources found."
++msgstr "Geen navigatiebronnen gevonden."
++
++msgid "All sources found are already configured."
++msgstr "Alle gevonden bronnen zijn al ingesteld."
++
++msgid "Select the sources to add (receive only):"
++msgstr "Toevoegen, alleen ontvangen:"
++
++#: gui/src/s57chart.cpp (opencpn-ios)
++msgid "ENC cell %s has been cancelled by its producer (update %d) and is not shown. Install a current chart for this area."
++msgstr "ENC-kaart %s is door de uitgever ingetrokken (update %d) en wordt niet getoond. Installeer een actuele kaart voor dit gebied."
+-- 
+2.50.1 (Apple Git-155)
+

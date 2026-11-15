@@ -1,0 +1,1132 @@
+From 345862c5ab0b903f50563ebe3f4ee0d7354b6f8c Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 08/13] iOS: dialogs on small touch screens
+
+Fit the remaining dialogs (connections, route and mark properties, route
+manager, AIS target list, data monitor, about, message boxes) to a phone
+screen: iOS style header with Cancel/Done, wrapped labels, wider inputs
+and no fixed desktop minimum sizes. navutil: one-time iOS defaults for the
+chart text size and a reset of a wrongly stored locale.
+
+The iOS implementation lives in the iOS app layer (app/ios/*_ios.cpp in the
+opencpn-ios repository); the core only declares and calls it.
+
+All changes are inside #ifdef __OCPN__IOS__; other platforms are unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/about_frame_impl.cpp         |  22 +++++
+ gui/src/ais_target_list_dlg.cpp      |  26 +++++-
+ gui/src/connection_edit.cpp          |  25 ++++++
+ gui/src/connections_dlg.cpp          | 124 ++++++++++++++++++++++++++-
+ gui/src/data_monitor.cpp             |  64 ++++++++++----
+ gui/src/gui_lib.cpp                  |  27 ++++++
+ gui/src/navutil.cpp                  |  30 +++++++
+ gui/src/notification_manager_gui.cpp |  20 +++++
+ gui/src/print_dialog.cpp             |   8 ++
+ gui/src/route_prop_dlg.cpp           |   6 ++
+ gui/src/route_prop_dlg_impl.cpp      |  29 +++++++
+ gui/src/routemanagerdialog.cpp       |  46 ++++++++--
+ gui/src/tty_scroll.cpp               |  26 ++++++
+ libs/gui/src/dialog_base.cpp         |  22 +++++
+ libs/gui/src/form_grid.cpp           |  11 +++
+ 15 files changed, 459 insertions(+), 27 deletions(-)
+
+diff --git a/gui/src/about_frame_impl.cpp b/gui/src/about_frame_impl.cpp
+index 9b997c3ca..1c9323643 100644
+--- a/gui/src/about_frame_impl.cpp
++++ b/gui/src/about_frame_impl.cpp
+@@ -86,6 +86,10 @@ AboutFrameImpl::AboutFrameImpl(wxWindow* parent, wxWindowID id,
+   m_hyperlinkHelp->SetURL(target);
+ #if wxUSE_WEBVIEW && defined(HAVE_WEBVIEW)
+   m_htmlWinHelp->LoadURL(target);
++#elif defined(__OCPN__IOS__)
++  // iOS: LoadFile expects a file name, not a file:// URL. Given the URL,
++  // wxHtmlWindow appended it to the bundle dir (".../opencpn.app/file:/...").
++  m_htmlWinHelp->LoadFile(wxFileName(target.Mid(wxStrlen("file://"))));
+ #else
+   m_htmlWinHelp->LoadFile(target);
+ #endif
+@@ -98,10 +102,18 @@ AboutFrameImpl::AboutFrameImpl(wxWindow* parent, wxWindowID id,
+                EXTEND_HEIGHT;
+ 
+   SetMinSize(wxSize(width, height));
++#ifdef __OCPN__IOS__
++  IosPhoneLayout();  // app/ios/dialogs_ios.cpp
++#endif
+   RecalculateSize();
+ }
+ 
+ void AboutFrameImpl::OnLinkHelp(wxHyperlinkEvent& event) {
++#ifdef __OCPN__IOS__
++  // iOS: open the online manual instead (app/ios/dialogs_ios.cpp).
++  IosLaunchManual();
++  return;
++#endif
+ #ifdef __WXGTK__
+   wxString testFile = wxString::Format(
+       "/%s/doc/help_web.html", g_BasePlatform->GetSharedDataDir().c_str());
+@@ -123,15 +135,25 @@ void AboutFrameImpl::OnLinkHelp(wxHyperlinkEvent& event) {
+     m_htmlWinLicense->Hide();
+     m_htmlWinHelp->Show();
+     m_scrolledWindowAbout->Hide();
++#ifndef __OCPN__IOS__
++    // iOS: a single local help page; "< Back" only cost a column of space.
+     m_btnBack->Show();
++#endif
+ #if wxUSE_WEBVIEW && defined(HAVE_WEBVIEW)
+     m_btnBack->Enable(m_htmlWinHelp->CanGoBack());
+ #else
+     m_btnBack->Enable(m_htmlWinHelp->HistoryCanBack());
+ #endif
++#ifdef __OCPN__IOS__
++    // iOS: the sheet keeps its full size. SetSize to 90% of the main window
++    // made it a strip whose title bar (Done) was off screen, so it could not be
++    // closed.
++    Layout();
++#else
+     wxSize parentSize = m_parent->GetSize();
+     SetSize(wxSize(parentSize.x * 9 / 10, parentSize.y * 9 / 10));
+     Centre();
++#endif
+   }
+ }
+ 
+diff --git a/gui/src/ais_target_list_dlg.cpp b/gui/src/ais_target_list_dlg.cpp
+index dcda86621..c7b512da3 100644
+--- a/gui/src/ais_target_list_dlg.cpp
++++ b/gui/src/ais_target_list_dlg.cpp
+@@ -364,6 +364,13 @@ AISTargetListDialog::AISTargetListDialog(wxWindow *parent, wxAuiManager *auimgr,
+     }
+ 
+     pane = m_pAuiManager->GetPane("AISTargetList");  // Refresh the reference
++#ifdef __OCPN__IOS__
++    // iOS: the saved layout holds the caption in the language used back then
++    // ("AIS target list"); always use the current translation.
++    pane.Caption(_("AIS target list"));
++    if (pane.frame) pane.frame->SetTitle(pane.caption);
++    m_pAuiManager->Update();
++#endif
+ 
+     //  Some special setup for touch screens
+     if (g_btouch) {
+@@ -484,7 +491,14 @@ void AISTargetListDialog::RecalculateSize() {
+ }
+ 
+ void AISTargetListDialog::CreateControls() {
++#ifdef __OCPN__IOS__
++  // iOS: on a phone put the list above the buttons; side by side the list got
++  // half the width and the buttons fell off the right edge.
++  wxBoxSizer *topSizer =
++      new wxBoxSizer(wxGetDisplaySize().x < 700 ? wxVERTICAL : wxHORIZONTAL);
++#else
+   wxBoxSizer *topSizer = new wxBoxSizer(wxHORIZONTAL);
++#endif
+   SetSizer(topSizer);
+ #ifdef __ANDROID__
+   this->GetHandle()->setStyleSheet(getQtStyleSheet());
+@@ -678,8 +692,16 @@ void AISTargetListDialog::CreateControls() {
+   topSizer->Add(m_pListCtrlAISTargets, 1, wxEXPAND | wxALL, 0);
+ 
+   wxBoxSizer *boxSizer02 = new wxBoxSizer(wxVERTICAL);
+-  boxSizer02->AddSpacer(22);
+-  topSizer->Add(boxSizer02, 0, wxEXPAND | wxALL, 2);
++#ifdef __OCPN__IOS__
++  // Stacked: buttons get the same height as the list (and scroll).
++  if (topSizer->GetOrientation() == wxVERTICAL) {
++    topSizer->Add(boxSizer02, 1, wxEXPAND | wxALL, 2);
++  } else
++#endif
++  {
++    boxSizer02->AddSpacer(22);
++    topSizer->Add(boxSizer02, 0, wxEXPAND | wxALL, 2);
++  }
+ 
+   wxScrolledWindow *winr =
+       new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+diff --git a/gui/src/connection_edit.cpp b/gui/src/connection_edit.cpp
+index a5addd1a4..7c7bf0f56 100644
+--- a/gui/src/connection_edit.cpp
++++ b/gui/src/connection_edit.cpp
+@@ -193,6 +193,10 @@ void ConnectionEditDialog::SetInitialSettings() {
+ }
+ 
+ void ConnectionEditDialog::AddOKCancelButtons() {
++#ifdef __OCPN__IOS__
++  IosAddNavButtons();  // app/ios/connections_ios.cpp
++  return;
++#endif
+ #ifndef ANDROID
+   if (!m_btnSizer) {
+     m_btnSizer = new wxStdDialogButtonSizer();
+@@ -307,7 +311,11 @@ void ConnectionEditDialog::Init() {
+       new wxRadioButton(this, wxID_ANY, _("Serial"), wxDefaultPosition,
+                         wxDefaultSize, wxRB_GROUP);
+   m_rbTypeSerial->SetValue(TRUE);
++#ifdef __OCPN__IOS__
++  m_rbTypeSerial->Hide();  // iOS: no serial port on iPhone/iPad
++#else
+   bSizer15->Add(m_rbTypeSerial, 0, wxALL, 5);
++#endif
+ 
+   m_rbTypeNet = new wxRadioButton(this, wxID_ANY, _("Network"),
+                                   wxDefaultPosition, wxDefaultSize, 0);
+@@ -828,6 +836,14 @@ void ConnectionEditDialog::SetSelectedConnectionPanel(
+ }
+ 
+ void ConnectionEditDialog::SetPropsLabel(wxString label) {
++#ifdef __OCPN__IOS__
++  // iOS: the title is in the title bar (AddOKCancelButtons), the box has no
++  // caption.
++  m_iosPropsLabel = label;
++  if (m_iosNavTitle) m_iosNavTitle->SetLabel(label);
++  m_sbConnEdit->SetLabel(wxEmptyString);
++  return;
++#endif
+   m_sbConnEdit->SetLabel(label);
+ }
+ 
+@@ -957,7 +973,11 @@ void ConnectionEditDialog::OnUploadFormatChange(wxCommandEvent& event) {
+ #endif
+ 
+ void ConnectionEditDialog::ShowTypeCommon(bool visible) {
++#ifdef __OCPN__IOS__
++  m_rbTypeSerial->Show(false);  // iOS: no serial port
++#else
+   m_rbTypeSerial->Show(visible);
++#endif
+   m_rbTypeNet->Show(visible);
+ #if defined(__linux__) && !defined(__ANDROID__) && !defined(__WXOSX__)
+   m_rbTypeCAN->Show(visible);
+@@ -1545,6 +1565,11 @@ void ConnectionEditDialog::SetDefaultConnectionParams() {
+ #ifdef __WXOSX__
+   bserial = FALSE;
+ #endif
++#ifdef __OCPN__IOS__
++  // iOS: an iPhone/iPad has no serial port; new connections start as network
++  // connections.
++  bserial = FALSE;
++#endif
+ 
+ #ifdef __ANDROID__
+   if (m_rbTypeInternalGPS) {
+diff --git a/gui/src/connections_dlg.cpp b/gui/src/connections_dlg.cpp
+index ed615528f..5060321d9 100644
+--- a/gui/src/connections_dlg.cpp
++++ b/gui/src/connections_dlg.cpp
+@@ -62,6 +62,16 @@
+ #include "priority_gui.h"
+ #include "std_filesystem.h"
+ #include "model/svg_utils.h"
++#ifdef __OCPN__IOS__
++// iOS layout and extra buttons, app/ios/connections_ios.cpp
++wxGridCellRenderer* ocpnios_NewSwitchCellRenderer();
++void ocpnios_AddSourceButtons(wxWindow* panel, wxSizer* vbox,
++                              EventVar& evt_add_connection);
++void ocpnios_NmeaFilterRowLayout(wxPanel* row, wxCheckBox*& checkbox,
++                                 wxTextCtrl*& filter_period);
++void ocpnios_NetmaskRowLayout(wxPanel* row, wxStaticText* text,
++                              wxSpinCtrl* spin, const wxSizerFlags& flags);
++#endif
+ 
+ static wxString UtfArrowDown() { return wxString::FromUTF8(u8"\u25bc"); }
+ static wxString UtfArrowRight() { return wxString::FromUTF8(u8"\u25ba"); }
+@@ -263,6 +273,11 @@ class BitmapCellRenderer : public wxGridCellRenderer {
+   void Draw(wxGrid& grid, wxGridCellAttr& attr, wxDC& dc, const wxRect& rect,
+             int row, int col, bool isSelected) override {
+     dc.SetBrush(wxBrush(GetGlobalColor("DILG1")));
++#ifdef __OCPN__IOS__
++    // iOS: no black border around each icon; light list background.
++    dc.SetPen(*wxTRANSPARENT_PEN);
++    dc.SetBrush(wxBrush(attr.GetBackgroundColour()));
++#endif
+     if ((m_cs != GLOBAL_COLOR_SCHEME_DAY) && m_cs != GLOBAL_COLOR_SCHEME_RGB)
+       dc.SetBrush(wxBrush(GetDialogColor(DLG_BACKGROUND)));
+     if (IsWindows()) dc.SetBrush(wxBrush(GetGlobalColor("DILG1")));
+@@ -416,6 +431,24 @@ class Connections final : public wxGrid {
+       SetLabelTextColour(GetGlobalColor("DILG3"));
+     }
+     HideRowLabels();
++#ifdef __OCPN__IOS__
++    // iOS: a list instead of a table, which did not fit the screen. No column
++    // headers; protocol and direction are shown below the name in column 1,
++    // columns 2 and 3 are hidden. Column widths are set on every resize, see
++    // IosLayoutColumns().
++    SetColLabelSize(0);
++    HideCol(2);
++    HideCol(3);
++    SetDefaultRowSize(2 * GetCharHeight() + 18, true);
++    SetGridLineColour(wxColour(220, 220, 225));
++    // No grid cursor (black frame around the tapped cell).
++    SetCellHighlightPenWidth(0);
++    SetCellHighlightROPenWidth(0);
++    Bind(wxEVT_SIZE, [&](wxSizeEvent& ev) {
++      ev.Skip();
++      CallAfter([this]() { IosLayoutColumns(); });
++    });
++#endif
+     SetColAttributes(parent);
+ 
+     ReloadGrid(connections);
+@@ -484,7 +517,13 @@ class Connections final : public wxGrid {
+       else
+         m_tooltips[row][0] = _("Disabled, click to enable");
+       std::string protocol = NavAddr::BusToString((*it)->GetCommProtocol());
++#ifdef __OCPN__IOS__
++      SetCellValue(row, 1,
++                   (*it)->GetStrippedDSPort() + "\n" + protocol + "  \u00b7  " +
++                       (*it)->GetIOTypeValueStr());
++#else
+       SetCellValue(row, 1, protocol);
++#endif
+       SetCellValue(row, 2, (*it)->GetIOTypeValueStr());
+       SetCellValue(row, 3, (*it)->GetStrippedDSPort());
+       m_tooltips[row][3] = (*it)->UserComment;
+@@ -511,6 +550,9 @@ class Connections final : public wxGrid {
+     }
+     OnConnectionChange(m_connections);
+ 
++#ifdef __OCPN__IOS__
++    IosLayoutColumns();
++#else
+     if (IsAndroid()) {
+       int ic = 0;
+       for (auto val : m_header_column_widths) {
+@@ -519,8 +561,24 @@ class Connections final : public wxGrid {
+       }
+     } else
+       AutoSize();
++#endif
+   }
+ 
++#ifdef __OCPN__IOS__
++  /** iOS: switch | name (rest) | status | edit | delete. */
++  void IosLayoutColumns() {
++    const int w = GetClientSize().x;
++    if (w < 200) return;
++    const int sw = 66, st = 40, ed = 48, del = 48;
++    SetColSize(0, sw);
++    SetColSize(4, st);
++    SetColSize(5, ed);
++    SetColSize(6, del);
++    SetColSize(1, std::max(80, w - sw - st - ed - del - 2));
++    ForceRefresh();
++  }
++#endif
++
+   /** std::sort support: Compare two ConnectionParams w r t state. */
+   class ConnStateCompare {
+   public:
+@@ -586,6 +644,10 @@ class Connections final : public wxGrid {
+     auto enable_attr = new wxGridCellAttr();
+     enable_attr->SetAlignment(wxALIGN_CENTRE, wxALIGN_CENTRE);
+ 
++#ifdef __OCPN__IOS__
++    enable_attr->SetRenderer(ocpnios_NewSwitchCellRenderer());
++    enable_attr->SetReadOnly(true);
++#else
+     if (IsAndroid())
+       enable_attr->SetRenderer(
+           new BitmapEnableCellRenderer(wxWindow::GetCharWidth() * 3 / 2, m_cs));
+@@ -593,6 +655,7 @@ class Connections final : public wxGrid {
+       enable_attr->SetRenderer(new wxGridCellBoolRenderer());
+ 
+     enable_attr->SetEditor(new wxGridCellBoolEditor());
++#endif
+     if (IsWindows()) enable_attr->SetBackgroundColour(GetGlobalColor("DILG1"));
+     SetColAttr(0, enable_attr);
+ 
+@@ -820,7 +883,9 @@ class GeneralPanel : public wxPanel {
+     m_upload_options = new UploadOptionsChoice(this);
+     sizer->Add(m_upload_options, flags);
+     sizer->Add(new PrioritiesBtn(this), flags);
++#ifndef __OCPN__IOS__
+     wxWindow::SetMaxSize(max_size);
++#endif  // iOS: no size cap; "Filter period" was cut off
+   }
+   void SetColorScheme(ColorScheme) {
+     DimeControl(m_upload_options);
+@@ -846,8 +911,15 @@ class GeneralPanel : public wxPanel {
+     explicit UploadOptionsChoice(wxWindow* parent) : wxRadioBox() {
+       wxArrayString wx_choices;
+       for (auto& c : choices) wx_choices.Add(c);
++#ifdef __OCPN__IOS__
++      // iOS: the three choices stacked (one column). Side by side they did not
++      // fit on a phone: "Generic NMEA 018...".
++      Create(parent, wxID_ANY, _("Upload Format"), wxDefaultPosition,
++             wxDefaultSize, wx_choices, 1, wxRA_SPECIFY_COLS);
++#else
+       Create(parent, wxID_ANY, _("Upload Format"), wxDefaultPosition,
+              wxDefaultSize, wx_choices, 0, wxRA_SPECIFY_ROWS);
++#endif
+       DimeControl(this);
+       UploadOptionsChoice::Cancel();
+     }
+@@ -918,13 +990,20 @@ class AdvancedPanel : public wxPanel {
+   explicit AdvancedPanel(wxWindow* parent, wxSize max_size)
+       : wxPanel(parent, wxID_ANY) {
+     auto sizer = new wxStaticBoxSizer(wxVERTICAL, this, "");
++#ifdef __OCPN__IOS__
++    // iOS: white like the surrounding card (the rows inside are separate panels
++    // and were grey otherwise).
++    SetBackgroundColour(*wxWHITE);
++#endif
+     sizer->Add(new BearingsCheckbox(this), wxSizerFlags().Expand());
+     sizer->Add(new ExtraRmbRmcLine(this), wxSizerFlags().Expand());
+     sizer->Add(new NmeaFilterRow(this), wxSizerFlags().Expand());
+     sizer->Add(new TalkerIdRow(this), wxSizerFlags().Expand());
+     sizer->Add(new NetmaskRow(this), wxSizerFlags().Expand());
+     SetSizer(sizer);
++#ifndef __OCPN__IOS__
+     wxWindow::SetMaxSize(max_size);
++#endif  // iOS: no size cap; "Filter period" was cut off
+   }
+ 
+ private:
+@@ -957,10 +1036,18 @@ class AdvancedPanel : public wxPanel {
+   public:
+     explicit ExtraRmbRmcLine(wxWindow* parent) : wxPanel(parent, wxID_ANY) {
+       auto hbox = new wxBoxSizer(wxHORIZONTAL);
++#ifdef __OCPN__IOS__
++      // iOS: info button on the left, the row (text, switch on the right) fills
++      // the rest.
++      hbox->Add(new InfoButton(this, g_btouch, kInfoHeader, kInfo),
++                wxSizerFlags().Border(wxRIGHT).Center());
++      hbox->Add(new RmbRmcCheckbox(this), wxSizerFlags(1).Expand());
++#else
+       hbox->Add(new RmbRmcCheckbox(this), wxSizerFlags().Expand());
+       hbox->Add(1, 1, 1, wxEXPAND);
+       hbox->Add(new InfoButton(this, g_btouch, kInfoHeader, kInfo),
+                 wxSizerFlags().Border());
++#endif
+       SetSizer(hbox);
+       wxWindow::Layout();
+       wxWindow::Show();
+@@ -985,6 +1072,9 @@ class AdvancedPanel : public wxPanel {
+ 
+   public:
+     explicit NmeaFilterRow(wxWindow* parent) : wxPanel(parent) {
++#ifdef __OCPN__IOS__
++      ocpnios_NmeaFilterRowLayout(this, checkbox, filter_period);
++#else
+       auto hbox = new wxBoxSizer(wxHORIZONTAL);
+       checkbox = new wxCheckBox(
+           this, wxID_ANY,
+@@ -997,6 +1087,7 @@ class AdvancedPanel : public wxPanel {
+       filter_period->SetValue(std::to_string(g_COGFilterSec));
+       hbox->Add(filter_period, wxSizerFlags().Border());
+       SetSizer(hbox);
++#endif
+       NmeaFilterRow::Cancel();
+     }
+ 
+@@ -1033,6 +1124,10 @@ class AdvancedPanel : public wxPanel {
+             "only sentences created by OpenCPN, not those forwarded from other "
+             "devices."));
+       text_ctrl->SetValue(g_TalkerIdText);
++#ifdef __OCPN__IOS__
++      hbox->AddStretchSpacer(
++          1);  // iOS: value on the right, like the other rows
++#endif
+       hbox->Add(text_ctrl, wxSizerFlags().Border());
+       SetSizer(hbox);
+       TalkerIdRow::Cancel();
+@@ -1050,13 +1145,17 @@ class AdvancedPanel : public wxPanel {
+           m_spin_ctrl(new wxSpinCtrl(this, wxID_ANY)),
+           m_text(new wxStaticText(this, wxID_ANY, "")) {
+       m_spin_ctrl->SetRange(8, 32);
+-      auto hbox = new wxBoxSizer(wxHORIZONTAL);
+       auto flags = wxSizerFlags().Align(wxALIGN_CENTRE_VERTICAL).Border();
++#ifdef __OCPN__IOS__
++      ocpnios_NetmaskRowLayout(this, m_text, m_spin_ctrl, flags);
++#else
++      auto hbox = new wxBoxSizer(wxHORIZONTAL);
+       hbox->Add(new wxStaticText(this, wxID_ANY, _("Netmask: ")), flags);
+       hbox->Add(m_text, flags);
+       hbox->Add(new wxStaticText(this, wxID_ANY, _("length (bits): ")), flags);
+       hbox->Add(m_spin_ctrl, flags);
+       SetSizer(hbox);
++#endif
+       NetmaskRow::Cancel();
+ 
+       Bind(wxEVT_SPINCTRL, [&](wxSpinEvent&) {
+@@ -1096,9 +1195,16 @@ class TopPanel : public wxPanel {
+     vbox->AddSpacer(wxWindow::GetCharHeight());
+     auto conn_flags = wxSizerFlags().Border();
+     if (IsAndroid()) conn_flags = wxSizerFlags().Border().Expand();
++#ifdef __OCPN__IOS__
++    conn_flags = wxSizerFlags().Border().Expand();
++#endif
+     vbox->Add(conn_grid, conn_flags);
+     vbox->Add(new AddConnectionButton(this, m_evt_add_connection, on_edit_conn),
+               wxSizerFlags().Border());
++#ifdef __OCPN__IOS__
++    // iOS: "Find sources..." and "Data Monitor" buttons.
++    ocpnios_AddSourceButtons(this, vbox, m_evt_add_connection);
++#endif
+     vbox->Add(0, wxWindow::GetCharHeight());  // Expanding spacer
+     auto panel_flags =
+         wxSizerFlags().Border(wxLEFT | wxDOWN | wxRIGHT).Expand();
+@@ -1112,6 +1218,18 @@ class TopPanel : public wxPanel {
+       advanced_panel->Show(show);
+       vbox->SetSizeHints(this);
+       vbox->Fit(this);
++#ifdef __OCPN__IOS__
++      // iOS: Fit() made the panel narrower than the page; the General/Extended
++      // boxes jumped to ~830 pt. Keep it page wide.
++      if (auto* scroller = dynamic_cast<wxScrolledWindow*>(GetParent())) {
++        const int w = scroller->GetClientSize().x;
++        if (w > GetSize().x) {
++          SetSize(w, GetSize().y);
++          Layout();
++        }
++        scroller->FitInside();
++      }
++#endif
+     };
+     vbox->Add(new ShowAdvanced(this, on_toggle), panel_flags);
+     vbox->Add(advanced_panel, panel_flags.ReserveSpaceEvenIfHidden());
+@@ -1155,7 +1273,11 @@ class TopScroll : public wxScrolledWindow {
+             EventVar& evt_add_connection)
+       : wxScrolledWindow(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                          wxVSCROLL | wxHSCROLL, TopScrollWindowName) {
++#ifdef __OCPN__IOS__
++    ShowScrollbars(wxSHOW_SB_NEVER, wxSHOW_SB_DEFAULT);
++#else
+     ShowScrollbars(wxSHOW_SB_NEVER, wxSHOW_SB_ALWAYS);
++#endif
+     auto vbox = new wxBoxSizer(wxVERTICAL);
+     SetSizer(vbox);
+ 
+diff --git a/gui/src/data_monitor.cpp b/gui/src/data_monitor.cpp
+index 209c25bf0..19c6f8ef5 100644
+--- a/gui/src/data_monitor.cpp
++++ b/gui/src/data_monitor.cpp
+@@ -835,24 +835,56 @@ class StatusLine : public wxPanel {
+     filter_label_box->Add(new wxStaticText(this, wxID_ANY, _("Filter")));
+ 
+     auto flags = wxSizerFlags(0).Border();
+-    auto wbox = new wxWrapSizer(wxHORIZONTAL);
+-    wbox->Add(m_log_button, flags);
+-    // Stretching horizontal space. Does not work with a WrapSizer, known
+-    // wx bug. Left in place if it becomes fixed.
+-    wbox->Add(wxWindow::GetCharWidth() * 5, 0, 1);
+-    wbox->Add(filter_label_box, flags.Align(wxALIGN_CENTER_VERTICAL));
+-    wbox->Add(m_filter_choice, flags);
+-    wbox->Add(new PauseResumeButton(this, std::move(on_stop)), flags);
+-    wbox->Add(new FilterButton(this, quick_filter), flags);
+-    auto get_current_filter = [&] {
+-      return m_filter_choice->GetStringSelection().ToStdString();
+-    };
+-    wbox->Add(new CopyClipboardButton(this), flags);
+-    wbox->Add(new MenuButton(this, m_menu, get_current_filter), flags);
++#ifdef __OCPN__IOS__
++    // iOS: two fixed rows. On a phone the wrap row ran on to lines outside the
++    // fixed height; only "Start logging" was visible.
++    {
++      // Smaller margins: with the default margin (15 pt all round) the row did
++      // not fit.
++      flags = wxSizerFlags(0).Border(wxALL, 4);
++      auto get_current_filter = [&] {
++        return m_filter_choice->GetStringSelection().ToStdString();
++      };
++      auto row1 = new wxBoxSizer(wxHORIZONTAL);
++      row1->Add(m_log_button, flags);
++      row1->AddStretchSpacer(1);
++      row1->Add(new PauseResumeButton(this, std::move(on_stop)), flags);
++      row1->Add(new CopyClipboardButton(this), flags);
++      row1->Add(new FilterButton(this, quick_filter), flags);
++      row1->Add(new MenuButton(this, m_menu, get_current_filter), flags);
++      auto row2 = new wxBoxSizer(wxHORIZONTAL);
++      // Choice only on the second row, without the word "Filter": with label
++      // and button the row became too wide and was wrapped.
++      filter_label_box->Show(false);
++      row2->Add(m_filter_choice, wxSizerFlags(1).Border());
++      auto vbox = new wxBoxSizer(wxVERTICAL);
++      vbox->Add(row1, wxSizerFlags().Expand());
++      vbox->Add(row2, wxSizerFlags().Expand());
++      SetSizer(vbox);
++    }
++    if (false) {
++#else
++    {
++#endif
++      auto wbox = new wxWrapSizer(wxHORIZONTAL);
++      wbox->Add(m_log_button, flags);
++      // Stretching horizontal space. Does not work with a WrapSizer, known
++      // wx bug. Left in place if it becomes fixed.
++      wbox->Add(wxWindow::GetCharWidth() * 5, 0, 1);
++      wbox->Add(filter_label_box, flags.Align(wxALIGN_CENTER_VERTICAL));
++      wbox->Add(m_filter_choice, flags);
++      wbox->Add(new PauseResumeButton(this, std::move(on_stop)), flags);
++      wbox->Add(new FilterButton(this, quick_filter), flags);
++      auto get_current_filter = [&] {
++        return m_filter_choice->GetStringSelection().ToStdString();
++      };
++      wbox->Add(new CopyClipboardButton(this), flags);
++      wbox->Add(new MenuButton(this, m_menu, get_current_filter), flags);
+ #ifdef ANDROID
+-    wbox->Add(new CloseButton(this, std::move(on_hide)), flags);
++      wbox->Add(new CloseButton(this, std::move(on_hide)), flags);
+ #endif
+-    SetSizer(wbox);
++      SetSizer(wbox);
++    }
+     wxWindow::Layout();
+     wxWindow::Show();
+ 
+diff --git a/gui/src/gui_lib.cpp b/gui/src/gui_lib.cpp
+index dde6e906f..ac19c2e8c 100644
+--- a/gui/src/gui_lib.cpp
++++ b/gui/src/gui_lib.cpp
+@@ -28,11 +28,20 @@
+ #include <wx/msgdlg.h>
+ #include <wx/sizer.h>
+ #include <wx/statbmp.h>
++#include <wx/button.h>
+ #include <wx/statline.h>
+ #include <wx/string.h>
+ #include <wx/textctrl.h>
+ #include <wx/utils.h>
+ 
++#ifdef __OCPN__IOS__
++#include <algorithm>
++// iOS alert layout, app/ios/connections_ios.cpp
++void ocpnios_AddAlertTitle(wxDialog* dlg, wxSizer* topsizer,
++                           const wxString& caption);
++void ocpnios_AddAlertButtons(wxDialog* dlg, wxSizer* topsizer, long style);
++#endif
++
+ #include "gl_headers.h"  // Must come before anything using GL stuff
+ 
+ #include "model/config_vars.h"
+@@ -197,6 +206,10 @@ OCPNMessageDialog::OCPNMessageDialog(wxWindow* parent, const wxString& message,
+   }
+ #endif  // wxUSE_STATBMP
+ 
++#if defined(__OCPN__IOS__) && wxUSE_STATTEXT
++  ocpnios_AddAlertTitle(this, topsizer, caption);  // iOS: title in the alert
++#endif
++
+ #if wxUSE_STATTEXT
+   // 2) text
+   icon_text->Add(CreateTextSizer(message), 0, wxALIGN_CENTER | wxLEFT, 10);
+@@ -205,12 +218,16 @@ OCPNMessageDialog::OCPNMessageDialog(wxWindow* parent, const wxString& message,
+ #endif  // wxUSE_STATTEXT
+ 
+   // 3) buttons
++#ifdef __OCPN__IOS__
++  ocpnios_AddAlertButtons(this, topsizer, style);  // iOS alert buttons
++#else
+   int AllButtonSizerFlags =
+       wxOK | wxCANCEL | wxYES | wxNO | wxHELP | wxNO_DEFAULT;
+   int center_flag = wxEXPAND;
+   if (style & wxYES_NO) center_flag = wxALIGN_CENTRE;
+   wxSizer* sizerBtn = CreateSeparatedButtonSizer(style & AllButtonSizerFlags);
+   if (sizerBtn) topsizer->Add(sizerBtn, 0, center_flag | wxALL, 10);
++#endif
+ 
+   SetAutoLayout(true);
+   SetSizer(topsizer);
+@@ -218,6 +235,16 @@ OCPNMessageDialog::OCPNMessageDialog(wxWindow* parent, const wxString& message,
+   topsizer->SetSizeHints(this);
+   topsizer->Fit(this);
+   wxSize size(GetSize());
++#ifdef __OCPN__IOS__
++  // Width like an iOS alert: ~300 pt, never wider than the screen.
++  {
++    const int w = std::min(340, wxGetDisplaySize().x - 40);
++    if (size.x < w) {
++      size.x = w;
++      SetSize(size);
++    }
++  }
++#endif
+   if (size.x < size.y * 3 / 2) {
+     size.x = size.y * 3 / 2;
+     SetSize(size);
+diff --git a/gui/src/navutil.cpp b/gui/src/navutil.cpp
+index 4b191cac9..20c8507f1 100644
+--- a/gui/src/navutil.cpp
++++ b/gui/src/navutil.cpp
+@@ -115,6 +115,14 @@
+ #include "androidUTIL.h"
+ #endif
+ 
++#ifdef __OCPN__IOS__
++// iOS config fixes, defined in app/ios/plugins_ios.cpp.
++void ocpnios_ConfigTextScaleDefault(MyConfig *cfg);
++void ocpnios_ConfigLocaleResetOnce(MyConfig *cfg);
++void ocpnios_MapBundleDataPath(wxString &val);
++void ocpnios_MapContainerChartDir(wxString &dirname, int &nAdjustChartDirs);
++#endif
++
+ MyConfig *pConfig;  ///< Global instance
+ static bool g_bLayersLoaded;
+ 
+@@ -490,6 +498,10 @@ int MyConfig::LoadMyConfigRaw(bool bAsTemplate) {
+   Read("ShipScaleFactor", &g_ShipScaleFactor);
+   Read("ENCSoundingScaleFactor", &g_ENCSoundingScaleFactor);
+   Read("ENCTextScaleFactor", &g_ENCTextScaleFactor);
++#ifdef __OCPN__IOS__
++  // iOS: default chart text and sounding size to 2x, once.
++  ocpnios_ConfigTextScaleDefault(this);
++#endif
+   Read("ObjQueryAppendFilesExt", &g_ObjQFileExt);
+ 
+   // Plugin catalog handler persistent variables.
+@@ -698,6 +710,10 @@ int MyConfig::LoadMyConfigRaw(bool bAsTemplate) {
+ 
+   Read("Locale", &g_locale);
+   Read("LocaleOverride", &g_localeOverride);
++#ifdef __OCPN__IOS__
++  // iOS: reset the language to the device language once.
++  ocpnios_ConfigLocaleResetOnce(this);
++#endif
+ 
+   // We allow 0-99 backups ov navobj.xml
+   Read("KeepNavobjBackups", &g_navobjbackups);
+@@ -1091,6 +1107,10 @@ int MyConfig::LoadMyConfigRaw(bool bAsTemplate) {
+     while (bCont) {
+       Read(str, &val);  // Get a file name and add it to the list just in case
+                         // it is not repeated
++#ifdef __OCPN__IOS__
++      // iOS: map a stale app bundle path to the current bundle.
++      ocpnios_MapBundleDataPath(val);
++#endif
+       // We have seen duplication of dataset entries in
+       // https://github.com/OpenCPN/OpenCPN/issues/3042, this effectively gets
+       // rid of them.
+@@ -1477,6 +1497,11 @@ bool MyConfig::LoadChartDirArray(ArrayOfCDI &ChartDirArray) {
+           dirname = new_dir;
+         }
+ 
++#ifdef __OCPN__IOS__
++        // iOS: map a chart dir in a stale data container to the current one.
++        ocpnios_MapContainerChartDir(dirname, nAdjustChartDirs);
++#endif
++
+         ChartDirInfo cdi;
+         cdi.fullpath = dirname.BeforeFirst('^');
+         cdi.magic_number = dirname.AfterFirst('^');
+@@ -1715,6 +1740,11 @@ void MyConfig::LoadConfigCanvas(canvasConfig *cConfig, bool bApplyAsTemplate) {
+ 
+     Read("canvasInitialdBIndex", &cConfig->DBindex, 0);
+     Read("canvasbFollow", &cConfig->bFollow, 0);
++#ifdef __OCPN__IOS__
++    // iOS: always start with follow mode on.
++    // Panning still turns follow mode off during use.
++    cConfig->bFollow = true;
++#endif
+ 
+     Read("canvasCourseUp", &cConfig->bCourseUp, 0);
+     Read("canvasHeadUp", &cConfig->bHeadUp, 0);
+diff --git a/gui/src/notification_manager_gui.cpp b/gui/src/notification_manager_gui.cpp
+index 79a04e42a..d19156f6c 100644
+--- a/gui/src/notification_manager_gui.cpp
++++ b/gui/src/notification_manager_gui.cpp
+@@ -154,11 +154,21 @@ NotificationPanel::NotificationPanel(
+   itemBoxSizer01->Add(timetextbox, 0,
+                       /*wxEXPAND|*/ wxALL | wxALIGN_CENTER_VERTICAL, 5);
+ 
++#ifdef __OCPN__IOS__
++  // iOS: on a phone icon, count, time, text and button do not fit side by
++  // side; the text fell off the right edge. Put the text on its own row below
++  // the rest, at full width.
++  PanelHardBreakWrapper wrapper(this, notification->GetMessage(),
++                                GetSize().x - 6 * GetCharWidth());
++  auto textbox = new wxStaticText(this, wxID_ANY, wrapper.GetWrapped());
++  topSizer->Add(textbox, 0, wxLEFT | wxRIGHT | wxBOTTOM, 15);
++#else
+   PanelHardBreakWrapper wrapper(this, notification->GetMessage(),
+                                 GetSize().x * 50 / 100);
+ 
+   auto textbox = new wxStaticText(this, wxID_ANY, wrapper.GetWrapped());
+   itemBoxSizer01->Add(textbox, 0, wxALIGN_CENTER_VERTICAL | wxALL, 10);
++#endif
+ 
+   itemBoxSizer01->AddStretchSpacer();
+ 
+@@ -231,6 +241,11 @@ void NotificationListPanel::ReloadNotificationPanels() {
+ 
+   int panel_size_x = 60 * GetCharWidth();
+   panel_size_x = wxMax(panel_size_x, GetParent()->GetClientSize().x);
++#ifdef __OCPN__IOS__
++  // iOS: 60 characters is wider than a phone; the right part (text, OK
++  // button) would be off screen.
++  panel_size_x = GetParent()->GetClientSize().x;
++#endif
+   wxSize panel_size = wxSize(panel_size_x, -1);
+ 
+   for (auto notification : notifications) {
+@@ -557,6 +572,11 @@ bool NotificationButton::UpdateStatus(bool bnew) {
+ void NotificationButton::SetScaleFactor(float factor) {
+   ocpnStyle::Style* style = g_StyleManager->GetCurrentStyle();
+ 
++#ifdef __OCPN__IOS__
++  // iOS: same Retina scale as the compass (ocpnCompass::SetScaleFactor);
++  // otherwise the bell next to the compass is a third of its size.
++  if (g_bopengl) factor *= m_parent->GetContentScaleFactor();
++#endif
+   if (factor > 0.1)
+     m_scale = factor;
+   else
+diff --git a/gui/src/print_dialog.cpp b/gui/src/print_dialog.cpp
+index f6a418593..a0422f008 100644
+--- a/gui/src/print_dialog.cpp
++++ b/gui/src/print_dialog.cpp
+@@ -23,6 +23,9 @@
+ 
+ #include "gui_lib.h"
+ #include "print_dialog.h"
++#ifdef __OCPN__IOS__
++#include "share_sheet.h"  // iOS: app/ios/share_sheet.mm
++#endif
+ 
+ PrintDialog::PrintDialog() {
+   wxPrintData data;
+@@ -62,5 +65,10 @@ void PrintDialog::Print(wxWindow* parent, wxPrintout* output) {
+   } else {
+     wxPrintData data = printer.GetPrintDialogData().GetPrintData();
+     m_print_data.SetPrintData(data);
++#ifdef __OCPN__IOS__
++    // iOS: printing writes a PDF to Documents (wxQt patch); then show the
++    // iOS share sheet (AirPrint, Mail, Files).
++    OcpnIosShareFile(data.GetFilename().utf8_str());
++#endif
+   }
+ }
+diff --git a/gui/src/route_prop_dlg.cpp b/gui/src/route_prop_dlg.cpp
+index 09c8fe46f..e9aa4987f 100644
+--- a/gui/src/route_prop_dlg.cpp
++++ b/gui/src/route_prop_dlg.cpp
+@@ -256,9 +256,15 @@ RoutePropDlg::RoutePropDlg(wxWindow* parent, wxWindowID id,
+       new wxChoice(m_pnlBasic, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                    m_choiceTimezoneNChoices, m_choiceTimezoneChoices, 0);
+   m_choiceTimezone->SetSelection(3 /*Honor Global Settings*/);
++#ifndef __OCPN__IOS__  // iOS: "Honor Global Settings" became "Honor Glo"
+   m_choiceTimezone->SetMaxSize(wxSize(GetCharWidth() * 12, -1));
++#endif
+ 
++#ifdef __OCPN__IOS__
++  bSizerTime->Add(m_choiceTimezone, 0, wxALL | wxEXPAND, 5);
++#else
+   bSizerTime->Add(m_choiceTimezone, 0, wxALL, 5);
++#endif
+ 
+   wSizerParams->Add(bSizerTime, 1, wxEXPAND, 0);
+ 
+diff --git a/gui/src/route_prop_dlg_impl.cpp b/gui/src/route_prop_dlg_impl.cpp
+index f5f4accc3..2dd5e4015 100644
+--- a/gui/src/route_prop_dlg_impl.cpp
++++ b/gui/src/route_prop_dlg_impl.cpp
+@@ -312,6 +312,13 @@ void RoutePropDlgImpl::OnActivate(wxActivateEvent& event) {
+ }
+ 
+ void RoutePropDlgImpl::RecalculateSize() {
++#ifdef __OCPN__IOS__
++  // iOS: full screen (window_fit.cpp keeps it below the status bar);
++  // otherwise it opened half over the Route & Mark Manager.
++  SetSize(GetParent()->GetClientSize());
++  Move(0, 0);
++  return;
++#endif
+   wxSize esize;
+   esize.x = GetCharWidth() * 110;
+   esize.y = GetCharHeight() * 40;
+@@ -474,6 +481,28 @@ void RoutePropDlgImpl::UpdatePoints() {
+     wxDataViewItem selection = m_dvlcWaypoints->GetSelection();
+     if (selection.IsOk()) m_dvlcWaypoints->EnsureVisible(selection);
+   }
++#ifdef __OCPN__IOS__
++  // iOS: size columns to their content. "Autosize" at creation ran on an empty
++  // table; afterwards distances were truncated as "7.9 ...". Setting AUTOSIZE
++  // again did not help: the generic wxDataViewCtrl measures with a smaller font
++  // than it draws with. So measure ourselves, with a margin.
++  {
++    const unsigned int ncol = m_dvlcWaypoints->GetColumnCount();
++    const unsigned int nrow = m_dvlcWaypoints->GetItemCount();
++    for (unsigned int c = 0; c < ncol; c++) {
++      wxDataViewColumn* col = m_dvlcWaypoints->GetColumn(c);
++      int w = m_dvlcWaypoints->GetTextExtent(col->GetTitle()).x;
++      for (unsigned int r = 0; r < nrow; r++)
++        w = wxMax(w, m_dvlcWaypoints
++                         ->GetTextExtent(m_dvlcWaypoints->GetTextValue(r, c))
++                         .x);
++      col->SetWidth(w * 13 / 10 + 2 * GetCharWidth());
++      // The table also truncated wide columns ("7.9 ...") due to the same
++      // measuring error; turn ellipsizing off.
++      if (col->GetRenderer()) col->GetRenderer()->DisableEllipsize();
++    }
++  }
++#endif
+ }
+ 
+ void RoutePropDlgImpl::SetRouteAndUpdate(Route* pR, bool only_points) {
+diff --git a/gui/src/routemanagerdialog.cpp b/gui/src/routemanagerdialog.cpp
+index 1a503234c..4a85ccc36 100644
+--- a/gui/src/routemanagerdialog.cpp
++++ b/gui/src/routemanagerdialog.cpp
+@@ -330,6 +330,21 @@ RouteManagerDialog::RouteManagerDialog(wxWindow *parent) {
+                               [&](wxCommandEvent) { UpdateRouteListCtrl(); });
+ }
+ 
++// iOS: on a phone the list on top and the buttons below in two columns,
++// instead of side by side with a narrow, scrolling button column.
++#ifdef __OCPN__IOS__
++#define OCPNIOS_RMD_DIR wxVERTICAL
++// Two-column button grid and button fitting: app/ios/plugins_ios.cpp.
++wxSizer *ocpnios_RmdButtonSizer();
++void ocpnios_RmdFitButtons(wxWindow *dlg, int margin, wxScrolledWindow *winr,
++                           wxScrolledWindow *wint, wxScrolledWindow *winw,
++                           wxScrolledWindow *winl);
++#define OCPNIOS_RMD_BUTTONSIZER() ocpnios_RmdButtonSizer()
++#else
++#define OCPNIOS_RMD_DIR wxHORIZONTAL
++#define OCPNIOS_RMD_BUTTONSIZER() new wxBoxSizer(wxVERTICAL)
++#endif
++
+ void RouteManagerDialog::Create() {
+   //  Get a text height metric for reference
+   int char_width, char_height;
+@@ -347,7 +362,7 @@ void RouteManagerDialog::Create() {
+   m_pPanelRte = new wxPanel(m_pNotebook, wxID_ANY, wxDefaultPosition,
+                             wxDefaultSize, wxNO_BORDER | wxTAB_TRAVERSAL);
+ 
+-  wxBoxSizer *sbsRoutes = new wxBoxSizer(wxHORIZONTAL);
++  wxBoxSizer *sbsRoutes = new wxBoxSizer(OCPNIOS_RMD_DIR);
+   m_pPanelRte->SetSizer(sbsRoutes);
+   m_pNotebook->AddPage(m_pPanelRte, _("Routes"));
+ 
+@@ -441,7 +456,7 @@ void RouteManagerDialog::Create() {
+ 
+   bsRouteButtons->Add(winr, 1, wxALL | wxEXPAND, DIALOG_MARGIN);
+ 
+-  wxBoxSizer *bsRouteButtonsInner = new wxBoxSizer(wxVERTICAL);
++  wxSizer *bsRouteButtonsInner = OCPNIOS_RMD_BUTTONSIZER();
+   winr->SetSizer(bsRouteButtonsInner);
+ 
+   btnRteProperties = new wxButton(winr, -1, _("&Properties") + "...");
+@@ -536,7 +551,7 @@ void RouteManagerDialog::Create() {
+   //  Create "Tracks" panel
+   m_pPanelTrk = new wxPanel(m_pNotebook, wxID_ANY, wxDefaultPosition,
+                             wxDefaultSize, wxNO_BORDER | wxTAB_TRAVERSAL);
+-  wxBoxSizer *sbsTracks = new wxBoxSizer(wxHORIZONTAL);
++  wxBoxSizer *sbsTracks = new wxBoxSizer(OCPNIOS_RMD_DIR);
+   m_pPanelTrk->SetSizer(sbsTracks);
+   m_pNotebook->AddPage(m_pPanelTrk, _("Tracks"));
+ 
+@@ -624,7 +639,7 @@ void RouteManagerDialog::Create() {
+ 
+   bsTrkButtons->Add(wint, 1, wxALL | wxEXPAND, DIALOG_MARGIN);
+ 
+-  wxBoxSizer *bsTrkButtonsInner = new wxBoxSizer(wxVERTICAL);
++  wxSizer *bsTrkButtonsInner = OCPNIOS_RMD_BUTTONSIZER();
+   wint->SetSizer(bsTrkButtonsInner);
+ 
+   btnTrkNew = new wxButton(wint, -1, _("&Start Track"));
+@@ -679,7 +694,7 @@ void RouteManagerDialog::Create() {
+   //  Create "Marks" panel
+   m_pPanelWpt = new wxPanel(m_pNotebook, wxID_ANY, wxDefaultPosition,
+                             wxDefaultSize, wxNO_BORDER | wxTAB_TRAVERSAL);
+-  wxBoxSizer *sbsWpts = new wxBoxSizer(wxHORIZONTAL);
++  wxBoxSizer *sbsWpts = new wxBoxSizer(OCPNIOS_RMD_DIR);
+   m_pPanelWpt->SetSizer(sbsWpts);
+   m_pNotebook->AddPage(m_pPanelWpt, _("Marks"));
+ 
+@@ -740,8 +755,15 @@ void RouteManagerDialog::Create() {
+   bSizerWptContents->Add(m_pWptListCtrl, 1, wxEXPAND | wxALL, DIALOG_MARGIN);
+   sbsWpts->Add(bSizerWptContents, 1, wxEXPAND, 5);
+ 
++#ifdef __OCPN__IOS__
++  // iOS: column wide enough for the header ("Icon" was truncated).
++  m_pWptListCtrl->InsertColumn(
++      colWPTICON, _("Icon"), wxLIST_FORMAT_LEFT,
++      wxMax(4 * char_width, GetTextExtent(_("Icon")).x * 13 / 10 + char_width));
++#else
+   m_pWptListCtrl->InsertColumn(colWPTICON, _("Icon"), wxLIST_FORMAT_LEFT,
+                                4 * char_width);
++#endif
+   m_pWptListCtrl->InsertColumn(colWPTSCALE, _("Scale"), wxLIST_FORMAT_LEFT,
+                                8 * char_width);
+   m_pWptListCtrl->InsertColumn(colWPTNAME, _("Mark Name"), wxLIST_FORMAT_LEFT,
+@@ -759,7 +781,7 @@ void RouteManagerDialog::Create() {
+ 
+   bsWptButtons->Add(winw, 1, wxALL | wxEXPAND, DIALOG_MARGIN);
+ 
+-  wxBoxSizer *bsWptButtonsInner = new wxBoxSizer(wxVERTICAL);
++  wxSizer *bsWptButtonsInner = OCPNIOS_RMD_BUTTONSIZER();
+   winw->SetSizer(bsWptButtonsInner);
+ 
+   btnWptNew = new wxButton(winw, -1, _("&New"));
+@@ -875,7 +897,7 @@ void RouteManagerDialog::Create() {
+   //  Create "Layers" panel
+   m_pPanelLay = new wxPanel(m_pNotebook, wxID_ANY, wxDefaultPosition,
+                             wxDefaultSize, wxNO_BORDER | wxTAB_TRAVERSAL);
+-  wxBoxSizer *sbsLayers = new wxBoxSizer(wxHORIZONTAL);
++  wxBoxSizer *sbsLayers = new wxBoxSizer(OCPNIOS_RMD_DIR);
+   m_pPanelLay->SetSizer(sbsLayers);
+   m_pNotebook->AddPage(m_pPanelLay, _("Layers"));
+ 
+@@ -955,7 +977,7 @@ void RouteManagerDialog::Create() {
+ 
+   bsLayButtons->Add(winl, 1, wxALL | wxEXPAND, DIALOG_MARGIN);
+ 
+-  wxBoxSizer *bsLayButtonsInner = new wxBoxSizer(wxVERTICAL);
++  wxSizer *bsLayButtonsInner = OCPNIOS_RMD_BUTTONSIZER();
+   winl->SetSizer(bsLayButtonsInner);
+ 
+   btnLayNew = new wxButton(winl, -1, _("Create Temporary layer"));
+@@ -1001,6 +1023,10 @@ void RouteManagerDialog::Create() {
+       wxCommandEventHandler(RouteManagerDialog::OnLayToggleListingClick), NULL,
+       this);
+ 
++#ifdef __OCPN__IOS__
++  // iOS: button areas as tall as their buttons, labels fitted to a column.
++  ocpnios_RmdFitButtons(this, DIALOG_MARGIN, winr, wint, winw, winl);
++#endif
+   RecalculateSize();
+ 
+   int imageRefSize = m_charWidth * 2;  // g_Platform->GetDisplayDPmm() * 4;
+@@ -1116,6 +1142,10 @@ void RouteManagerDialog::RecalculateSize() {
+   sz.y = 30 * char_height;
+ 
+   wxSize dsize = GetParent()->GetClientSize();
++#ifdef __OCPN__IOS__
++  // iOS: full screen (window_fit.cpp keeps it below the status bar).
++  sz = dsize;
++#endif
+   sz.y = wxMin(sz.y, dsize.y);
+   sz.x = wxMin(sz.x, dsize.x);
+   SetClientSize(sz);
+diff --git a/gui/src/tty_scroll.cpp b/gui/src/tty_scroll.cpp
+index 1850b407b..a68f3e539 100644
+--- a/gui/src/tty_scroll.cpp
++++ b/gui/src/tty_scroll.cpp
+@@ -119,8 +119,18 @@ wxColor UserColorsByState::operator()(NavmsgStatus ns) {
+   return color.IsOk() ? color : defaults(ns);
+ }
+ 
++#ifdef __OCPN__IOS__
++// app/ios/connections_ios.cpp
++void ocpnios_DrawTtyMessage(wxWindow* win, wxDC& dc, const wxString& ws,
++                            int& data_pos, int y, int line_height);
++#endif
++
+ /** Draw a single line in the log window. */
+ void TtyScroll::DrawLine(wxDC& dc, const Logline& ll, int data_pos, int y) {
++#ifdef __OCPN__IOS__
++  // iOS: do not draw empty placeholder lines (they showed a column of "⇤ ✓").
++  if (!ll.navmsg && ll.message.empty()) return;
++#endif
+   wxString ws;
+   if (!ll.message.empty()) ws << Timestamp(ll.navmsg->created_at) << " ";
+   if (ll.message.empty())
+@@ -158,7 +168,13 @@ void TtyScroll::DrawLine(wxDC& dc, const Logline& ll, int data_pos, int y) {
+   dc.DrawText(ws, 0, y);
+   ws = "";
+   ws << ll.message << error_msg.str();
++#ifdef __OCPN__IOS__
++  // iOS: message on its own line(s) below the source;
++  // app/ios/connections_ios.cpp
++  ocpnios_DrawTtyMessage(this, dc, ws, data_pos, y, m_line_height);
++#else
+   dc.DrawText(ws, data_pos, y);
++#endif
+   m_text_width =
+       std::max(m_text_width, GetTextExtent(ws).GetWidth() + data_pos);
+ }
+@@ -168,6 +184,10 @@ TtyScroll::TtyScroll(wxWindow* parent, int n_lines)
+   SetName("TtyScroll");
+   wxClientDC dc(this);
+   dc.GetTextExtent("Line Height", NULL, &m_line_height);
++#ifdef __OCPN__IOS__
++  m_line_height *=
++      3;  // source, and the message over two lines below (DrawLine)
++#endif
+   SetScrollRate(m_line_height, m_line_height);
+   for (unsigned i = 0; i < m_n_lines; i++) m_lines.push_back(Logline());
+   SetColors(std::make_unique<UserColorsByState>());
+@@ -175,7 +195,13 @@ TtyScroll::TtyScroll(wxWindow* parent, int n_lines)
+ }
+ 
+ void TtyScroll::OnSize(wxSizeEvent& ev) {
++#ifdef __OCPN__IOS__
++  // Number of log entries that fit; an entry is three text lines high here.
++  m_n_lines = std::max(1, ev.GetSize().y / std::max(1, m_line_height));
++  while (m_lines.size() > m_n_lines) m_lines.pop_front();  // drop the oldest
++#else
+   m_n_lines = ev.GetSize().y / GetCharHeight();
++#endif
+   while (m_lines.size() < m_n_lines) m_lines.push_back(Logline());
+   ev.Skip();
+ }
+diff --git a/libs/gui/src/dialog_base.cpp b/libs/gui/src/dialog_base.cpp
+index 05fe1de1e..7a34c0cd6 100644
+--- a/libs/gui/src/dialog_base.cpp
++++ b/libs/gui/src/dialog_base.cpp
+@@ -77,6 +77,11 @@ void BaseDialog::SetInitialSize() {
+   wxDialog::SetInitialSize(size);
+ }
+ 
++#ifdef __OCPN__IOS__
++#include <QRect>
++QRect ocpnios_AppWindowRect();  // app/ios/app_window.mm
++#endif
++
+ void BaseDialog::AddHtmlContent(const std::stringstream& html) {
+   std::string html_str = html.str();
+ 
+@@ -98,6 +103,23 @@ void BaseDialog::AddHtmlContent(const std::stringstream& html) {
+   html_window->SetBorders(0);
+   html_window->GetVirtualSize(&html_width, &html_height);
+   html_width += GUI::GetSpacing(this, kDialogPadding * 2);  // prevent scrollbar
++#ifdef __OCPN__IOS__
++  // iOS: the height is measured while the window is still narrow and came out
++  // taller than the screen on iPad; the buttons (Agree/Cancel of the welcome
++  // dialog) were then off screen. Use at most half the screen; longer text
++  // scrolls in the text box.
++  {
++    wxRect scr = wxDisplay(this).GetClientArea();
++    // Windowed mode (iPadOS 26): the app's own window, not the whole screen;
++    // otherwise the buttons ("Normal start") fell below the window.
++    const QRect app = ocpnios_AppWindowRect();
++    if (app.isValid()) scr = wxRect(app.x(), app.y(), app.width(), app.height());
++    // At most 60%: the buttons are in the sheet title bar (window_fit.cpp); with a
++    // third, half the screen stayed empty and the text had to be scrolled.
++    html_height = std::min(html_height, std::max(120, scr.height * 6 / 10));
++    html_width = std::min(html_width, scr.width - 40);
++  }
++#endif
+   html_window->SetMinSize(
+       wxSize(html_width, html_height));  // Fit() needs this size!
+   html_window->SetBackgroundColour(GetBackgroundColour());
+diff --git a/libs/gui/src/form_grid.cpp b/libs/gui/src/form_grid.cpp
+index 2e934d2d8..49dc9249e 100644
+--- a/libs/gui/src/form_grid.cpp
++++ b/libs/gui/src/form_grid.cpp
+@@ -20,9 +20,20 @@
+ #include "form_grid.h"
+ #include "ui_utils.h"
+ 
++#ifdef __OCPN__IOS__
++// iOS: on a phone put the label above the field (one column). With label and
++// field side by side a form was wider than an iPhone and the fields fell off
++// the right edge (e.g. mark properties).
++FormGrid::FormGrid(wxWindow* parent)
++    : wxFlexGridSizer(1, GUI::GetSpacing(parent, 1),
++                      GUI::GetSpacing(parent, 2)) {
++  AddGrowableCol(0, 0);
++}
++#else
+ FormGrid::FormGrid(wxWindow* parent)
+     : wxFlexGridSizer(2, GUI::GetSpacing(parent, 1),
+                       GUI::GetSpacing(parent, 2)) {
+   AddGrowableCol(0, 0);
+   AddGrowableCol(1, 0);
+ }
++#endif
+-- 
+2.50.1 (Apple Git-155)
+

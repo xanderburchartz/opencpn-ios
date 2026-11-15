@@ -88,25 +88,49 @@ struct Found {
   wxString label;
 };
 
-void AddNetwork(std::vector<Found>& out, NetworkProtocol np, Kind kind,
-                const std::string& ip, int port) {
+// Een verbinding die alleen ontvangt. OpenCPN master (na 5.14) heeft de velden van
+// ConnectionParams hernoemd; dit is de enige plek die ze hier invult.
+ConnectionParams MakeInputConnection(NetworkProtocol np, DataProtocol proto, bool crc,
+                                     const std::string& ip, int port,
+                                     const wxString& comment) {
   ConnectionParams p;
+#ifdef OCPNIOS_OCPN_MASTER
+  p.type = ConnectionType::NETWORK;
+  p.net_protocol = np;
+  p.data_protocol = proto;
+  p.last_data_protocol = proto;
+  p.checksum_check = crc;
+  p.network_address = ip;
+  p.network_port = port;
+  p.direction = PortDirection::kInput;
+  p.is_enabled = true;
+  p.user_comment = comment;
+#else
   p.Type = ConnectionType::NETWORK;
   p.NetProtocol = np;
-  p.Protocol = kind == Kind::kN2000 ? DataProtocol::PROTO_NMEA2000
-                                    : DataProtocol::PROTO_NMEA0183;
-  p.LastDataProtocol = p.Protocol;
-  p.ChecksumCheck = kind == Kind::kN0183Crc;
+  p.Protocol = proto;
+  p.LastDataProtocol = proto;
+  p.ChecksumCheck = crc;
   p.NetworkAddress = ip;
   p.NetworkPort = port;
-  p.IOSelect = DS_TYPE_INPUT;  // alleen ontvangen
+  p.IOSelect = DS_TYPE_INPUT;
   p.bEnabled = true;
+  p.UserComment = comment;
+#endif
+  return p;
+}
+
+void AddNetwork(std::vector<Found>& out, NetworkProtocol np, Kind kind,
+                const std::string& ip, int port) {
   const wxString proto = kind == Kind::kN2000 ? "NMEA 2000" : "NMEA 0183";
-  if (np == NetworkProtocol::UDP)
-    p.UserComment = wxString::Format("%s: UDP %d", proto, port);
-  else
-    p.UserComment = wxString::Format("%s: %s TCP %d", proto, ip, port);
-  out.push_back({p, p.UserComment});
+  const wxString comment = np == NetworkProtocol::UDP
+                               ? wxString::Format("%s: UDP %d", proto, port)
+                               : wxString::Format("%s: %s TCP %d", proto, ip, port);
+  out.push_back({MakeInputConnection(np,
+                                     kind == Kind::kN2000 ? DataProtocol::PROTO_NMEA2000
+                                                          : DataProtocol::PROTO_NMEA0183,
+                                     kind == Kind::kN0183Crc, ip, port, comment),
+                 comment});
 }
 
 // Wacht tot `fds` leesbaar zijn of de tijd om is; verzamelt per fd de ontvangen bytes.
@@ -273,18 +297,12 @@ void ScanTcp(std::vector<Found>& out, const std::vector<std::string>& hosts,
 
 void AddSignalK(std::vector<Found>& out, const std::string& ip, int port,
                 const std::string& name) {
-  ConnectionParams p;
-  p.Type = ConnectionType::NETWORK;
-  p.NetProtocol = NetworkProtocol::SIGNALK;
-  p.Protocol = DataProtocol::PROTO_SIGNALK;
-  p.LastDataProtocol = DataProtocol::PROTO_SIGNALK;
-  p.NetworkAddress = ip;
-  p.NetworkPort = port;
-  p.IOSelect = DS_TYPE_INPUT;
-  p.bEnabled = true;
-  p.UserComment = name.empty() ? wxString::Format("SignalK: %s:%d", ip, port)
+  const wxString comment = name.empty()
+                               ? wxString::Format("SignalK: %s:%d", ip, port)
                                : wxString::Format("SignalK: %s (%s:%d)", name, ip, port);
-  out.push_back({p, p.UserComment});
+  out.push_back({MakeInputConnection(NetworkProtocol::SIGNALK, DataProtocol::PROTO_SIGNALK,
+                                     false, ip, port, comment),
+                 comment});
 }
 
 void ScanSignalK(std::vector<Found>& out, const std::vector<std::string>& hosts) {
@@ -306,9 +324,15 @@ void ScanSignalK(std::vector<Found>& out, const std::vector<std::string>& hosts)
 }
 
 bool SameSource(const ConnectionParams& a, const ConnectionParams& b) {
+#ifdef OCPNIOS_OCPN_MASTER
+  return a.type == b.type && a.net_protocol == b.net_protocol &&
+         a.network_port == b.network_port &&
+         (a.net_protocol == NetworkProtocol::UDP || a.network_address == b.network_address);
+#else
   return a.Type == b.Type && a.NetProtocol == b.NetProtocol &&
          a.NetworkPort == b.NetworkPort &&
          (a.NetProtocol == NetworkProtocol::UDP || a.NetworkAddress == b.NetworkAddress);
+#endif
 }
 
 }  // namespace

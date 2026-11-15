@@ -223,7 +223,7 @@ index 4c89285..3b197ac 100644
 +msgid "Active Route"
 +msgstr "Actieve route"
 diff --git a/src/autopilot_route_pi.cpp b/src/autopilot_route_pi.cpp
-index 1913722..8aba1c4 100644
+index 1913722..83640cb 100644
 --- a/src/autopilot_route_pi.cpp
 +++ b/src/autopilot_route_pi.cpp
 @@ -347,7 +347,7 @@ void autopilot_route_pi::ShowConsoleCanvas()
@@ -231,12 +231,12 @@ index 1913722..8aba1c4 100644
          wxAuiPaneInfo p = wxAuiPaneInfo().
              Name( "Console Canvas" ).
 -            Caption( "Console Canvas" ).
-+            Caption( _("Active Route") ).  // opencpn-ios: vertaalbare titel (was "Console Canvas")
++            Caption( _("Active Route") ).  // iOS: translatable caption (was "Console Canvas")
              CaptionVisible( false ).
              TopDockable(false).
              BottomDockable(false).
 diff --git a/src/concanv.cpp b/src/concanv.cpp
-index 57f00c0..cd952c3 100644
+index 57f00c0..c993f29 100644
 --- a/src/concanv.cpp
 +++ b/src/concanv.cpp
 @@ -65,6 +65,17 @@ BEGIN_EVENT_TABLE(ConsoleCanvas, wxWindow)
@@ -244,9 +244,9 @@ index 57f00c0..cd952c3 100644
  END_EVENT_TABLE()
  
 +#ifdef __OCPN__IOS__
-+// opencpn-ios: in het iOS-blad is de hoogte beperkt. Met proportie 1 kromp de laatste
-+// regel (RNG) onder zijn minimum en verdween de waarde; nu houden de regels hun hoogte
-+// en krimpt de koersafwijkingsbalk (CDI) als er te weinig ruimte is (11 nov 2026).
++// iOS: height is limited in the iOS sheet. With proportion 1 the last row (RNG)
++// shrank below its minimum and its value disappeared; now the rows keep their height
++// and the course deviation bar (CDI) shrinks when there is too little room.
 +static const int kAnnunProp = 0;
 +static const int kCdiProp = 1;
 +#else
@@ -311,8 +311,8 @@ index 57f00c0..cd952c3 100644
      pDeactivate->Show( m_pi.prefs.ActiveRouteLabel(page, "Deactivate") );
  
      m_pitemBoxSizerLeg->SetSizeHints( this );
-+    // opencpn-ios: na tonen/verbergen van regels ook opnieuw indelen; anders hielden de
-+    // regels hun oude maat en viel de RNG-waarde over het label (11 nov 2026).
++    // iOS: also re-layout after showing/hiding rows; otherwise the rows kept their old
++    // size and the RNG value overlapped the label.
 +    Layout();
  }
  
@@ -322,7 +322,7 @@ index 57f00c0..cd952c3 100644
      mdc.GetSize( &cw, &ch );
  
 -    mdc.DrawText( m_value, cw - w - 2, ch - h - 2 );
-+    // opencpn-ios: waarde nooit over het label tekenen, ook als de regel te laag is.
++    // iOS: never draw the value over the label, even if the row is too low.
 +    int lw, lh;
 +    mdc.GetTextExtent( m_label, &lw, &lh, NULL, NULL, &m_labelFont );
 +    int vy = ch - h - 2;
@@ -336,7 +336,7 @@ index 57f00c0..cd952c3 100644
  
  {
 +#ifdef __OCPN__IOS__
-+    SetMinSize( wxSize( 10, 60 ) );  // opencpn-ios: mag krimpen in het blad
++    SetMinSize( wxSize( 10, 60 ) );  // iOS: may shrink in the sheet
 +#else
      SetMinSize( wxSize( 10, 150 ) );
 +#endif

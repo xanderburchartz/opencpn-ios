@@ -56,7 +56,7 @@ COMPONENTS=(
   "raymarine_autopilot_pi|raymarine_autopilot_pi|https://github.com/rgleason/raymarine_autopilot_pi.git|v2.3.5.0|477a6c6ebbd0242c72aeeb8e4e34a8bf472aec00|ja|"
   "pypilot_pi|pypilot_pi|https://github.com/rgleason/pypilot_pi.git|v0.53.4.0|8dcc83f26d8e090f09614b5463c0fdb28ac1f3e1|ja|"
   "autopilot_route_pi|autopilot_route_pi|https://github.com/rgleason/autopilot_route_pi.git|v0.4.42.0|d7b7791d3c26894c12a8ea079f473778f4726a7e|ja|"
-  "navico_autopilot_pi|navico_autopilot_pi|$NAVICO_PI_REPO|main|ffcd16d7b784caae80b52857d7fc675a25646c9c|ja|"
+  "navico_autopilot_pi|navico_autopilot_pi|$NAVICO_PI_REPO|v0.1.1-alpha|4fe288d4842d1f04d5dc134bc05cba3bb02766e8|ja|"
   "o-charts_pi|o-charts_pi|https://github.com/bdbcat/o-charts_pi.git|master (2.2.5.0)|cc4d4e75dec478f6e6a068c9d8e10813d2641903|ja|"
 )
 

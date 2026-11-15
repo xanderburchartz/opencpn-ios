@@ -31,10 +31,22 @@ esac
 BUNDLE_ARG=()
 [ -n "${OCPNIOS_BUNDLE_PREFIX:-}" ] && BUNDLE_ARG=(-DOCPNIOS_BUNDLE_PREFIX="$OCPNIOS_BUNDLE_PREFIX")
 
-UPSRC="$ROOT/upstream/OpenCPN"
-FARM="$ROOT/build/$TARGET/ocpn-src"
-BLD="$ROOT/build/$TARGET/ocpn"
-[ -d "$UPSRC/gui" ] || { echo "upstream/OpenCPN ontbreekt" >&2; exit 1; }
+# OCPNIOS_OCPN_SRC: andere OpenCPN-bron (bijv. upstream/OpenCPN-master voor de hoofdreeks);
+# OCPNIOS_BUILD_SUFFIX: achtervoegsel voor bron- en bouwmap (bijv. "-master"), zodat die
+# build de gewone niet raakt.
+UPSRC="${OCPNIOS_OCPN_SRC:-$ROOT/upstream/OpenCPN}"
+FARM="$ROOT/build/$TARGET/ocpn-src${OCPNIOS_BUILD_SUFFIX:-}"
+BLD="$ROOT/build/$TARGET/ocpn${OCPNIOS_BUILD_SUFFIX:-}"
+[ -d "$UPSRC/gui" ] || { echo "$UPSRC ontbreekt" >&2; exit 1; }
+
+# ccache (optioneel): cache in build/ccache, niet in de repo. Max. grootte staat in
+# build/ccache/ccache.conf (ccache -M 20G). Geldt pas na een nieuwe configure (stap all).
+LAUNCHER_ARG=()
+if command -v ccache >/dev/null 2>&1 && [ "${OCPNIOS_NO_CCACHE:-}" != 1 ]; then
+  export CCACHE_DIR="${CCACHE_DIR:-$ROOT/build/ccache}"
+  export CCACHE_BASEDIR="${CCACHE_BASEDIR:-$ROOT}"
+  LAUNCHER_ARG=(-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+fi
 
 make_farm() {
   mkdir -p "$FARM"
@@ -70,12 +82,14 @@ configure() {
     -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
     -DFETCHCONTENT_SOURCE_DIR_SHAPELIB_SRC="$ROOT/build/$TARGET/fetched-src/shapelib" \
     -DFETCHCONTENT_SOURCE_DIR_RAPIDJSON_SRC="$ROOT/build/$TARGET/fetched-src/rapidjson" \
+    ${OCPNIOS_JSON_SRC:+-DFETCHCONTENT_SOURCE_DIR_JSON="$OCPNIOS_JSON_SRC"} \
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=18.0 \
     -DOCPNIOS_ROOT="$ROOT" \
     -DOCPNIOS_DEPS="$ROOT/build/$DEPS_TARGET/deps-install" \
     -DwxWidgets_DIR="$ROOT/build/$TARGET/wxqt-install/lib/cmake/wxWidgets-3.3" \
-    ${BUNDLE_ARG[@]+"${BUNDLE_ARG[@]}"}
+    ${BUNDLE_ARG[@]+"${BUNDLE_ARG[@]}"} \
+    ${LAUNCHER_ARG[@]+"${LAUNCHER_ARG[@]}"}
 }
 
 build() {

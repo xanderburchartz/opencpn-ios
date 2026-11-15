@@ -51,6 +51,9 @@ function(ocpnios_static_plugin name)
     # Alleen voor de include-mappen en definities; de bibliotheken zelf linkt de app.
     target_link_libraries(${lib} PRIVATE ${P_LINK})
   endif()
+  if(TARGET nlohmann::json)  # OpenCPN master: manual.h en andere headers gebruiken het
+    target_link_libraries(${lib} PRIVATE nlohmann::json)
+  endif()
 
   set(obj "${CMAKE_BINARY_DIR}/ocpnios-plugins/${name}.o")
   add_custom_command(
@@ -101,12 +104,22 @@ ocpnios_static_plugin(dashboard_pi
 
 # ---------------------------------------------------------------- wmm_pi
 _ocpnios_pi_version(wmm_pi "${CMAKE_BINARY_DIR}/ocpnios-plugins/wmm_pi")
-ocpnios_static_plugin(wmm_pi
-  SOURCES
+# OpenCPN master (na 5.14) gebruikt kleine letters met underscores voor de bestandsnamen.
+if(EXISTS "${PI}/wmm_pi/src/wmm_ui_dialog.cpp")
+  set(_wmm_src
+    "${PI}/wmm_pi/src/wmm_pi.cpp" "${PI}/wmm_pi/src/magnetic_plot_map.cpp"
+    "${PI}/wmm_pi/src/icons.cpp" "${PI}/wmm_pi/src/GeomagnetismLibrary.c"
+    "${PI}/wmm_pi/src/wmm_ui_dialog.cpp" "${PI}/wmm_pi/src/pi_tex_font.cpp"
+    "${PI}/wmm_pi/src/pi_ocpndc.cpp" "${PI}/wmm_pi/src/pi_shaders.cpp")
+else()
+  set(_wmm_src
     "${PI}/wmm_pi/src/wmm_pi.cpp" "${PI}/wmm_pi/src/MagneticPlotMap.cpp"
     "${PI}/wmm_pi/src/icons.cpp" "${PI}/wmm_pi/src/GeomagnetismLibrary.c"
     "${PI}/wmm_pi/src/WmmUIDialog.cpp" "${PI}/wmm_pi/src/pi_TexFont.cpp"
-    "${PI}/wmm_pi/src/pi_ocpndc.cpp" "${PI}/wmm_pi/src/pi_shaders.cpp"
+    "${PI}/wmm_pi/src/pi_ocpndc.cpp" "${PI}/wmm_pi/src/pi_shaders.cpp")
+endif()
+ocpnios_static_plugin(wmm_pi
+  SOURCES ${_wmm_src}
   INCLUDES "${PI}/wmm_pi/src" "${CMAKE_BINARY_DIR}/ocpnios-plugins/wmm_pi"
   LINK ocpn::N2KParser ocpn::manual ocpn::wxjson GLU_static)  # 5.14: wmm_pi gebruikt N2kMsg.h
 # pi_ocpndc.cpp gebruikt std::list zonder <list> te includen (gaat elders goed via wx).
@@ -115,17 +128,31 @@ set_source_files_properties("${PI}/wmm_pi/src/pi_ocpndc.cpp"
 
 # ---------------------------------------------------------------- grib_pi
 add_subdirectory("${PI}/grib_pi/libs/jasper" "${CMAKE_BINARY_DIR}/plugins/jasper")
-foreach(f grib_pi GribOverlayFactory GribUIDialogBase GrabberWin GribUIDialog CursorData
-          GribSettingsDialog GribRequestDialog XyGribPanel XyGribModelDef email GribTable
-          CustomGrid icons GribReader GribRecord GribV1Record GribV2Record zuFile IsoLine
-          pi_ocpndc pi_TexFont pi_shaders)
+if(EXISTS "${PI}/grib_pi/src/grib_ui_dlg.cpp")  # OpenCPN master
+  set(_grib_names grib_pi grib_overlay_factory grib_ui_dlg_base grabber_win grib_ui_dlg
+      cursor_data grib_settings_dlg grib_request_dlg xy_grib_panel xy_grib_model_def email
+      grib_table custom_grid icons grib_reader grib_record grib_v1_record grib_v2_record
+      zu_file iso_line pi_ocpndc pi_tex_font pi_shaders)
+else()
+  set(_grib_names grib_pi GribOverlayFactory GribUIDialogBase GrabberWin GribUIDialog
+      CursorData GribSettingsDialog GribRequestDialog XyGribPanel XyGribModelDef email
+      GribTable CustomGrid icons GribReader GribRecord GribV1Record GribV2Record zuFile
+      IsoLine pi_ocpndc pi_TexFont pi_shaders)
+endif()
+foreach(f ${_grib_names})
   list(APPEND _grib_src "${PI}/grib_pi/src/${f}.cpp")
 endforeach()
+# OpenCPN master: GRIB2-compressie via de meegeleverde libaec.
+set(_grib_link JASPER ocpn::wxjson ocpn::manual)
+if(EXISTS "${PI}/grib_pi/libs/libaec/CMakeLists.txt")
+  add_subdirectory("${PI}/grib_pi/libs/libaec" "${CMAKE_BINARY_DIR}/plugins/libaec")
+  list(APPEND _grib_link AEC)
+endif()
 ocpnios_static_plugin(grib_pi
   SOURCES ${_grib_src}
   INCLUDES "${PI}/grib_pi/src" "${PI}/grib_pi/src/bzip2"
   DEFINES _WCHAR_H_CPLUSPLUS_98_CONFORMANCE_
-  LINK JASPER ocpn::wxjson ocpn::manual)
+  LINK ${_grib_link})
 
 # ---------------------------------------------------------------- chartdldr_pi
 # Uitpakken via libarchive (iOS-SDK; headers uit buildandroid, zie ocpn::libarchive).
@@ -467,13 +494,13 @@ ocpnios_ext_plugin(raymarine_autopilot_pi GLCOMPAT
     "src/autopilotgui.cpp@@Skalefaktor * FromDIP(wxSize(30, 30))@@wxDefaultSize"
     "src/autopilotgui.cpp@@Skalefaktor * FromDIP(wxSize(34, 34))@@wxDefaultSize"
     "src/autopilotgui.cpp@@Skalefaktor * FromDIP(wxSize(38, 18)), 0)@@wxDefaultSize, 0)"
-    "src/autopilotgui.cpp@@buttonSet->SetMinSize(Skalefaktor * FromDIP(wxSize(38, 18)))%SEMI%@@/* opencpn-ios: geen vaste minimummaat */"
+    "src/autopilotgui.cpp@@buttonSet->SetMinSize(Skalefaktor * FromDIP(wxSize(38, 18)))%SEMI%@@/* iOS: no fixed minimum size */"
     # Waardekeuze naast "Set" toonde alleen "5" half.
     "src/autopilotgui.cpp@@Skalefaktor * FromDIP(wxSize(28, 18))@@wxDefaultSize"
-    "src/autopilotgui.cpp@@ParameterValue->SetMinSize(FromDIP(wxSize(Skalefaktor * 28, -1)))%SEMI%@@/* opencpn-ios: geen vaste minimummaat */"
+    "src/autopilotgui.cpp@@ParameterValue->SetMinSize(FromDIP(wxSize(Skalefaktor * 28, -1)))%SEMI%@@/* iOS: no fixed minimum size */"
     # Letters van 8 pt en knoppen van ~28 pt hoog waren op de iPad te klein om te lezen en
     # te raken (iOS: minstens 44 pt). Alles in dit venster 1,8 keer zo groot (10 nov 2026).
-    "src/autopilotgui.cpp@@: wxDialog(parent, id, title, pos, size, style, name)\n{@@: wxDialog(parent, id, title, pos, size, style, name)\n{\n\tSkalefaktor *= 1.8%SEMI% /* opencpn-ios */")
+    "src/autopilotgui.cpp@@: wxDialog(parent, id, title, pos, size, style, name)\n{@@: wxDialog(parent, id, title, pos, size, style, name)\n{\n\tSkalefaktor *= 1.8%SEMI% /* iOS */")
 ocpnios_ext_plugin(pypilot_pi GLCOMPAT
   LIBS tinyxml jsoncpp wxJSON plugin_dc
   EXCLUDE "/src/CalibrationPlot-sean\\.cpp$"
@@ -498,7 +525,7 @@ ocpnios_ext_plugin(navico_autopilot_pi COMMON navicoautopilot
   # de markering ocpnios_panel wordt het een paneel onderin, zoals GRIB.
   FIXUPS
     "src/navico_autopilot_pi.cpp@@#include <chrono>@@#include <chrono>\n#include <QWidget>"
-    "src/navico_autopilot_pi.cpp@@    m_panel->ApplyColours(m_scheme)%SEMI%@@    m_panel->ApplyColours(m_scheme)%SEMI%\n    m_panel->GetHandle()->setProperty(\"ocpnios_panel\", true)%SEMI% /* opencpn-ios */")
+    "src/navico_autopilot_pi.cpp@@    m_panel->ApplyColours(m_scheme)%SEMI%@@    m_panel->ApplyColours(m_scheme)%SEMI%\n    m_panel->GetHandle()->setProperty(\"ocpnios_panel\", true)%SEMI% /* iOS */")
 
 # o-charts_pi met stub voor de ontsleuteling (eigen bestand, zie daar).
 include("${OCPNIOS_ROOT}/app/cmake/ios-ocharts.cmake")

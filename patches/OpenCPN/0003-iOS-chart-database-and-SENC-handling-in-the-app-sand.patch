@@ -1,0 +1,94 @@
+From 935ec60d636f67c064988986c81d8337594a3d33 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 03/13] iOS: chart database and SENC handling in the app
+ sandbox
+
+The app data directory gets a new path on every install. Rebuild the
+chart database when a chart directory no longer exists, find the basemap
+in the current bundle, and log SENC build exceptions.
+
+All changes are inside #ifdef __OCPN__IOS__; other platforms are unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/chartdbs.cpp          | 11 +++++++++++
+ gui/src/s57chart.cpp          |  1 +
+ gui/src/senc_manager.cpp      |  3 +++
+ gui/src/shapefile_basemap.cpp | 10 ++++++++++
+ 4 files changed, 25 insertions(+)
+
+diff --git a/gui/src/chartdbs.cpp b/gui/src/chartdbs.cpp
+index 3d6800a35..d4f2daa58 100644
+--- a/gui/src/chartdbs.cpp
++++ b/gui/src/chartdbs.cpp
+@@ -1483,6 +1483,17 @@ bool ChartDatabase::Read(const wxString &filePath) {
+     msg.Printf("  Chart directory #%d: ", iDir);
+     msg.Append(dir);
+     wxLogMessage(msg);
++#ifdef __OCPN__IOS__
++    // iOS: the app's data container gets a new path on reinstall. A chart
++    // database with a directory that no longer exists refers to charts at the
++    // old path; rebuild it from the (restored) config in that case.
++    if (!wxDirExists(dir.BeforeFirst('^'))) {
++      wxLogMessage(
++          "iOS: Chartdb: chart directory no longer exists, rebuilding "
++          "database");
++      return false;
++    }
++#endif
+     m_chartDirs.Add(dir);
+   }
+ 
+diff --git a/gui/src/s57chart.cpp b/gui/src/s57chart.cpp
+index 5ca2b08cf..28c7fec74 100644
+--- a/gui/src/s57chart.cpp
++++ b/gui/src/s57chart.cpp
+@@ -45,6 +45,7 @@
+ #include <wx/tokenzr.h>
+ #include <wx/textfile.h>
+ #include <wx/filename.h>
++#include <wx/app.h>  // iOS: wxTheApp->CallAfter
+ 
+ #include <wx/listimpl.cpp>
+ 
+diff --git a/gui/src/senc_manager.cpp b/gui/src/senc_manager.cpp
+index dd92640ce..103021dc8 100644
+--- a/gui/src/senc_manager.cpp
++++ b/gui/src/senc_manager.cpp
+@@ -311,6 +311,9 @@ void *SENCBuildThread::Entry() {
+   // #ifdef __MSVC__
+   catch (const std::exception &e /*SE_Exception e*/) {
+     const char *msg = e.what();
++#ifdef __OCPN__IOS__
++    wxLogMessage("iOS: SENCBuildThread exception: %s", msg);
++#endif
+     if (m_manager) {
+       //             OCPN_CompressionThreadEvent
+       //             Nevent(wxEVT_OCPN_COMPRESSIONTHREAD, 0);
+diff --git a/gui/src/shapefile_basemap.cpp b/gui/src/shapefile_basemap.cpp
+index b88dbef67..ae63b9f26 100644
+--- a/gui/src/shapefile_basemap.cpp
++++ b/gui/src/shapefile_basemap.cpp
+@@ -333,8 +333,18 @@ void ShapeBaseChart::DoDrawPolygonFilled(ocpnDC &pnt, ViewPort &vp,
+     auto bbox = vp.GetBBox();
+     for (auto &point : ring.getPoints()) {
+       // if (bbox.ContainsMarge(point.getY(), point.getX(), 0.05)) {
++#ifdef __OCPN__IOS__
++      // iOS: Antarctica (and the rings around the poles) have points at +-90
++      // degrees, which is infinitely far away in Mercator. Qt's rasterizer drew
++      // such a polygon as a solid fill. Clamp the latitude to +-85 degrees,
++      // beyond the edge of what the screen shows.
++      double plat = wxMax(-85.0, wxMin(85.0, point.getY()));
++      wxPoint2DDouble q =
++          ShapeBaseChartSet::GetDoublePixFromLL(vp, plat, point.getX());
++#else
+       wxPoint2DDouble q =
+           ShapeBaseChartSet::GetDoublePixFromLL(vp, point.getY(), point.getX());
++#endif
+       if (round(q.m_x) != round(old_x) || round(q.m_y) != round(old_y)) {
+         poly_pt[cnt].x = round(q.m_x);
+         poly_pt[cnt].y = round(q.m_y);
+-- 
+2.50.1 (Apple Git-155)
+

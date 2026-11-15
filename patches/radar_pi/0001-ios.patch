@@ -1,5 +1,5 @@
 diff --git a/include/pi_common.h b/include/pi_common.h
-index f1e274a..ef679c8 100644
+index f1e274a..41d811d 100644
 --- a/include/pi_common.h
 +++ b/include/pi_common.h
 @@ -44,7 +44,12 @@
@@ -8,8 +8,8 @@ index f1e274a..ef679c8 100644
  
 -#ifdef __WXGTK__
 +#if defined(__OCPN__IOS__)
-+// opencpn-ios: OpenGL ES met de vertaallaag voor oude GL (app/ios/glcompat).
-+} // end "extern C" (glcompat.h regelt zelf extern "C")
++// iOS: OpenGL ES with the translation layer for legacy GL (app/ios/glcompat).
++} // end "extern C" (glcompat.h handles extern "C" itself)
 +#include "glcompat.h"
 +extern "C" {
 +#elif defined(__WXGTK__)
@@ -26,35 +26,47 @@ index f1e274a..ef679c8 100644
  #include <sys/socket.h>
  #include <sys/types.h>
 diff --git a/src/ControlsDialog.cpp b/src/ControlsDialog.cpp
-index 2c5c51c..550840c 100644
+index 2c5c51c..a59d741 100644
 --- a/src/ControlsDialog.cpp
 +++ b/src/ControlsDialog.cpp
 @@ -397,6 +397,9 @@ bool ControlsDialog::Create(wxWindow* parent, radar_pi* ppi, RadarInfo* ri, wxWi
  #ifdef __WXGTK__
    long wstyle = wxCLOSE_BOX | wxCAPTION | wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR;
  #endif
-+#ifdef __OCPN__IOS__  // opencpn-ios: wxQt, zelfde stijl als GTK
++#ifdef __OCPN__IOS__  // iOS: wxQt, same style as GTK
 +  long wstyle = wxCLOSE_BOX | wxCAPTION | wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR;
 +#endif
  
    /*guard_zone_names[0] = _("Off");*/
    guard_zone_names[0] = _("Arc");
+@@ -640,6 +643,11 @@ void ControlsDialog::CreateControls() {
+ #endif
+ 
+   g_buttonSize = wxSize(width, testButton2Text->GetBestSize().y * BUTTON_HEIGTH_FUDGE);
++#ifdef __OCPN__IOS__
++  // iOS: the iOS button style has 10 px padding top and bottom and bold text; without
++  // extra height the text of two-line buttons (e.g. "Trails >" / "Off") is clipped.
++  g_buttonSize.y += 24;
++#endif
+   LOG_DIALOG(wxT("%s Dynamic button width = %d height = %d"), m_log_name.c_str(), g_buttonSize.x, g_buttonSize.y);
+ 
+   m_top_sizer->Hide(testBox);
 diff --git a/src/GuardZoneBogey.cpp b/src/GuardZoneBogey.cpp
-index 2a4218c..5818cc6 100644
+index 2a4218c..75eb5fa 100644
 --- a/src/GuardZoneBogey.cpp
 +++ b/src/GuardZoneBogey.cpp
 @@ -78,6 +78,9 @@ bool GuardZoneBogey::Create(wxWindow *parent, radar_pi *pi, wxWindowID id, const
  #ifdef __WXGTK__
    long wstyle = wxCLOSE_BOX | wxCAPTION | wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR;
  #endif
-+#ifdef __OCPN__IOS__  // opencpn-ios: wxQt, zelfde stijl als GTK
++#ifdef __OCPN__IOS__  // iOS: wxQt, same style as GTK
 +  long wstyle = wxCLOSE_BOX | wxCAPTION | wxFRAME_FLOAT_ON_PARENT | wxFRAME_NO_TASKBAR;
 +#endif
  
    wxSize size_min = size;
  
 diff --git a/src/MessageBox.cpp b/src/MessageBox.cpp
-index 748e427..0c7c88e 100644
+index 748e427..4980368 100644
 --- a/src/MessageBox.cpp
 +++ b/src/MessageBox.cpp
 @@ -91,7 +91,12 @@ bool MessageBox::Create(wxWindow *parent, radar_pi *pi) {
@@ -62,7 +74,7 @@ index 748e427..0c7c88e 100644
  #endif
  
 +#ifdef __OCPN__IOS__
-+  // opencpn-ios: als titel van het blad "Radar", niet het versienummer (10 nov 2026).
++  // iOS: use "Radar" as the sheet title, not the version number.
 +  const wxString caption = _("Radar");
 +#else
    const wxString caption = wxT(PLUGIN_VERSION);
@@ -75,9 +87,9 @@ index 748e427..0c7c88e 100644
  void MessageBox::OnSize(wxSizeEvent &event) { event.Skip(); }
  
 +#ifdef __OCPN__IOS__
-+// opencpn-ios: op iOS is dit venster een blad over het hele scherm. Zonder radar kwam het
-+// na sluiten elke seconde terug en blokkeerde het de kaart (iPad, 10 nov 2026). Na sluiten
-+// pas weer tonen als de gebruiker het zelf opvraagt (force, bv. via de radarknop).
++// iOS: on iOS this dialog is a full-screen sheet. Without a radar it came back every
++// second after being closed and blocked the chart. After closing, only show it again
++// when the user asks for it (force, e.g. via the radar button).
 +static bool s_ios_dismissed = false;
 +#endif
 +
@@ -116,10 +128,10 @@ index 748e427..0c7c88e 100644
        wxString info = m_pi->m_radar[r]->GetInfoStatus();
        m_radar_text[r]->SetLabel(info);
 +#ifdef __OCPN__IOS__
-+      // opencpn-ios: lange meldingen afbreken; op de iPhone liepen ze rechts uit beeld.
++      // iOS: wrap long messages; on the iPhone they ran off the right edge.
 +      {
-+        // Breedte van het blad zelf (wxGetDisplaySize gaf hier niet de schermbreedte in
-+        // punten); vóór de eerste maat 400.
++        // Width of the sheet itself (wxGetDisplaySize did not return the screen width in
++        // points here); 400 before the first size is known.
 +        const int cw = GetClientSize().x;
 +        m_radar_text[r]->Wrap(cw > 200 ? cw - 40 : 400);
 +      }
@@ -132,9 +144,9 @@ index 748e427..0c7c88e 100644
    m_top_sizer->Layout();
    Layout();
 +#ifdef __OCPN__IOS__
-+  // opencpn-ios: op iOS is dit een schermvullend blad. Fit() maakte het elke seconde even
-+  // klein, waarna het weer schermbreed werd; een tik op "Gereed" in dat moment viel naast
-+  // de knop (eerste tik deed niets, gemeten 10 nov 2026). Alleen bij het eerste tonen.
++  // iOS: on iOS this is a full-screen sheet. Fit() shrank it briefly every second, after
++  // which it became screen-wide again; a tap on "Done" at that moment missed the button
++  // (the first tap did nothing). Only fit when first shown.
 +  if (!IsShown()) Fit();
 +#else
    Fit();
@@ -153,7 +165,7 @@ index 748e427..0c7c88e 100644
  }
  
 diff --git a/src/RadarCanvas.cpp b/src/RadarCanvas.cpp
-index e2673d9..3470caf 100644
+index e2673d9..bff7c05 100644
 --- a/src/RadarCanvas.cpp
 +++ b/src/RadarCanvas.cpp
 @@ -90,7 +90,7 @@ void RadarCanvas::OnMove(wxMoveEvent &evt) {
@@ -179,9 +191,9 @@ index e2673d9..3470caf 100644
    if (s.length()) {
      m_FontBig.GetTextExtent(s, &x, &y);
 +#ifdef __OCPN__IOS__
-+    // opencpn-ios: lange statusmeldingen (bv. "Kan UDP socket niet aan poort binden")
-+    // waren breder dan het radarvenster en vielen links en rechts weg (10 nov 2026).
-+    // Dan de kleinere letter, en hooguit vanaf de linkerrand.
++    // iOS: long status messages (e.g. "Unable to bind UDP socket to port") were wider
++    // than the radar window and were cut off on both sides. Use the smaller font then,
++    // and never start left of the window edge.
 +    if (x > loc.GetWidth() - 8) {
 +      m_FontNormal.GetTextExtent(s, &x, &y);
 +      m_FontNormal.RenderString(s, wxMax(4, (loc.GetWidth() - x) / 2),
@@ -192,7 +204,7 @@ index e2673d9..3470caf 100644
    }
  
 diff --git a/src/RadarDrawShader.cpp b/src/RadarDrawShader.cpp
-index 8faa1b1..e02ed1c 100644
+index 8faa1b1..b64be89 100644
 --- a/src/RadarDrawShader.cpp
 +++ b/src/RadarDrawShader.cpp
 @@ -37,6 +37,33 @@
@@ -200,8 +212,8 @@ index 8faa1b1..e02ed1c 100644
  PLUGIN_BEGIN_NAMESPACE
  
 +#ifdef __OCPN__IOS__
-+// opencpn-ios: GLSL ES-variant. Attribuut- en uniformnamen zijn die van de vertaallaag
-+// (app/ios/glcompat), die bij glBegin/glEnd de matrix en texcoords invult.
++// iOS: GLSL ES variant. Attribute and uniform names are those of the translation layer
++// (app/ios/glcompat), which fills in the matrix and texcoords on glBegin/glEnd.
 +static const char *VertexShaderText =
 +    "attribute vec4 a_pos; \n"
 +    "attribute vec2 a_tex; \n"
@@ -238,7 +250,7 @@ index 8faa1b1..e02ed1c 100644
  bool RadarDrawShader::Init(size_t spokes, size_t spoke_len_max) {
    wxCriticalSectionLocker lock(m_exclusive);
 diff --git a/src/navico/NavicoControl.cpp b/src/navico/NavicoControl.cpp
-index 951d9c1..1d5c3b3 100644
+index 951d9c1..ae60c07 100644
 --- a/src/navico/NavicoControl.cpp
 +++ b/src/navico/NavicoControl.cpp
 @@ -86,7 +86,7 @@ void NavicoControl::logBinaryData(const wxString &what, const uint8_t *data, int
@@ -246,12 +258,12 @@ index 951d9c1..1d5c3b3 100644
  
    explain.Alloc(size * 3 + 50);
 -  explain += wxT("") + m_name.c_str() + wxT(" ");
-+  explain += m_name + wxT(" ");  // opencpn-ios: wchar_t[] + wxCStrData compileert niet met wx 3.3
++  explain += m_name + wxT(" ");  // iOS: wchar_t[] + wxCStrData does not compile with wx 3.3
    explain += what;
    explain += wxString::Format(wxT(" %d bytes: "), size);
    for (i = 0; i < size; i++) {
 diff --git a/src/navico/NavicoReceive.cpp b/src/navico/NavicoReceive.cpp
-index 14f5901..6871f0b 100644
+index 14f5901..57dc0e2 100644
 --- a/src/navico/NavicoReceive.cpp
 +++ b/src/navico/NavicoReceive.cpp
 @@ -520,7 +520,18 @@ SOCKET NavicoReceive::GetNewReportSocket() {
@@ -259,12 +271,12 @@ index 14f5901..6871f0b 100644
      s << error;
      SetInfoStatus(s);
 +#ifdef __OCPN__IOS__
-+    // De ontvangstlus probeert dit elke selectronde opnieuw voor elke netwerkkaart; zonder
-+    // deze rem werd een op de vijf logregels deze melding. Alleen een nieuwe fout loggen.
++    // The receive loop retries this every select round for every network interface;
++    // without this throttle one in five log lines was this message. Only log new errors.
 +    static thread_local wxString last_error;
 +    if (error != last_error) {
 +      last_error = error;
-+      wxLogError(wxT("%s Unable to listen to socket: %s (verdere gelijke meldingen onderdrukt)"),
++      wxLogError(wxT("%s Unable to listen to socket: %s (further identical messages suppressed)"),
 +                 m_ri->m_name.c_str(), error.c_str());
 +    }
 +#else
@@ -274,7 +286,7 @@ index 14f5901..6871f0b 100644
    return socket;
  }
 diff --git a/src/radar_pi.cpp b/src/radar_pi.cpp
-index 7b7b0b6..7257aad 100644
+index 7b7b0b6..ffc4c9f 100644
 --- a/src/radar_pi.cpp
 +++ b/src/radar_pi.cpp
 @@ -1539,6 +1539,9 @@ bool radar_pi::RenderGLOverlayMultiCanvas(wxGLContext* pcontext, PlugIn_ViewPort
@@ -292,16 +304,16 @@ index 7b7b0b6..7257aad 100644
      pConf->Read(wxT("ScanMaxAge"), &m_settings.max_age, 6);
      pConf->Read(wxT("Show"), &m_settings.show, true);
 +#ifdef __OCPN__IOS__
-+    // opencpn-ios: altijd uit starten; aanzetten met de radarknop in de werkbalk. Anders
-+    // kwamen bij elke start het radarvenster en de melding "geen radar" in beeld (Xander,
-+    // 11 nov 2026: "Hij moet uitstaan totdat ik hem selecteer, net zoals in de desktopversie").
++    // iOS: always start hidden; the user turns it on with the radar button in the toolbar,
++    // as on desktop. Otherwise the radar window and the "no radar" message appeared at
++    // every start.
 +    m_settings.show = false;
 +#endif
      pConf->Read(wxT("SkewFactor"), &m_settings.skew_factor, 1);
      pConf->Read(wxT("ThresholdBlue"), &m_settings.threshold_blue, 32);
      // Make room for BLOB_HISTORY_MAX history values
 diff --git a/src/raymarine/RME120Control.cpp b/src/raymarine/RME120Control.cpp
-index 3ab0a82..20127c3 100644
+index 3ab0a82..5ddbce1 100644
 --- a/src/raymarine/RME120Control.cpp
 +++ b/src/raymarine/RME120Control.cpp
 @@ -81,7 +81,7 @@ void RME120Control::logBinaryData(const wxString &what, const uint8_t *data, int
@@ -309,12 +321,12 @@ index 3ab0a82..20127c3 100644
  
    explain.Alloc(size * 3 + 50);
 -  explain += wxT("") + m_name.c_str() + wxT(" ");
-+  explain += m_name + wxT(" ");  // opencpn-ios: wchar_t[] + wxCStrData compileert niet met wx 3.3
++  explain += m_name + wxT(" ");  // iOS: wchar_t[] + wxCStrData does not compile with wx 3.3
    explain += what;
    explain += wxString::Format(wxT(" %d bytes: "), size);
    for (i = 0; i < size; i++) {
 diff --git a/src/shaderutil.cpp b/src/shaderutil.cpp
-index 1c4767c..9863957 100644
+index 1c4767c..ed2773b 100644
 --- a/src/shaderutil.cpp
 +++ b/src/shaderutil.cpp
 @@ -35,6 +35,10 @@
@@ -322,7 +334,7 @@ index 1c4767c..9863957 100644
  #define SET_FUNCTION_POINTER(name) wglGetProcAddress(name)
  typedef PROC FunctionPointer;
 +#elif defined(__OCPN__IOS__)
-+// opencpn-ios: via de vertaallaag (glUseProgram moet langs de laag).
++// iOS: via the translation layer (glUseProgram must go through the layer).
 +#define SET_FUNCTION_POINTER(name) ocpnios_glcompat_getproc(name)
 +typedef void *FunctionPointer;
  #elif defined(__WXMAC__)

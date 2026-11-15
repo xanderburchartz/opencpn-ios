@@ -22,7 +22,12 @@ PATRONEN="$ROOT/prive/patronen.txt"
 # Werknotities (logboek, plan, lessen, sessie-afspraken, afbeeldingen van het logboek) en de
 # Nederlandse docs; de openbare repo krijgt alleen de Engelse (README.en.md, docs/building.md,
 # docs/o-charts.md).
-UITSLUITEN='^(CLAUDE\.md|PLAN\.md|lessen\.md|docs/logboek\.md|docs/overzicht-[^/]*\.md|docs/bronnen\.md|docs/concept-[^/]*|docs/zelf-bouwen\.md|docs/o-charts-ios\.md|docs/qt-installeren\.md|docs/licenties-verspreiding\.md|docs/img/.*|prive/.*)$'
+UITSLUITEN='^(CLAUDE\.md|PLAN\.md|lessen\.md|docs/logboek\.md|docs/overzicht-[^/]*\.md|docs/bronnen\.md|docs/concept-[^/]*|docs/zelf-bouwen\.md|docs/o-charts-ios\.md|docs/qt-installeren\.md|docs/licenties-verspreiding\.md|docs/upstream\.md|docs/upstream-prs\.md|docs/meetplan-[^/]*\.md|docs/img/.*|docs/screenshots/fixes/.*|prive/.*)$'
+# De master-reeks staat in de fork (xanderburchartz/OpenCPN, branch ios-port), niet als patches.
+# Losse fixes alleen als ze bij OpenCPN geplaatst zijn (Xander leest ze eerst na); voeg een map
+# toe aan GEPLAATST zodra de PR er staat.
+GEPLAATST='^patches/OpenCPN-fixes/(n2k-126996-request-backoff)/'
+UITSLUITEN_MAP='^patches/(OpenCPN-master|OpenCPN-fixes)/'
 
 [ -f "$PATRONEN" ] || { echo "ontbreekt: $PATRONEN (lijst met persoonsgegevens)" >&2; exit 2; }
 case "$DOEL" in
@@ -45,6 +50,7 @@ n=0
 while IFS= read -r f; do
   [ -f "$f" ] || continue                         # verwijderd in de werkboom
   if [[ "$f" =~ $UITSLUITEN ]]; then continue; fi
+  if [[ "$f" =~ $UITSLUITEN_MAP ]] && ! [[ "$f" =~ $GEPLAATST ]]; then continue; fi
   mkdir -p "$DOEL/$(dirname "$f")"
   cp -p "$f" "$DOEL/$f"
   n=$((n + 1))

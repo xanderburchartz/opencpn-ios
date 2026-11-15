@@ -124,6 +124,11 @@ add_library(ocpn::libarchive ALIAS _ocpnios_libarchive)
 link_libraries(${wxWidgets_LIBRARIES})
 
 # ---------------------------------------------------------------------------
+# OpenCPN master (na 5.14): nlohmann-json; de bron komt via FETCHCONTENT_SOURCE_DIR_JSON.
+if(EXISTS "${CMAKE_SOURCE_DIR}/libs/nlohmann-json/CMakeLists.txt")
+  add_subdirectory("${CMAKE_SOURCE_DIR}/libs/nlohmann-json"
+                   "${CMAKE_BINARY_DIR}/libs/nlohmann-json")
+endif()
 # OpenCPN-bibliotheken (zelfde volgorde als de upstream-CMake waar het kan)
 foreach(_lib
     gl_headers glu ssl_sha1 SQLiteCpp shapelib ShapefileCpp std_filesystem libtess2
@@ -212,7 +217,17 @@ qt_add_executable(opencpn MACOSX_BUNDLE ${GUI_SRC}
   "${OCPNIOS_ROOT}/app/ios/source_scan.cpp"
   "${OCPNIOS_ROOT}/app/ios/action_sheet.mm"
   "${OCPNIOS_ROOT}/app/ios/file_picker.mm"
-  "${OCPNIOS_ROOT}/app/ios/display_path.cpp")
+  "${OCPNIOS_ROOT}/app/ios/display_path.cpp"
+  "${OCPNIOS_ROOT}/app/ios/options_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/frame_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/dialogs_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/plugins_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/canvas_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/connections_ios.cpp")
+# OpenCPN master (na 5.14) heeft API's hernoemd; app/ios kiest met deze macro.
+if(EXISTS "${CMAKE_SOURCE_DIR}/libs/nlohmann-json/CMakeLists.txt")
+  target_compile_definitions(opencpn PRIVATE OCPNIOS_OCPN_MASTER=1)
+endif()
 target_include_directories(opencpn PRIVATE
   "${OCPNIOS_ROOT}/app/ios"
   "${CMAKE_SOURCE_DIR}/gui/include/gui"
