@@ -144,7 +144,7 @@ Measured on a Mac with M4 Pro, first build. Later builds are mostly incremental.
 
 | step | time |
 |---|---|
-| `fetch-upstream.sh` | ~2 min, depending on the connection |
+| `fetch-upstream.sh` | 2 to 6 min, depending on the connection |
 | `build-deps-ios.sh` (per target) | ~3 min |
 | `build-wxqt-ios.sh device-release all` | ~1.5 min |
 | `build-ocpn-ios.sh device-release all` | ~4.5 min |

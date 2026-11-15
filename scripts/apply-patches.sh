@@ -2,7 +2,13 @@
 # Past de eigen patches uit patches/<project>/*.patch toe op upstream/<project>.
 # Al toegepaste patches worden overgeslagen. Volgorde: alfabetisch (0001-, 0002-, ...).
 #
-# Gebruik: scripts/apply-patches.sh [project ...]   (standaard: alle mappen in patches/)
+# Gebruik: scripts/apply-patches.sh [project ...]   (standaard: alle mappen in patches/,
+#          behalve OpenCPN-fixes en OpenCPN-master)
+#
+# patches/OpenCPN-fixes/ (losse fix-PR's voor OpenCPN-master) en patches/OpenCPN-master/ (de
+# reeks op master) horen niet bij de bouw van de app en hebben geen eigen map die
+# fetch-upstream.sh ophaalt. Zonder argumenten worden ze overgeslagen; noem ze expliciet om ze
+# toe te passen op upstream/OpenCPN-fixes of upstream/OpenCPN-master.
 #
 # Een patch maken na een wijziging in upstream/<project>:
 #   git -C upstream/<project> diff > patches/<project>/NNNN-korte-naam.patch
@@ -19,7 +25,12 @@ if [ "$#" -gt 0 ]; then
 else
   projects=()
   for d in "$ROOT"/patches/*/; do
-    [ -d "$d" ] && projects+=("$(basename "$d")")
+    [ -d "$d" ] || continue
+    p="$(basename "$d")"
+    case "$p" in
+      OpenCPN-fixes|OpenCPN-master) echo "[apply-patches] $p: overgeslagen (alleen expliciet)"; continue ;;
+    esac
+    projects+=("$p")
   done
 fi
 
