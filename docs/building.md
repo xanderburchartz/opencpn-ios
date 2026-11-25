@@ -99,13 +99,20 @@ device are on the same network and the device has been paired over the cable bef
 On first start, iOS asks whether OpenCPN may use the local network (for NMEA and AIS data
 from your instruments) and your location (built-in GPS).
 
+All plugins are off after a fresh install. Turn them on under Options › Plugins.
+
 ## 6. Limits of a free Apple ID
 
 - An app installed with a free account **works for 7 days**. After that it no longer
   starts: run `make-profile.sh` again, sign and install. Your charts and settings are kept as
   long as you do not delete the app.
 - At most **3 of your own apps** per device at the same time.
+- A free account cannot add Apple's multicast entitlement
+  (`com.apple.developer.networking.multicast`). Network sources that need UDP broadcast or
+  multicast may then not work; TCP connections are not affected.
 - A paid developer account does not have these limits and can also use TestFlight.
+  `scripts/package-testflight.sh` packages and uploads a build, with the entitlements from
+  `app/ios/opencpn.entitlements` (the App ID needs the multicast capability turned on).
 
 ## 7. Making changes
 

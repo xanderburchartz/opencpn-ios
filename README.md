@@ -4,8 +4,10 @@ An unofficial port of [OpenCPN](https://opencpn.org) 5.14.2 to iPhone and iPad.
 
 The app is the regular OpenCPN chart plotter, built for iOS with wxWidgets 3.3 on Qt 6. That
 is the same route as the Android version of OpenCPN. The screens follow the desktop version,
-adapted for touch and small screens. Plugins are built into the app, because iOS does not
-allow apps to load them at runtime.
+adapted for touch and small screens: dialogs open as sheets that fit the screen, and the
+mayara radar window keeps clear of the toolbar. Plugins are built into the app, because iOS
+does not allow apps to load them at runtime. After a fresh install all plugins are off; turn
+them on under Options › Plugins.
 
 > **Made with Claude Code.** This port was developed by Xander Burchartz together with
 > [Claude Code](https://claude.com/product/claude-code), Anthropic's AI coding assistant. Claude wrote
@@ -21,15 +23,14 @@ allow apps to load them at runtime.
 
 ## Status: alpha
 
-This is an early version. Do not use it as your only means of navigation.
-
-Not all plugins are well tested. What has been checked so far:
+This is an early version. Not all plugins are well tested. What has been checked so far:
 
 - Checked on iPhone and iPad: chart display, AIS and NMEA input, dashboard, chart
-  downloader, GRIB, WMM, watchdog, polar, radar, o-charts and the autopilot plugins. The
-  Navico autopilot plugin works from the device.
+  downloader, GRIB, WMM, watchdog, polar, radar (radar_pi), o-charts and the autopilot
+  plugins. The Navico autopilot plugin works from the device.
 - Partly checked: weather routing.
 - Hardly tested yet: VDR, tactics, pypilot and autopilot route.
+- New and not yet tested with a real radar: mayara_pi.
 - o-charts: encrypted o-charts charts do not work, because the decryption service is not
   included.
 
@@ -44,17 +45,23 @@ the OpenCPN project.
 - OpenCPN 5.14.2 with vector charts (S-57 ENC, CM93) and the built-in basemap.
 - Data input over the network (NMEA 0183, AIS, and NMEA 2000 through a network gateway)
   and from the built-in GPS of the device.
-- Plugins: dashboard, GRIB, WMM, chart downloader, radar, weather routing, watchdog, VDR,
-  polar, tactics, Raymarine autopilot, Navico autopilot, pypilot, autopilot route and
-  o-charts.
+- Plugins: dashboard, GRIB, WMM, chart downloader, radar (radar_pi), weather routing,
+  watchdog, VDR, polar, tactics, Raymarine autopilot, Navico autopilot, pypilot, autopilot
+  route and o-charts.
+- [mayara_pi](https://github.com/opencpn-radar-pi/mayara_pi): radar picture and radar overlay
+  on the chart from a [mayara-server](https://github.com/MarineYachtRadar/mayara-server)
+  elsewhere on the network. You enter the server address, or the app looks for the server with
+  Bonjour. The server itself does not run on iOS.
+- The TestFlight build has Apple's multicast entitlement, which iOS requires for network
+  sources that use UDP broadcast or multicast and for Signal K discovery.
 - Charts, GRIB files, logs and screenshots are stored in the app's own folder, visible in
   the Files app as "On My iPhone › OpenCPN".
 
 ## Getting the app
 
-For now you build it yourself with a Mac and Xcode, and install it on your own device with a
-free Apple ID: see [docs/building.md](docs/building.md). Distribution through
-TestFlight is planned.
+You build it yourself with a Mac and Xcode, and install it on your own device with a free
+Apple ID: see [docs/building.md](docs/building.md). TestFlight builds exist for internal
+testing; there is no public TestFlight link.
 
 ## Repository layout
 
@@ -84,9 +91,13 @@ each with an English explanation. They live in a fork of OpenCPN,
 
 The same release series is in `patches/OpenCPN/` as `git format-patch` files, so that
 `scripts/apply-patches.sh` can rebuild the source tree from a plain OpenCPN checkout. Fixes that
-are not specific to iOS go to OpenCPN as separate pull requests; the first one is in
-`patches/OpenCPN-fixes/n2k-126996-request-backoff/`
-([OpenCPN#5550](https://github.com/OpenCPN/OpenCPN/pull/5550)).
+are not specific to iOS go to OpenCPN as separate pull requests:
+[#5550](https://github.com/OpenCPN/OpenCPN/pull/5550),
+[#5551](https://github.com/OpenCPN/OpenCPN/pull/5551),
+[#5553](https://github.com/OpenCPN/OpenCPN/pull/5553),
+[#5554](https://github.com/OpenCPN/OpenCPN/pull/5554) and
+[#5555](https://github.com/OpenCPN/OpenCPN/pull/5555). The first one is also in
+`patches/OpenCPN-fixes/n2k-126996-request-backoff/`.
 
 ## Licence
 

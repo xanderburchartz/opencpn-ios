@@ -31,6 +31,10 @@ each component at a fixed commit (`scripts/fetch-upstream.sh --lijst` prints the
 | vdr_pi, polar_pi, tactics_pi, raymarine_autopilot_pi | see `fetch-upstream.sh` | GPL-2.0-or-later |
 | weather_routing_pi, watchdog_pi, pypilot_pi, autopilot_route_pi | see `fetch-upstream.sh` | mix of GPL-2.0-or-later and GPL-3.0-or-later files |
 | navico_autopilot_pi | see `fetch-upstream.sh` | GPL-3.0-or-later |
+| mayara_pi | see `fetch-upstream.sh` | GPL-3.0-or-later |
+| IXWebSocket (bundled with mayara_pi) | see `fetch-upstream.sh` | BSD-3-Clause |
+| nlohmann/json (bundled with mayara_pi) | see `fetch-upstream.sh` | MIT |
+| mdns (bundled with mayara_pi) | see `fetch-upstream.sh` | public domain |
 | o-charts_pi (plugin source only) | 2.2.5.0 | GPL-2.0-or-later |
 
 The licence text of each component is in its own source tree after `fetch-upstream.sh` has
