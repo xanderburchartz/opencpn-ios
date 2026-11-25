@@ -17,6 +17,7 @@
 #   openssl       OpenSSL 3.5 LTS, TLS voor libcurl (https); Apache-2.0
 #   shapelib      shapelib v1.6.1, die OpenCPN anders zelf downloadt (libs/shapelib)
 #   rapidjson     rapidjson v1.1.0, die OpenCPN anders zelf downloadt (libs/rapidjson)
+#   mayara_pi     radarbeeld van een mayara-server (REST/WebSocket), opencpn-radar-pi
 #   navico_autopilot_pi  eigen Navico-autopilotplugin (aparte repo, standaard de map
 #                 ../navico_autopilot_pi naast deze repo; ander pad met NAVICO_PI_REPO)
 #   o-charts_pi   o-charts-plugin (GPL-2.0), daarna scripts/apply-patches.sh o-charts_pi;
@@ -57,6 +58,7 @@ COMPONENTS=(
   "pypilot_pi|pypilot_pi|https://github.com/rgleason/pypilot_pi.git|v0.53.4.0|8dcc83f26d8e090f09614b5463c0fdb28ac1f3e1|ja|"
   "autopilot_route_pi|autopilot_route_pi|https://github.com/rgleason/autopilot_route_pi.git|v0.4.42.0|d7b7791d3c26894c12a8ea079f473778f4726a7e|ja|"
   "navico_autopilot_pi|navico_autopilot_pi|$NAVICO_PI_REPO|v0.1.1-alpha|4fe288d4842d1f04d5dc134bc05cba3bb02766e8|ja|"
+  "mayara_pi|mayara_pi|https://github.com/opencpn-radar-pi/mayara_pi.git|main (na v0.1.5)|a3fdd3a5397820f88939721e261b405bae2b0372|ja|"
   "o-charts_pi|o-charts_pi|https://github.com/bdbcat/o-charts_pi.git|master (2.2.5.0)|cc4d4e75dec478f6e6a068c9d8e10813d2641903|ja|"
 )
 

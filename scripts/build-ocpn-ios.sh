@@ -30,6 +30,13 @@ esac
 # OCPNIOS_BUNDLE_PREFIX=nl.voorbeeld.opencpnios. Standaard: local.opencpnios.
 BUNDLE_ARG=()
 [ -n "${OCPNIOS_BUNDLE_PREFIX:-}" ] && BUNDLE_ARG=(-DOCPNIOS_BUNDLE_PREFIX="$OCPNIOS_BUNDLE_PREFIX")
+# OCPNIOS_APP_ID / OCPNIOS_APP_NAME: laatste deel van de bundel-ID en naam op het beginscherm
+# (standaard opencpn / OpenCPN). Met een andere ID staat een tweede app naast de gewone, bijv.
+# OCPNIOS_APP_ID=opencpnmaster OCPNIOS_APP_NAME="OpenCPN master" voor de hoofdreeks.
+[ -n "${OCPNIOS_APP_ID:-}" ] && BUNDLE_ARG+=(-DOCPNIOS_APP_ID="$OCPNIOS_APP_ID")
+[ -n "${OCPNIOS_APP_NAME:-}" ] && BUNDLE_ARG+=(-DOCPNIOS_APP_NAME="$OCPNIOS_APP_NAME")
+# OCPNIOS_BUILD_NUMBER: CFBundleVersion, per TestFlight-upload hoger (standaard 1).
+[ -n "${OCPNIOS_BUILD_NUMBER:-}" ] && BUNDLE_ARG+=(-DOCPNIOS_BUILD_NUMBER="$OCPNIOS_BUILD_NUMBER")
 
 # OCPNIOS_OCPN_SRC: andere OpenCPN-bron (bijv. upstream/OpenCPN-master voor de hoofdreeks);
 # OCPNIOS_BUILD_SUFFIX: achtervoegsel voor bron- en bouwmap (bijv. "-master"), zodat die

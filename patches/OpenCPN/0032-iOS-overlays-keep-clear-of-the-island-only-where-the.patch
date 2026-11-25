@@ -1,0 +1,167 @@
+From c5c4f3490e011c7ee136828df9114dab9996925b Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Tue, 24 Nov 2026 23:28:45 +0100
+Subject: [PATCH 32/32] iOS: overlays keep clear of the island only where they
+ overlap it
+
+ocpnios_OverlayInsetLeft() and ocpnios_OverlayInsetRight() now get the
+canvas and the vertical span of the overlay (toolbar, zoom bar, compass,
+depth unit, chart bar, scale bar). The iOS layer then returns the room
+needed at that height: the camera housing in landscape only for overlays
+beside it, otherwise only the rounded screen corner. The y position of
+each overlay is now computed before the inset.
+
+Only affects iOS builds (__OCPN__IOS__); other platforms are unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/chcanv.cpp              | 23 +++++++++++++++--------
+ gui/src/mui_bar.cpp             |  6 +++---
+ gui/src/piano.cpp               |  6 ++++--
+ gui/src/toolbar.cpp             |  7 +++++--
+ model/include/model/ios_hooks.h |  4 ++--
+ 5 files changed, 29 insertions(+), 17 deletions(-)
+
+diff --git a/gui/src/chcanv.cpp b/gui/src/chcanv.cpp
+index b08757500..c280de1b8 100644
+--- a/gui/src/chcanv.cpp
++++ b/gui/src/chcanv.cpp
+@@ -6844,9 +6844,6 @@ void ChartCanvas::ScaleBarDraw(ocpnDC &dc) {
+     double blat, blon, tlat, tlon;
+ 
+     int x_origin = 5.0 * GetPixPerMM();
+-#ifdef __OCPN__IOS__
+-    x_origin += ocpnios_OverlayInsetLeft() * m_displayScale;  // rounded corner
+-#endif
+     int chartbar_height = GetChartbarHeight();
+     //         ocpnStyle::Style* style = g_StyleManager->GetCurrentStyle();
+     //         if (style->chartStatusWindowTransparent)
+@@ -6857,6 +6854,11 @@ void ChartCanvas::ScaleBarDraw(ocpnDC &dc) {
+       y_origin =
+           m_canvas_height / GetContentScaleFactor() - chartbar_height - 5;
+ #endif
++#ifdef __OCPN__IOS__
++    x_origin += ocpnios_OverlayInsetLeft(this, y_origin / m_displayScale - 10,
++                                         y_origin / m_displayScale) *
++                m_displayScale;  // rounded corner
++#endif
+ 
+     GetCanvasPixPoint(x_origin, y_origin, blat, blon);
+     GetCanvasPixPoint(x_origin + m_canvas_width, y_origin, tlat, tlon);
+@@ -13202,10 +13204,6 @@ emboss_data *ChartCanvas::EmbossDepthScale() {
+   }
+ 
+   ped->x = (GetVP().pix_width - ped->width);
+-#ifdef __OCPN__IOS__
+-  // iOS: keep the depth unit ("Meters") clear of the rounded top-right corner.
+-  ped->x -= ocpnios_OverlayInsetRight() * m_displayScale;
+-#endif
+ 
+   if (m_Compass && m_bShowCompassWin && g_bShowCompassWin) {
+     wxRect r = m_Compass->GetRect();
+@@ -13213,6 +13211,12 @@ emboss_data *ChartCanvas::EmbossDepthScale() {
+   } else {
+     ped->y = 40;
+   }
++#ifdef __OCPN__IOS__
++  // iOS: keep the depth unit ("Meters") clear of the rounded top-right corner.
++  ped->x -= ocpnios_OverlayInsetRight(this, ped->y / m_displayScale,
++                                      (ped->y + ped->height) / m_displayScale) *
++            m_displayScale;
++#endif
+   return ped;
+ }
+ 
+@@ -14464,7 +14468,10 @@ void ChartCanvas::UpdateGPSCompassStatusBox(bool b_force_new) {
+                      g_StyleManager->GetCurrentStyle()->GetCompassYOffset());
+ #ifdef __OCPN__IOS__
+   // iOS: keep the compass clear of the rounded top-right screen corner.
+-  compass_pt.x -= ocpnios_OverlayInsetRight() * m_displayScale;
++  compass_pt.x -=
++      ocpnios_OverlayInsetRight(this, compass_pt.y / m_displayScale,
++                                (compass_pt.y + rect.height) / m_displayScale) *
++      m_displayScale;
+ #endif
+   wxRect compass_rect(compass_pt, rect.GetSize());
+ 
+diff --git a/gui/src/mui_bar.cpp b/gui/src/mui_bar.cpp
+index 096299cfa..25c605991 100644
+--- a/gui/src/mui_bar.cpp
++++ b/gui/src/mui_bar.cpp
+@@ -1068,11 +1068,11 @@ void MUIBar::SetBestPosition() {
+       (m_parentCanvas->GetClientSize().x - (m_size.x + (m_end_margin) * 2.00));
+ 
+   int bottomOffset = 6;
+-#ifdef __OCPN__IOS__
+-  x -= ocpnios_OverlayInsetRight();  // iOS: rounded bottom-right corner
+-#endif
+ 
+   int y = m_parentCanvas->GetClientSize().y - m_size.y - bottomOffset;
++#ifdef __OCPN__IOS__
++  x -= ocpnios_OverlayInsetRight(m_parentCanvas, y, y + m_size.y);  // iOS
++#endif
+   // if ( g_bopengl){
+   //   y -= m_parentCanvas->GetClientSize().y % 1;
+   // }
+diff --git a/gui/src/piano.cpp b/gui/src/piano.cpp
+index 10802b63e..c29f2c98e 100644
+--- a/gui/src/piano.cpp
++++ b/gui/src/piano.cpp
+@@ -820,8 +820,10 @@ void Piano::FormatKeys() {
+     }
+ #ifdef __OCPN__IOS__
+     // iOS: keep the chart bar clear of the rounded bottom-left corner.
+-    int x0 = ocpnios_OverlayInsetLeft() *
+-             (g_bopengl ? m_parentCanvas->GetContentScaleFactor() : 1);
++    const double sf = g_bopengl ? m_parentCanvas->GetContentScaleFactor() : 1;
++    const int ch = m_parentCanvas->GetClientSize().y;
++    int x0 =
++        ocpnios_OverlayInsetLeft(m_parentCanvas, ch - height / sf, ch) * sf;
+     for (auto &r : KeyRect) r.x += x0;
+     m_width += x0;
+ #endif
+diff --git a/gui/src/toolbar.cpp b/gui/src/toolbar.cpp
+index 1d3af912d..0141c132a 100644
+--- a/gui/src/toolbar.cpp
++++ b/gui/src/toolbar.cpp
+@@ -447,17 +447,20 @@ void ocpnFloatingToolbarDialog::SetDefaultPosition() {
+     m_position.x = wxMax(m_dock_min_x, m_position.x);
+     m_position.y = wxMax(m_dock_min_y, m_position.y);
+ #ifdef __OCPN__IOS__
+-    // iOS: keep clear of the rounded screen corner (landscape).
++    // iOS: keep clear of the rounded screen corners and the camera housing.
+     // Start from the dock position in every orientation: otherwise the
+     // landscape position (indented, centered) remained after rotating back to
+     // portrait.
+-    m_position.x = wxMax(m_dock_min_x, ocpnios_OverlayInsetLeft());
+     m_position.y = m_dock_min_y;
+     // Landscape: center vertically, so the toolbar always stays clear of the
+     // top and bottom corners.
+     if (cs.x > cs.y && m_ptoolbar->m_maxHeight > 0 &&
+         m_ptoolbar->m_maxHeight < cs.y)
+       m_position.y = wxMax(m_dock_min_y, (cs.y - m_ptoolbar->m_maxHeight) / 2);
++    m_position.x =
++        wxMax(m_dock_min_x,
++              ocpnios_OverlayInsetLeft(m_pparent, m_position.y,
++                                       m_position.y + m_ptoolbar->m_maxHeight));
+ #endif
+ 
+     m_position.y += m_auxOffsetY;
+diff --git a/model/include/model/ios_hooks.h b/model/include/model/ios_hooks.h
+index 85441d8bf..7311e9c91 100644
+--- a/model/include/model/ios_hooks.h
++++ b/model/include/model/ios_hooks.h
+@@ -68,8 +68,8 @@ wxGridCellRenderer* ocpnios_NewSwitchCellRenderer();
+ void ocpnios_NmeaFilterRowLayout(wxPanel* row, wxCheckBox*& checkbox,
+                                  wxTextCtrl*& filter_period);
+ void ocpnios_OnStartupDone();
+-int ocpnios_OverlayInsetLeft();
+-int ocpnios_OverlayInsetRight();
++int ocpnios_OverlayInsetLeft(wxWindow* canvas, int top, int bottom);
++int ocpnios_OverlayInsetRight(wxWindow* canvas, int top, int bottom);
+ wxColour ocpnios_PluginCardBg();
+ wxColour ocpnios_PluginPageBg();
+ wxString ocpnios_PluginWrap(wxWindow* win, const wxString& text, int width);
+-- 
+2.54.0 (Apple Git-157)
+

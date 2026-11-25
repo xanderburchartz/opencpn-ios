@@ -100,12 +100,18 @@ void DumpCenterChain(QWidget* top) {
 }
 
 void DumpChainAt(const QPoint& c, const QString& what) {
+  // Not in the background: grabbing the chart canvas (a QOpenGLWidget) there crashed
+  // on a null GL context (simulator, 24 nov 2026: tap, then HOME within the 1 s delay).
+  if (QGuiApplication::applicationState() != Qt::ApplicationActive) return;
   QWidget* top = nullptr;
   QWidget* w = QApplication::widgetAt(c);
   QStringList chain;
   for (int i = 0; w && i < 12; w = w->parentWidget(), i++) {
     const QPoint lp = w->mapFromGlobal(c);
-    const QColor px = w->grab(QRect(lp, QSize(1, 1))).toImage().pixelColor(0, 0);
+    // GL widgets are not read back: that needs a current GL context.
+    const QColor px = w->inherits("QOpenGLWidget")
+                          ? QColor()
+                          : w->grab(QRect(lp, QSize(1, 1))).toImage().pixelColor(0, 0);
     chain << QStringLiteral("%1#%2 pix=%7 fill=%3 win=%4 base=%5 css=%6")
                  .arg(QString::fromLatin1(w->metaObject()->className()), w->objectName())
                  .arg(w->autoFillBackground())

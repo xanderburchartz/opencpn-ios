@@ -1,0 +1,50 @@
+From 0d0f087af86b67b1f912320c5035d198fabf7a90 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 01/32] GLShaderProgram: unbind VBOs before
+ glVertexAttribPointer
+
+SetAttributePointerf passes a client-side pointer to glVertexAttribPointer
+and unbinds GL_ARRAY_BUFFER only afterwards. If a VBO is still bound at
+that moment (left bound by other drawing code or a plugin), GL takes the
+pointer as a byte offset into that VBO: wrong vertices or a crash in the
+driver. Unbind first, then set the pointer.
+
+Seen on iOS (OpenGL ES 2) after radar_pi had drawn with a VBO; the order
+is wrong for every GL implementation.
+
+Same change as OpenCPN pull request #5551.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/include/gui/shaders.h | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/gui/include/gui/shaders.h b/gui/include/gui/shaders.h
+index a1b016eae..7a58691c0 100644
+--- a/gui/include/gui/shaders.h
++++ b/gui/include/gui/shaders.h
+@@ -137,14 +137,16 @@ public:
+   }
+ 
+   void SetAttributePointerf(const char *name, float *value) {
++    // Disable VBO's (vertex buffer objects) for attributes. This must happen
++    // before glVertexAttribPointer: with a VBO still bound, the client pointer
++    // is taken as an offset into that VBO.
++    glBindBuffer(GL_ARRAY_BUFFER, 0);
++    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
++
+     GLint aloc = glGetAttribLocation(programId_, name);
+     glVertexAttribPointer(aloc, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float),
+                           value);
+     glEnableVertexAttribArray(aloc);
+-
+-    // Disable VBO's (vertex buffer objects) for attributes.
+-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+   }
+ 
+   GLuint programId() const { return programId_; }
+-- 
+2.54.0 (Apple Git-157)
+

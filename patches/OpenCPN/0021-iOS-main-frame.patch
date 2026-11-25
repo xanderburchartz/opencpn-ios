@@ -1,44 +1,59 @@
-From 4bd5233e4837fbfe4214f5597ec67d06478ea4e7 Mon Sep 17 00:00:00 2001
+From 709384311c2410f736200e2c0f9ef796b8cdc651 Mon Sep 17 00:00:00 2001
 From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:50:09 +0100
-Subject: [PATCH 06/13] iOS: main frame
+Subject: [PATCH 21/32] iOS: main frame
 
-- No desktop menu bar; status bar and iOS status bar follow the color
-  scheme.
-- Save settings while running: iOS suspends and later kills the app
-  without a clean exit.
-- Handle rotation (repeated size events, reentry while rebuilding the
-  status bar) and new data paths after a reinstall.
-- Local help opens through the app, since Safari cannot open files from
-  the app bundle.
-
-The iOS implementation lives in the iOS app layer (app/ios/*_ios.cpp in the
-opencpn-ios repository); the core only declares and calls it.
-
-All changes are inside #ifdef __OCPN__IOS__; other platforms are unchanged.
+- No desktop menu bar. The status bar gets a height that fits the font
+  and a light background; after a color scheme change the mark icon list
+  of the Route & Mark Manager is attached again.
+- Rotation: no reentry while the status bar is rebuilt, the toolbar is
+  positioned again, and the canvas scale is kept in logical pixels.
+- Chart database rebuild: no OK-only message before the progress dialog;
+  drag inertia stops before the old database is deleted.
+- Printing redraws the chart without the toolbar first.
+- Toolbar labels without keyboard shortcuts.
+- Local help opens the OpenCPN website, since Safari cannot open files
+  from the app bundle.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- gui/src/ocpn_frame.cpp | 133 ++++++++++++++++++++++++++++++++++++++++-
- 1 file changed, 131 insertions(+), 2 deletions(-)
+ gui/include/gui/ocpn_frame.h    |   6 ++
+ gui/src/ocpn_frame.cpp          | 102 +++++++++++++++++++++++++++++++-
+ model/include/model/ios_hooks.h |   3 +
+ 3 files changed, 110 insertions(+), 1 deletion(-)
 
+diff --git a/gui/include/gui/ocpn_frame.h b/gui/include/gui/ocpn_frame.h
+index bf360d34a..ccf152fb6 100644
+--- a/gui/include/gui/ocpn_frame.h
++++ b/gui/include/gui/ocpn_frame.h
+@@ -523,6 +523,12 @@ private:
+   void CalculateCOGAverage();
+ 
+   void ODoSetSize(void);
++#ifdef __OCPN__IOS__
++  // iOS: app/ios/frame_ios.cpp
++  bool m_iosInSetSize = false;  // ODoSetSize is running
++  void IosOnSize();
++  void IosRescaleCanvases();
++#endif
+   void DoCOGSet(void);
+ 
+   void UpdateAllToolbars(ColorScheme cs);
 diff --git a/gui/src/ocpn_frame.cpp b/gui/src/ocpn_frame.cpp
-index ede1999fc..3a9ca7287 100644
+index fb324102c..ae2a2fb40 100644
 --- a/gui/src/ocpn_frame.cpp
 +++ b/gui/src/ocpn_frame.cpp
-@@ -130,6 +130,11 @@
+@@ -130,6 +130,9 @@
  #include "navutil.h"
  #include "ocpn_aui_manager.h"
  #include "ocpn_frame.h"
 +#ifdef __OCPN__IOS__
-+// iOS: app/ios/frame_ios.cpp
-+void ocpnios_ApplySchemeColors(wxFrame *frame);
-+void ocpnios_OnStartupDone();
++#include "model/ios_hooks.h"
 +#endif
  #include "ocpn_platform.h"
  #include "ocpn_plugin.h"
  #include "o_senc.h"
-@@ -260,6 +265,10 @@ static bool LoadAllPlugIns(bool load_enabled) {
+@@ -260,6 +263,10 @@ static bool LoadAllPlugIns(bool load_enabled) {
  static void LaunchLocalHelp() {
  #ifdef __ANDROID__
    androidLaunchHelpView();
@@ -49,24 +64,19 @@ index ede1999fc..3a9ca7287 100644
  #else
    wxString def_lang_canonical = "en_US";
  
-@@ -843,7 +852,14 @@ void MyFrame::StartRebuildChartDatabase() {
+@@ -839,6 +846,7 @@ void MyFrame::StartRebuildChartDatabase() {
    if (ChartDirArray.GetCount()) {
      //              Create and Save a new Chart Database based on the hints
      //              given in the config file
-+#ifdef __OCPN__IOS__
-+    // iOS: after every (re)install the data directory gets a new path and the
-+    // database is rebuilt; this OK-only message blocked startup until tapped.
-+    // The progress dialog below says enough.
-+    if (false) {
-+#else
++#ifndef __OCPN__IOS__  // iOS: the progress dialog below is enough.
      if (g_NeedDBUpdate == 1) {
-+#endif
        wxString msg1(
            _("OpenCPN needs to update the chart database from config file "
-             "entries...."));
-@@ -853,6 +869,15 @@ void MyFrame::StartRebuildChartDatabase() {
+@@ -848,7 +856,17 @@ void MyFrame::StartRebuildChartDatabase() {
+                              wxICON_INFORMATION | wxOK);
        mdlg.ShowModal();
      }
++#endif
  
 +#ifdef __OCPN__IOS__
 +    // iOS: stop running motion (drag inertia) before the old database is gone;
@@ -80,7 +90,7 @@ index ede1999fc..3a9ca7287 100644
      delete ChartData;
      ChartData = new ChartDB();
  
-@@ -992,6 +1017,9 @@ void MyFrame::SetAndApplyColorScheme(ColorScheme cs) {
+@@ -988,6 +1006,9 @@ void MyFrame::SetAndApplyColorScheme(ColorScheme cs) {
        user_colors::GetMapByScheme(SchemeName.ToStdString());
  
    SetSystemColors(cs);
@@ -90,7 +100,7 @@ index ede1999fc..3a9ca7287 100644
  
    // ..For each canvas...
    for (unsigned int i = 0; i < g_canvasArray.GetCount(); i++) {
-@@ -1007,6 +1035,14 @@ void MyFrame::SetAndApplyColorScheme(ColorScheme cs) {
+@@ -1003,6 +1024,14 @@ void MyFrame::SetAndApplyColorScheme(ColorScheme cs) {
    if (pWayPointMan)
      WayPointmanGui(*pWayPointMan)
          .SetColorScheme(cs, g_Platform->GetDisplayDPmm());
@@ -105,49 +115,27 @@ index ede1999fc..3a9ca7287 100644
    if (ChartData) ChartData->ApplyColorSchemeToCachedCharts(cs);
  
    if (g_options) {
-@@ -2024,9 +2060,40 @@ void MyFrame::OnIconize(wxIconizeEvent &event) {
+@@ -2020,9 +2049,19 @@ void MyFrame::OnIconize(wxIconizeEvent &event) {
  #endif
  }
  
--void MyFrame::OnSize(wxSizeEvent &event) { ODoSetSize(); }
-+void MyFrame::OnSize(wxSizeEvent &event) {
 +#ifdef __OCPN__IOS__
-+  IosOnSize();  // app/ios/frame_ios.cpp
-+  return;
++void MyFrame::OnSize(wxSizeEvent &event) { IosOnSize(); }  // frame_ios.cpp
++#else
+ void MyFrame::OnSize(wxSizeEvent &event) { ODoSetSize(); }
 +#endif
-+  ODoSetSize();
-+}
  
  void MyFrame::ODoSetSize() {
 +#ifdef __OCPN__IOS__
-+  // iOS: no reentry. On device rotation, building the status bar below triggers
-+  // a new resize, which rebuilt the status bar in the middle of the first build
-+  // (crash). The last size is processed once more right afterwards (not via
-+  // CallAfter: that left a half-black screen during rotation until the next
-+  // event loop iteration). At most 3 extra rounds.
-+  static bool s_inSetSize = false;
-+  static bool s_again = false;
-+  if (s_inSetSize) {
-+    s_again = true;
-+    return;
-+  }
-+  struct Reset {
-+    ~Reset() { s_inSetSize = false; }
-+  } reset;
-+  for (int round = 0; round < 4; round++) {
-+    s_inSetSize = true;
-+    s_again = false;
-+    ODoSetSizeBody();
-+    if (!s_again) break;
-+  }
-+}
-+
-+void MyFrame::ODoSetSizeBody() {
++  // iOS: building the status bar below resizes the frame again; a nested call
++  // crashed. IosOnSize handles the new size afterwards.
++  if (m_iosInSetSize) return;
++  m_iosInSetSize = true;
 +#endif
    int x, y;
    GetClientSize(&x, &y);
    //      Resize the children
-@@ -2107,7 +2174,7 @@ void MyFrame::ODoSetSize() {
+@@ -2103,7 +2142,7 @@ void MyFrame::ODoSetSize() {
      font_size =
          wxMax(font_size, min_font_size);  // minimum to stop it being unreadable
  
@@ -156,7 +144,7 @@ index ede1999fc..3a9ca7287 100644
      font_size = statusBarFont->GetPointSize();
  #endif
  
-@@ -2130,6 +2197,13 @@ void MyFrame::ODoSetSize() {
+@@ -2126,6 +2165,13 @@ void MyFrame::ODoSetSize() {
      m_pStatusBar->SetMinHeight(min_height);
  //        qDebug() <<"StatusBar min height:" << min_height << "StatusBar font
  //        points:" << pstat_font->GetPointSize();
@@ -170,7 +158,7 @@ index ede1999fc..3a9ca7287 100644
  #endif
      //        wxString msg;
      //        msg.Printf(_T("StatusBar min height: %d    StatusBar font points:
-@@ -2154,6 +2228,12 @@ void MyFrame::ODoSetSize() {
+@@ -2150,6 +2196,12 @@ void MyFrame::ODoSetSize() {
      g_MainToolbar->SetGeometry(GetPrimaryCanvas()->GetCompass()->IsShown(),
                                 GetPrimaryCanvas()->GetCompass()->GetRect());
      g_MainToolbar->Realize();
@@ -183,7 +171,17 @@ index ede1999fc..3a9ca7287 100644
  
      if (szBefore != g_MainToolbar->GetToolbarSize())
        g_MainToolbar->RefreshToolbar();
-@@ -2879,7 +2959,12 @@ void MyFrame::ScheduleReconfigAndSettingsReload(bool reload, bool new_dialog) {
+@@ -2194,6 +2246,9 @@ void MyFrame::ODoSetSize() {
+   }
+ 
+   if (g_pauimgr) g_pauimgr->Update();
++#ifdef __OCPN__IOS__
++  m_iosInSetSize = false;
++#endif
+ }
+ 
+ void MyFrame::PositionConsole() {
+@@ -2875,7 +2930,12 @@ void MyFrame::ScheduleReconfigAndSettingsReload(bool reload, bool new_dialog) {
        if (i < pathArray.GetCount())
          index_hint = ChartData->FinddbIndex(pathArray.Item(i));
        cc->canvasChartsRefresh(index_hint);
@@ -196,7 +194,7 @@ index ede1999fc..3a9ca7287 100644
      }
    }
  }
-@@ -3561,6 +3646,14 @@ void MyFrame::BuildMenuBar() {
+@@ -3557,6 +3617,14 @@ void MyFrame::BuildMenuBar() {
        g_bTempShowMenuBar)  // allows pressing alt to temporarily show
      showMenuBar = true;
  #endif
@@ -211,7 +209,7 @@ index ede1999fc..3a9ca7287 100644
  
    if (showMenuBar) {
      //  Menu bar has some dependencies on S52 PLIB, so be sure it is loaded.
-@@ -4099,7 +4192,13 @@ void MyFrame::DoOptionsDialog() {
+@@ -4095,7 +4163,13 @@ void MyFrame::DoOptionsDialog() {
        }
  
        pathArray.Add(chart_file_name);
@@ -225,7 +223,7 @@ index ede1999fc..3a9ca7287 100644
      }
    }
  
-@@ -4178,6 +4277,9 @@ void MyFrame::ProcessOptionsDialog(int rr, ArrayOfCDI *pNewDirArray) {
+@@ -4174,6 +4248,9 @@ void MyFrame::ProcessOptionsDialog(int rr, ArrayOfCDI *pNewDirArray) {
      //      This will allow all charts to recognise new OpenGL configuration, if
      //      any
      b_need_refresh = true;
@@ -235,7 +233,7 @@ index ede1999fc..3a9ca7287 100644
    }
  
    if (rr & S52_CHANGED) {
-@@ -4811,6 +4913,9 @@ void MyFrame::OnInitTimer(wxTimerEvent &event) {
+@@ -4807,6 +4884,9 @@ void MyFrame::OnInitTimer(wxTimerEvent &event) {
      default: {
        // Last call....
        wxLogMessage("OnInitTimer...Last Call");
@@ -245,7 +243,7 @@ index ede1999fc..3a9ca7287 100644
  
        if (!g_kiosk_startup) g_pi_manager->CallLateInit();
  
-@@ -6121,6 +6226,15 @@ void MyFrame::DoPrint(void) {
+@@ -6117,6 +6197,15 @@ void MyFrame::DoPrint(void) {
    } else
  #endif
      Refresh();
@@ -261,7 +259,7 @@ index ede1999fc..3a9ca7287 100644
  
    ChartPrintout printout;
    if (g_bopengl) {
-@@ -6887,7 +7001,11 @@ ocpnToolBarSimple *MyFrame::CreateMasterToolbar() {
+@@ -6883,7 +6972,11 @@ ocpnToolBarSimple *MyFrame::CreateMasterToolbar() {
    tic = new ToolbarItemContainer(
        ID_MENU_ROUTE_NEW, style->GetToolIcon("MUI_route", TOOLICON_NORMAL),
        style->GetToolIcon("MUI_route", TOOLICON_TOGGLED), wxITEM_CHECK,
@@ -273,7 +271,7 @@ index ede1999fc..3a9ca7287 100644
  
    g_MainToolbar->AddToolItem(tic);
  
-@@ -6931,7 +7049,11 @@ ocpnToolBarSimple *MyFrame::CreateMasterToolbar() {
+@@ -6927,7 +7020,11 @@ ocpnToolBarSimple *MyFrame::CreateMasterToolbar() {
    //  And finally add the MOB tool
    tic = new ToolbarItemContainer(
        ID_MOB, style->GetToolIcon("mob_btn", TOOLICON_NORMAL), wxITEM_NORMAL,
@@ -285,20 +283,33 @@ index ede1999fc..3a9ca7287 100644
    g_MainToolbar->AddToolItem(tic);
  
    // Build the toolbar
-@@ -7303,6 +7425,13 @@ void ApplyLocale() {
+@@ -7299,6 +7396,9 @@ void ApplyLocale() {
    }
  
    if (!bno_load) g_pauimgr->LoadPerspective(perspective, false);
 +#ifdef __OCPN__IOS__
-+  {
-+    extern void ocpnios_FloatPluginPanes(wxAuiManager *
-+                                         mgr);  // app/ios/frame_ios.cpp
-+    ocpnios_FloatPluginPanes(g_pauimgr);
-+  }
++  ocpnios_FloatPluginPanes(g_pauimgr);
 +#endif
  
    g_pauimgr->Update();
  
+diff --git a/model/include/model/ios_hooks.h b/model/include/model/ios_hooks.h
+index e0be27554..28014abfe 100644
+--- a/model/include/model/ios_hooks.h
++++ b/model/include/model/ios_hooks.h
+@@ -28,9 +28,12 @@
+ #ifdef __OCPN__IOS__
+ 
+ class wxAuiManager;
++class wxFrame;
+ 
++void ocpnios_ApplySchemeColors(wxFrame *frame);
+ void ocpnios_FloatPluginPanes(wxAuiManager *mgr);
+ void ocpnios_HideBusyHud();
++void ocpnios_OnStartupDone();
+ int ocpnios_OverlayInsetLeft();
+ int ocpnios_OverlayInsetRight();
+ void ocpnios_ShowBusyHud();
 -- 
-2.50.1 (Apple Git-155)
+2.54.0 (Apple Git-157)
 

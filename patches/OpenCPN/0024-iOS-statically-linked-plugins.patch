@@ -1,0 +1,502 @@
+From dfb509af1560e700962ef2c982a0900487140ef8 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 24/32] iOS: statically linked plugins
+
+iOS apps cannot load plugins at runtime. The iOS app links its plugins
+statically and offers them to the plugin loader as if they were files in
+the system plugin directory, so the rest of the loader works unchanged.
+Built-in plugins count as system plugins (not removed as orphans), keep
+their version without metadata, and get their Options page after the first
+enable. The plugin list is shown as iOS cards.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/ocpn_plugin_gui.cpp     |  11 +++
+ gui/src/pluginmanager.cpp       | 120 +++++++++++++++++++++++++++++++-
+ model/include/model/ios_hooks.h |  16 +++++
+ model/src/plugin_loader.cpp     |  94 +++++++++++++++++++++++++
+ 4 files changed, 239 insertions(+), 2 deletions(-)
+
+diff --git a/gui/src/ocpn_plugin_gui.cpp b/gui/src/ocpn_plugin_gui.cpp
+index 38252f64c..e34e3fff1 100644
+--- a/gui/src/ocpn_plugin_gui.cpp
++++ b/gui/src/ocpn_plugin_gui.cpp
+@@ -63,6 +63,9 @@
+ #include "ocpn_frame.h"
+ #include "ocpn_platform.h"
+ #include "ocpn_plugin.h"
++#ifdef __OCPN__IOS__
++#include <QWidget>
++#endif
+ #include "options.h"
+ #include "piano.h"
+ #include "pluginmanager.h"
+@@ -537,7 +540,15 @@ wxScrolledWindow* AddOptionsPage(OptionsParentPI parent, wxString title) {
+       break;
+   }
+ 
++#ifdef __OCPN__IOS__
++  // iOS: mark a plugin page (options.cpp IosGoLevel: no Apply).
++  wxScrolledWindow* page = g_pOptions->AddPage(parentid, title);
++  if (page && page->GetHandle())
++    page->GetHandle()->setProperty("ocpnios_pluginpage", true);
++  return page;
++#else
+   return g_pOptions->AddPage(parentid, title);
++#endif
+ }
+ 
+ bool DeleteOptionsPage(wxScrolledWindow* page) {
+diff --git a/gui/src/pluginmanager.cpp b/gui/src/pluginmanager.cpp
+index 9d114f384..f870e4a6e 100644
+--- a/gui/src/pluginmanager.cpp
++++ b/gui/src/pluginmanager.cpp
+@@ -295,6 +295,10 @@ class BlacklistUI {
+   std::vector<wxString> m_deferred_messages;
+ };
+ 
++#ifdef __OCPN__IOS__
++#include "model/ios_hooks.h"
++#endif
++
+ class PanelHardBreakWrapper : public wxTextWrapper {
+ public:
+   PanelHardBreakWrapper(wxWindow* win, const wxString& text, int widthMax) {
+@@ -2851,6 +2855,12 @@ PluginPanel::PluginPanel(wxPanel* parent, wxWindowID id, const wxPoint& pos,
+   m_bSelected = false;
+   m_penWidthUnselected = g_Platform->GetDisplayDPmm() * .25;
+   m_penWidthSelected = g_Platform->GetDisplayDPmm() * .5;
++#ifdef __OCPN__IOS__
++  // iOS: no thick black border around the selected plugin; iOS only uses a
++  // light background.
++  m_penWidthUnselected = 1;
++  m_penWidthSelected = 1;
++#endif
+ 
+   wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
+   SetSizer(topSizer);
+@@ -2898,7 +2908,50 @@ PluginPanel::PluginPanel(wxPanel* parent, wxWindowID id, const wxPoint& pos,
+   bool bCompact = false;
+   if (nChars < 60)  // Arbitrary, detecting mobile devices in portrait mode.
+     bCompact = true;
++#ifdef __OCPN__IOS__
++  // iOS: use the iOS row in landscape too; otherwise rotating brought back the
++  // desktop layout ("Enabled", switch in the middle of the row).
++  bCompact = true;
++#endif
+ 
++#ifdef __OCPN__IOS__
++  // iOS: row like an iOS list. Line 1: name (bold) and version, the switch on
++  // the right without text; the description below. Previously the version was
++  // on its own line and the switch with "Enabled" in the middle.
++  wxBoxSizer* line1 = new wxBoxSizer(wxHORIZONTAL);
++  itemBoxSizer02->Add(line1, 0, wxEXPAND | wxTOP, 6);
++  m_pName = new wxStaticText(this, wxID_ANY, "");
++  wxFont nameFont = m_pName->GetFont();
++  nameFont.SetWeight(wxFONTWEIGHT_BOLD);
++  m_pName->SetFont(nameFont);
++  m_pName->SetLabel(
++      ocpnios_PluginWrap(m_pName, m_plugin.m_common_name,
++                         g_Platform->getDisplaySize().x * 45 / 100));
++  m_pName->Bind(wxEVT_LEFT_DOWN, &PluginPanel::OnPluginSelected, this);
++  m_pName->Bind(wxEVT_LEFT_UP, &PluginPanel::OnPluginSelectedUp, this);
++  line1->Add(m_pName, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 5);
++
++  m_pVersion = new wxStaticText(this, wxID_ANY, _T("X.YY.ZZ.AA"));
++  m_pVersion->SetForegroundColour(wxColour(128, 128, 128));
++  line1->Add(m_pVersion, 0, wxALIGN_CENTER_VERTICAL);
++  if (m_plugin.m_status == PluginStatus::ManagedInstallAvailable)
++    m_pVersion->Hide();
++  m_pVersion->Bind(wxEVT_LEFT_DOWN, &PluginPanel::OnPluginSelected, this);
++  m_pVersion->Bind(wxEVT_LEFT_UP, &PluginPanel::OnPluginSelectedUp, this);
++
++  line1->AddStretchSpacer(1);
++  m_cbEnable = new wxCheckBox(this, wxID_ANY, "");
++  line1->Add(m_cbEnable, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
++  m_cbEnable->Bind(wxEVT_CHECKBOX, &PluginPanel::OnPluginEnableToggle, this);
++
++  m_pDescription = new wxStaticText(this, wxID_ANY, "");
++  m_pDescription->SetLabel(
++      ocpnios_PluginWrap(m_pDescription, m_plugin.m_short_description,
++                         g_Platform->getDisplaySize().x * 6 / 10));
++  itemBoxSizer02->Add(m_pDescription, 0, wxEXPAND | wxALL, 5);
++  m_pDescription->Bind(wxEVT_LEFT_DOWN, &PluginPanel::OnPluginSelected, this);
++  m_pDescription->Bind(wxEVT_LEFT_UP, &PluginPanel::OnPluginSelectedUp, this);
++#else
+   if (bCompact) {
+     // Might need to shorten the Plugin name string
+     wxString nameString = m_plugin.m_common_name;
+@@ -2994,6 +3047,7 @@ PluginPanel::PluginPanel(wxPanel* parent, wxWindowID id, const wxPoint& pos,
+     m_pDescription->Bind(wxEVT_LEFT_UP, &PluginPanel::OnPluginSelectedUp, this);
+   }
+ 
++#endif
+   if (!bCompact) {
+     m_info_btn = new WebsiteButton(this, "https:\\opencpn.org");
+     m_info_btn->Hide();
+@@ -3073,7 +3127,13 @@ PluginPanel::PluginPanel(wxPanel* parent, wxWindowID id, const wxPoint& pos,
+   m_itemStatusIconBitmap->Bind(wxEVT_LEFT_UP, &PluginPanel::OnPluginSelectedUp,
+                                this);
+ 
++#ifdef __OCPN__IOS__
++  // iOS: the status icon (managed/side-loaded/update) means nothing on iOS: all
++  // plugins are built into the app. It was also off the right edge.
++  m_itemStatusIconBitmap->Hide();
++#else
+   itemBoxSizer01->Add(m_itemStatusIconBitmap, 0, wxEXPAND | wxALL, 20);
++#endif
+ 
+   itemBoxSizer02->AddSpacer(GetCharWidth());
+ 
+@@ -3120,7 +3180,9 @@ static wxStopWatch swclick;
+ static int downx, downy;
+ 
+ void PluginPanel::OnPluginSelected(wxMouseEvent& event) {
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(__OCPN__IOS__)
++  // iOS: as on Android, select only on release of a short tap; otherwise a
++  // swipe to scroll opened the plugin where it started.
+   swclick.Start();
+   event.GetPosition(&downx, &downy);
+ #else
+@@ -3129,9 +3191,13 @@ void PluginPanel::OnPluginSelected(wxMouseEvent& event) {
+ }
+ 
+ void PluginPanel::OnPluginSelectedUp(wxMouseEvent& event) {
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) || defined(__OCPN__IOS__)
++#ifdef __OCPN__IOS__
++  if (swclick.Time() < 600) {
++#else
+   qDebug() << swclick.Time();
+   if (swclick.Time() < 200) {
++#endif
+     int upx, upy;
+     event.GetPosition(&upx, &upy);
+     if ((fabs(upx - downx) < GetCharWidth()) &&
+@@ -3264,6 +3330,16 @@ void PluginPanel::SetSelected(bool selected) {
+         break;
+     }
+     SetActionLabel(label);
++#ifdef __OCPN__IOS__
++    // iOS: plugins are built into the app; install, update and remove are not
++    // possible (iOS does not allow downloaded code).
++    m_pButtonAction->Hide();
++    m_pButtonUninstall->Hide();
++    // m_pButtons->Show(true) also shows the Website button, with the default
++    // link "https:\\opencpn.org" (backslashes; Safari opened a blank page).
++    // Only show it with a real link from the plugin.
++    if (m_plugin.m_managed_metadata.info_url.empty()) m_info_btn->Hide();
++#endif
+     Layout();
+   } else {
+     SetBackgroundColour(GetDialogColor(DLG_UNSELECTED_BACKGROUND));
+@@ -3299,6 +3375,9 @@ void PluginPanel::SetSelected(bool selected) {
+   } else {
+     SetBackgroundColour(GetDialogColor(DLG_UNSELECTED_BACKGROUND));
+   }
++#ifdef __OCPN__IOS__
++  SetBackgroundColour(ocpnios_PluginPageBg());  // iOS: cards on the page colour
++#endif
+ 
+   SetEnabled(m_plugin.m_enabled);
+ 
+@@ -3328,6 +3407,13 @@ void PluginPanel::OnPaint(wxPaintEvent& event) {
+     border = GetDialogColor(DLG_SELECTED_ACCENT);
+   }
+ 
++#ifdef __OCPN__IOS__
++  color = ocpnios_PluginCardBg();
++  dc.SetBrush(wxBrush(color, wxBRUSHSTYLE_SOLID));
++  dc.SetPen(*wxTRANSPARENT_PEN);
++  dc.DrawRoundedRectangle(5, 5, GetSize().x - 10, GetSize().y - 10, 10);
++  return;
++#endif
+   wxBrush b(color, wxBRUSHSTYLE_SOLID);
+   dc.SetBrush(b);
+   dc.SetPen(wxPen(border, penWidth));
+@@ -3424,10 +3510,19 @@ void PluginPanel::SetEnabled(bool enabled) {
+     wxString description = m_plugin.m_long_description;
+     if (description.IsEmpty())
+       description = wxString(m_plugin.m_managed_metadata.description.c_str());
++#ifdef __OCPN__IOS__
++    // iOS: without a long description (Tactics) the row stayed empty.
++    if (description.IsEmpty()) description = m_plugin.m_short_description;
++#endif
+ 
++#ifdef __OCPN__IOS__
++    m_pDescription->SetLabel(ocpnios_PluginWrap(
++        m_pDescription, description, g_Platform->getDisplaySize().x * 6 / 10));
++#else
+     PanelHardBreakWrapper wrapper(this, description,
+                                   g_options->GetSize().x * 7 / 10);
+     m_pDescription->SetLabel(wrapper.GetWrapped());
++#endif
+     if (m_plugin.m_managed_metadata.info_url.size()) {
+       m_info_btn->SetURL(m_plugin.m_managed_metadata.info_url.c_str());
+       m_info_btn->Show();
+@@ -3436,13 +3531,34 @@ void PluginPanel::SetEnabled(bool enabled) {
+     wxString description = m_plugin.m_short_description;
+     if (description.IsEmpty())
+       description = wxString(m_plugin.m_managed_metadata.summary.c_str());
++#ifdef __OCPN__IOS__
++    m_pDescription->SetLabel(ocpnios_PluginWrap(
++        m_pDescription, description, g_Platform->getDisplaySize().x * 6 / 10));
++#else
+     PanelHardBreakWrapper wrapper(this, description,
+                                   g_options->GetSize().x * 7 / 10);
+     m_pDescription->SetLabel(wrapper.GetWrapped());
++#endif
+   }
++#ifdef __OCPN__IOS__
++  // Pass the new height after wrapping to the list.
++  m_pDescription->InvalidateBestSize();
++  Layout();
++  if (GetParent()) GetParent()->Layout();
++#endif
+ 
+   m_pButtonPreferences->Enable(enabled &&
+                                (m_plugin.m_cap_flag & WANTS_PREFERENCES));
++#ifdef __OCPN__IOS__
++  // iOS: no grey button that does nothing (pypilot has no preferences); hide it
++  // as in an iOS list. Show it again when the plugin is enabled while selected.
++  const bool want = m_pButtonPreferences->IsEnabled() && m_bSelected;
++  if (want != m_pButtonPreferences->IsShown()) {
++    m_pButtonPreferences->Show(want);
++    Layout();
++    if (GetParent()) GetParent()->Layout();
++  }
++#endif
+   m_cbEnable->SetValue(enabled);
+ }
+ 
+diff --git a/model/include/model/ios_hooks.h b/model/include/model/ios_hooks.h
+index 910041ef9..85441d8bf 100644
+--- a/model/include/model/ios_hooks.h
++++ b/model/include/model/ios_hooks.h
+@@ -33,6 +33,7 @@ class EventVar;
+ class MyConfig;
+ class wxAuiManager;
+ class wxCheckBox;
++class wxColour;
+ class wxDC;
+ class wxDialog;
+ class wxFrame;
+@@ -69,6 +70,9 @@ void ocpnios_NmeaFilterRowLayout(wxPanel* row, wxCheckBox*& checkbox,
+ void ocpnios_OnStartupDone();
+ int ocpnios_OverlayInsetLeft();
+ int ocpnios_OverlayInsetRight();
++wxColour ocpnios_PluginCardBg();
++wxColour ocpnios_PluginPageBg();
++wxString ocpnios_PluginWrap(wxWindow* win, const wxString& text, int width);
+ void ocpnios_RmdFitButtons(wxWindow* dlg, int margin, wxScrolledWindow* winr,
+                            wxScrolledWindow* wint, wxScrolledWindow* winw,
+                            wxScrolledWindow* winl);
+@@ -79,6 +83,18 @@ wxString ocpnios_TcShow(const wxString& full);
+ void ocpnios_TidyDocuments();
+ void ocpnios_WaitUntilActive();
+ 
++// Built-in plugins, statically linked (app/ios/static_plugins.cpp).
++extern "C" {
++struct ocpnios_StaticPlugin {
++  const char* file_name;
++  void* (*create)(void* manager);
++  void (*destroy)(void* plugin);
++  const char* common_name;
++};
++const ocpnios_StaticPlugin* ocpnios_StaticPlugins();
++const ocpnios_StaticPlugin* ocpnios_FindStaticPlugin(const char* file_name);
++}
++
+ #endif  // __OCPN__IOS__
+ 
+ #endif  // IOS_HOOKS_H_
+diff --git a/model/src/plugin_loader.cpp b/model/src/plugin_loader.cpp
+index 42a6a4251..215a3bbc0 100644
+--- a/model/src/plugin_loader.cpp
++++ b/model/src/plugin_loader.cpp
+@@ -89,8 +89,28 @@
+ #include "androidUTIL.h"
+ #endif
+ 
++#ifdef __OCPN__IOS__
++#include "model/ios_hooks.h"
++static const ocpnios_StaticPlugin* IosStaticPlugin(const wxString& path) {
++  return ocpnios_FindStaticPlugin(
++      wxFileName(path).GetFullName().ToStdString().c_str());
++}
++/** System names plus the common names of all built-in plugins: these belong to
++ *  the app and must not be removed as "orphan without catalog". */
++static std::vector<std::string> WithIosStatic(std::vector<std::string> v) {
++  for (auto p = ocpnios_StaticPlugins(); p->file_name; ++p)
++    if (p->common_name && *p->common_name) v.push_back(p->common_name);
++  return v;
++}
++#endif
++
++#ifdef __OCPN__IOS__
++static const std::vector<std::string> SYSTEM_PLUGINS =
++    WithIosStatic({"chartdownloader", "wmm", "dashboard", "grib", "demo"});
++#else
+ static const std::vector<std::string> SYSTEM_PLUGINS = {
+     "chartdownloader", "wmm", "dashboard", "grib", "demo"};
++#endif
+ 
+ /** Return complete PlugInContainer matching pic. */
+ static PlugInContainer* GetContainer(const PlugInData& pd,
+@@ -109,13 +129,24 @@ static bool IsSystemPluginPath(const std::string& path) {
+   const std::string lc_path = ocpn::tolower(path);
+   for (const auto& p : kPlugins)
+     if (lc_path.find(p) != std::string::npos) return true;
++#ifdef __OCPN__IOS__
++  // Everything built into the app (including radar_pi) counts as a system
++  // plugin.
++  if (IosStaticPlugin(wxString(path))) return true;
++#endif
+   return false;
+ }
+ 
+ /** Return true if name is a valid system plugin name. */
+ static bool IsSystemPluginName(const std::string& name) {
++#ifdef __OCPN__IOS__
++  // iOS: built-in plugins count; otherwise removed as orphan without catalog.
++  static const std::vector<std::string> kPlugins =
++      WithIosStatic({"chartdownloader", "wmm", "dashboard", "grib", "demo"});
++#else
+   static const std::vector<std::string> kPlugins = {
+       "chartdownloader", "wmm", "dashboard", "grib", "demo"};
++#endif
+   auto found = std::find(kPlugins.begin(), kPlugins.end(), ocpn::tolower(name));
+   return found != kPlugins.end();
+ }
+@@ -218,6 +249,10 @@ std::string PluginLoader::GetPluginVersion(
+   std::string detail_suffix(metadata.is_imported ? _(" [Imported]") : "");
+   if (metadata.is_orphan) detail_suffix = _(" [Orphan]");
+ 
++#ifdef __OCPN__IOS__
++  if (!pic->m_pplugin && !pic->m_version_str.IsEmpty())
++    return pic->m_version_str.ToStdString() + detail_suffix;
++#endif
+   int v_major(0);
+   int v_minor(0);
+   if (pic->m_pplugin) {
+@@ -486,6 +521,17 @@ bool PluginLoader::LoadAllPlugIns(bool load_enabled, bool keep_orphans) {
+     wxLogMessage("Loading plugins from dir: %s", wxdir.mb_str().data());
+     if (LoadPlugInDirectory(wxdir, load_enabled)) any_dir_loaded = true;
+   }
++#ifdef __OCPN__IOS__
++  // The built-in plugins are not files in the bundle; offer them as if they
++  // were in the last (system) dir, so the rest of the loader works unchanged.
++  if (!dirs.empty()) {
++    wxString base(dirs.back());
++    for (auto p = ocpnios_StaticPlugins(); p->file_name; ++p) {
++      if (LoadPluginCandidate(base + sep + p->file_name, load_enabled))
++        any_dir_loaded = true;
++    }
++  }
++#endif
+ 
+   // Read the default ocpn-plugins.xml, and update/merge the plugin array
+   // This only needs to happen when the entire universe (enabled and disabled)
+@@ -514,7 +560,14 @@ bool PluginLoader::LoadPluginCandidate(const wxString& file_name,
+     }
+     CreateLoadStamp(plugin_loadstamp.ToStdString());
+   }
++#ifdef __OCPN__IOS__
++  // Built-in plugin: no file, fixed time (otherwise wx logs a system error).
++  wxDateTime plugin_modification =
++      IosStaticPlugin(file_name) ? wxDateTime((time_t)0)
++                                 : wxFileName(file_name).GetModificationTime();
++#else
+   wxDateTime plugin_modification = wxFileName(file_name).GetModificationTime();
++#endif
+   wxLog::FlushActive();
+ 
+ #ifdef __ANDROID__
+@@ -659,6 +712,26 @@ bool PluginLoader::LoadPluginCandidate(const wxString& file_name,
+         }
+       }
+       pic->m_version_str = found_version;
++#ifdef __OCPN__IOS__
++      // iOS: built-in plugins have no metadata. Store the version now, because
++      // a disabled plugin is unloaded again below and the plugin list then
++      // showed "0.0" (GetPluginVersion).
++      if (found_version.empty()) {
++        if (auto p117 = dynamic_cast<opencpn_plugin_117*>(pic->m_pplugin)) {
++          pic->m_version_str =
++              SemanticVersion(
++                  p117->GetPlugInVersionMajor(), p117->GetPlugInVersionMinor(),
++                  p117->GetPlugInVersionPatch(), p117->GetPlugInVersionPost(),
++                  p117->GetPlugInVersionPre(), p117->GetPlugInVersionBuild())
++                  .to_string();
++        } else {
++          pic->m_version_str =
++              SemanticVersion(pic->m_pplugin->GetPlugInVersionMajor(),
++                              pic->m_pplugin->GetPlugInVersionMinor())
++                  .to_string();
++        }
++      }
++#endif
+       pic->m_short_description = pic->m_pplugin->GetShortDescription();
+       pic->m_long_description = pic->m_pplugin->GetLongDescription();
+       pic->m_version_major = pic->m_pplugin->GetPlugInVersionMajor();
+@@ -1259,6 +1332,11 @@ bool ReadModuleInfoFromELF(const wxString& file,
+ 
+ bool PluginLoader::CheckPluginCompatibility(const wxString& plugin_file) {
+   bool b_compat = false;
++#ifdef __OCPN__IOS__
++  // Built in and built with the same wxWidgets; separate plugins are not
++  // possible on iOS.
++  return IosStaticPlugin(plugin_file) != nullptr;
++#endif
+ #ifdef __WXOSX__
+   // TODO: Actually do some tests (In previous versions b_compat was initialized
+   // to true, so the actual behavior was exactly like this)
+@@ -1518,6 +1596,14 @@ PlugInContainer* PluginLoader::LoadPlugIn(const wxString& plugin_file,
+     return nullptr;
+   }
+ 
++#ifdef __OCPN__IOS__
++  const ocpnios_StaticPlugin* ios_static = IosStaticPlugin(plugin_file);
++  if (!ios_static) {
++    wxLogMessage("Ignoring non-builtin plugin on iOS: %s",
++                 plugin_file.ToStdString().c_str());
++    return nullptr;
++  }
++#else
+   if (!wxIsReadable(plugin_file)) {
+     wxLogMessage("Ignoring unreadable plugin %s",
+                  plugin_file.ToStdString().c_str());
+@@ -1525,6 +1611,7 @@ PlugInContainer* PluginLoader::LoadPlugIn(const wxString& plugin_file,
+     load_errors.push_back(le);
+     return nullptr;
+   }
++#endif
+ 
+   // Check if blacklisted, exit if so.
+   auto sts =
+@@ -1545,6 +1632,12 @@ PlugInContainer* PluginLoader::LoadPlugIn(const wxString& plugin_file,
+   pic->m_status =
+       PluginStatus::Unmanaged;  // Status is updated later, if necessary
+ 
++#ifdef __OCPN__IOS__
++  // Built-in: do not load a library, take the functions from the list.
++  create_t* create_plugin = (create_t*)ios_static->create;
++  destroy_t* destroy_plugin = (destroy_t*)ios_static->destroy;
++  pic->m_destroy_fn = destroy_plugin;
++#else
+   // load the library
+   if (pic->m_library.IsLoaded()) pic->m_library.Unload();
+   pic->m_library.Load(plugin_file);
+@@ -1597,6 +1690,7 @@ PlugInContainer* PluginLoader::LoadPlugIn(const wxString& plugin_file,
+     }
+     return nullptr;
+   }
++#endif  // __OCPN__IOS__
+ 
+   // create an instance of the plugin class
+   opencpn_plugin* plug_in = create_plugin(this);
+-- 
+2.54.0 (Apple Git-157)
+

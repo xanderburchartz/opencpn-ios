@@ -1,0 +1,41 @@
+From 0d3521f93f4f94bec1835b5d6e7c325a1725ed14 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 09/32] ConsoleCanvasWin: initialise members before the first
+ show event
+
+Initialise pCDI and m_pitemBoxSizerLeg and ignore show events that arrive
+before Create() has finished; with wxQt the first show event came while
+they were still unset.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/concanv.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/gui/src/concanv.cpp b/gui/src/concanv.cpp
+index ab30b8653..b521378a3 100644
+--- a/gui/src/concanv.cpp
++++ b/gui/src/concanv.cpp
+@@ -68,6 +68,10 @@ END_EVENT_TABLE()
+ 
+ // Define a constructor for my canvas
+ ConsoleCanvasWin::ConsoleCanvasWin(wxWindow* parent) {
++  // Under wxQt the show event already arrives during Create(); OnShow must not
++  // touch pCDI/m_pitemBoxSizerLeg yet (crash when turning OpenGL off).
++  pCDI = nullptr;
++  m_pitemBoxSizerLeg = nullptr;
+   m_speedUsed = SPEED_SOG;
+   pbackBrush = NULL;
+   m_bNeedClear = false;
+@@ -173,6 +177,7 @@ void ConsoleCanvasWin::OnPaint(wxPaintEvent& event) {
+ }
+ 
+ void ConsoleCanvasWin::OnShow(wxShowEvent& event) {
++  if (!pCDI || !m_pitemBoxSizerLeg) return;
+   pCDI->Show(g_bShowActiveRouteHighway);
+   m_pitemBoxSizerLeg->SetSizeHints(this);
+ }
+-- 
+2.54.0 (Apple Git-157)
+

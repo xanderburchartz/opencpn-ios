@@ -1,25 +1,18 @@
-From 9853951cb526a81abbd4659a1034f858e79d36a7 Mon Sep 17 00:00:00 2001
+From 6cb093585a8e04f696c3b77d25f65889d83beed6 Mon Sep 17 00:00:00 2001
 From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:50:09 +0100
-Subject: [PATCH 12/13] dashboard_pi, wmm_pi: iOS layout
+Subject: [PATCH 29/32] dashboard_pi: iOS layout
 
-- dashboard_pi: the instrument pane always floats over the chart and is
-  sized to what the dashboard computes for its instruments (a saved width
-  from a docked pane cut instruments off); iOS-style instrument titles.
-- wmm_pi: do not send the magnetic variation to the NMEA 2000 bus
-  unprompted. Through a gateway every send also triggered a PGN 126996
-  request to all devices (see OpenCPN/OpenCPN#5537). The variation stays
-  available inside OpenCPN.
-
-All changes are inside #ifdef __OCPN__IOS__; other platforms are unchanged.
+The instrument pane always floats over the chart and is sized to what the
+dashboard computes for its instruments; a saved width from a docked pane
+cut instruments off. Instrument titles in iOS style.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  plugins/dashboard_pi/src/dashboard_pi.cpp | 101 +++++++++++++++++++++-
  plugins/dashboard_pi/src/dashboard_pi.h   |   8 ++
  plugins/dashboard_pi/src/instrument.cpp   |  60 +++++++++++++
- plugins/wmm_pi/src/wmm_pi.cpp             |   9 ++
- 4 files changed, 177 insertions(+), 1 deletion(-)
+ 3 files changed, 168 insertions(+), 1 deletion(-)
 
 diff --git a/plugins/dashboard_pi/src/dashboard_pi.cpp b/plugins/dashboard_pi/src/dashboard_pi.cpp
 index 252d8cee2..c73473da1 100644
@@ -215,7 +208,7 @@ index 240d5fc1c..c5cd698ae 100644
    void OnSize(wxSizeEvent &evt);
    void OnContextMenu(wxContextMenuEvent &evt);
 diff --git a/plugins/dashboard_pi/src/instrument.cpp b/plugins/dashboard_pi/src/instrument.cpp
-index a4051c16e..ec4808271 100644
+index a4051c16e..5c945296d 100644
 --- a/plugins/dashboard_pi/src/instrument.cpp
 +++ b/plugins/dashboard_pi/src/instrument.cpp
 @@ -116,6 +116,34 @@ wxColour GetColourSchemeFont(wxColour co) {
@@ -228,7 +221,7 @@ index a4051c16e..ec4808271 100644
 +// and a thin line above each instrument.
 +const int kIosTitlePad = 3;
 +
-+wxFont IosTitleFont(wxFont f) {
++static wxFont IosTitleFont(wxFont f) {
 +  if (f.GetStyle() == wxFONTSTYLE_ITALIC) f.SetStyle(wxFONTSTYLE_NORMAL);
 +  if (f.GetWeight() < wxFONTWEIGHT_SEMIBOLD) f.SetWeight(wxFONTWEIGHT_SEMIBOLD);
 +  return f;
@@ -236,7 +229,7 @@ index a4051c16e..ec4808271 100644
 +
 +// Grey like iOS secondaryLabel, per color scheme as dark as the text in
 +// OpenCPN's own bars. A custom (non-black) title color set by the user is kept.
-+wxColour IosTitleColour(const wxColour& chosen) {
++static wxColour IosTitleColour(const wxColour& chosen) {
 +  if (chosen.IsOk() && (chosen.Red() || chosen.Green() || chosen.Blue()))
 +    return GetColourSchemeFont(chosen);
 +  switch (aktuellColorScheme) {
@@ -300,26 +293,6 @@ index a4051c16e..ec4808271 100644
    if (!m_drawSoloInPane) {
      wxPen pen;
      pen.SetStyle(wxPENSTYLE_SOLID);
-diff --git a/plugins/wmm_pi/src/wmm_pi.cpp b/plugins/wmm_pi/src/wmm_pi.cpp
-index 1b6eea99d..be71a021d 100644
---- a/plugins/wmm_pi/src/wmm_pi.cpp
-+++ b/plugins/wmm_pi/src/wmm_pi.cpp
-@@ -990,6 +990,15 @@ void wmm_pi::SendBoatVarHVD(double d_var) {
- }
- 
- void wmm_pi::SendPGN127258(double d_var) {
-+#ifdef __OCPN__IOS__
-+  // iOS: send nothing to the NMEA 2000 bus unprompted. Upstream sends this
-+  // every second once an N2K connection has output enabled (for the autopilot);
-+  // through a gateway each send also triggered a PGN 126996 request to all
-+  // devices, flooding the bus to ~900 frames/s. The variation stays available
-+  // inside OpenCPN (HVD to the priority list).
-+  (void)d_var;
-+  return;
-+#endif
-   // Send Magnetic Variation as PGN 127258 Magnetic Variation
-   double var_rad = d_var * (M_PI / 180.0);
-   // Calculate the number of days since the Unix epoch
 -- 
-2.50.1 (Apple Git-155)
+2.54.0 (Apple Git-157)
 

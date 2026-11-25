@@ -1,0 +1,44 @@
+From 05d3a84875b44f5a32902cdffe71e2096b10e452 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 02/32] options: translate the distance unit labels when they
+ are used
+
+kDistanceFormats is a static table initialised with _("...") before the
+translation catalog is loaded, so the distance unit choices on the Units
+page always showed in English. Translate the labels with wxGetTranslation
+when the choice is filled.
+
+OpenCPN pull request #5553 makes the same change on master and also marks
+the strings with wxTRANSLATE.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/options.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/gui/src/options.cpp b/gui/src/options.cpp
+index 8c3105a1b..763c23d97 100644
+--- a/gui/src/options.cpp
++++ b/gui/src/options.cpp
+@@ -4377,7 +4377,7 @@ void options::CreatePanel_Units(size_t parent, int border_size,
+                     labelFlags);
+     wxString pDistanceFormats[kNumDistanceFormats];
+     for (int i = 0; i < kNumDistanceFormats; i++) {
+-      pDistanceFormats[i] = kDistanceFormats[i].label;
++      pDistanceFormats[i] = wxGetTranslation(kDistanceFormats[i].label);
+     }
+     int m_DistanceFormatsNChoices = kNumDistanceFormats;
+     pDistanceFormat =
+@@ -4594,7 +4594,7 @@ void options::CreatePanel_Units(size_t parent, int border_size,
+                     labelFlags);
+     wxString pDistanceFormats[kNumDistanceFormats];
+     for (int i = 0; i < kNumDistanceFormats; i++) {
+-      pDistanceFormats[i] = kDistanceFormats[i].label;
++      pDistanceFormats[i] = wxGetTranslation(kDistanceFormats[i].label);
+     }
+     int m_DistanceFormatsNChoices = kNumDistanceFormats;
+     pDistanceFormat = new wxChoice(panelUnits, ID_DISTANCEUNITSCHOICE,
+-- 
+2.54.0 (Apple Git-157)
+

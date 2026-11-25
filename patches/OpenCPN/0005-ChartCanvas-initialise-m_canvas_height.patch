@@ -1,0 +1,29 @@
+From bf32f9cf2ff842cca160c6a26584ee341c0c1468 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 05/32] ChartCanvas: initialise m_canvas_height
+
+The constructor sets m_canvas_width but not m_canvas_height, while
+SetViewPoint can read it before the first size event. Initialise it next
+to m_canvas_width.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/chcanv.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/gui/src/chcanv.cpp b/gui/src/chcanv.cpp
+index 51043e042..943c74b2c 100644
+--- a/gui/src/chcanv.cpp
++++ b/gui/src/chcanv.cpp
+@@ -480,6 +480,7 @@ ChartCanvas::ChartCanvas(wxFrame *frame, int canvasIndex, wxWindow *nmea_log)
+   m_canvas_scale_factor = 1.;
+ 
+   m_canvas_width = 1000;
++  m_canvas_height = 1000;
+ 
+   m_overzoomTextWidth = 0;
+   m_overzoomTextHeight = 0;
+-- 
+2.54.0 (Apple Git-157)
+

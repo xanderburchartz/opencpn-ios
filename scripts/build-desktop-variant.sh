@@ -8,8 +8,10 @@
 # Bron:     upstream/desk-<naam> (git worktree van upstream/OpenCPN-fixes, detached)
 # Bouwmap:  build/desktop/var-<naam>; app: build/desktop/var-<naam>/OpenCPN.app
 # De app krijgt bundel-ID org.opencpn.iosporttest.<naam> en opencpn-glutil in
-# Contents/libexec (anders zet OpenCPN OpenGL uit). Start altijd met een eigen
-# configuratiemap: open -n <app> --args -c <map>.
+# Contents/libexec (anders zet OpenCPN OpenGL uit). De bron krijgt
+# tools/desktop-test/osx-test-homedir.patch en de app wordt afgeschermd met
+# scripts/desktop-afschermen.sh: thuismap build/desktop/home-<naam>, los van de gewone
+# OpenCPN-installatie. Starten: open -n <app> (eventueel --args -c <map>).
 # Vereist: Homebrew wxwidgets@3.2, ninja, cmake; ccache optioneel (cache in build/ccache).
 set -euo pipefail
 
@@ -20,11 +22,15 @@ SRC="$ROOT/upstream/desk-$NAAM"
 BLD="$ROOT/build/desktop/var-$NAAM"
 WX="$(brew --prefix wxwidgets@3.2)/bin/wx-config-3.2"
 
+PATCH="$ROOT/tools/desktop-test/osx-test-homedir.patch"
 if [ -d "$SRC" ]; then
+  # Eerder aangebrachte testpatch terugdraaien, anders weigert checkout.
+  git -C "$SRC" apply --reverse --check "$PATCH" 2>/dev/null && git -C "$SRC" apply --reverse "$PATCH"
   git -C "$SRC" checkout -q --detach "$REV"
 else
   git -C "$ROOT/upstream/OpenCPN-fixes" worktree add -q --detach "$SRC" "$REV"
 fi
+git -C "$SRC" apply "$PATCH"
 echo "bron $(git -C "$SRC" log -1 --format='%h %s')"
 
 LAUNCHER_ARG=()
@@ -57,5 +63,5 @@ for mo in "$BLD"/opencpn_*.mo; do
 done
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier org.opencpn.iosporttest.$NAAM" \
   "$APP/Contents/Info.plist"
-codesign --force --deep -s - "$APP" 2>/dev/null
+"$ROOT/scripts/desktop-afschermen.sh" "$APP" "$ROOT/build/desktop/home-$NAAM"
 echo "app $APP"

@@ -26,7 +26,7 @@ UIViewController* TopViewController() {
 
 }  // namespace
 
-void OcpnIosShareFile(const char* path) {
+void ocpnios_ShareFile(const char* path) {
   if (!path || !*path) return;
   NSString* p = [NSString stringWithUTF8String:path];
   if (![[NSFileManager defaultManager] fileExistsAtPath:p]) return;

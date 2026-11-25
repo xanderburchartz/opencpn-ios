@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <QFontMetrics>
+#include <algorithm>
+#include <cmath>
 #include <QCoreApplication>
 #include <QApplication>
 #include <QMainWindow>
@@ -56,6 +58,7 @@
 #include <QWindow>
 
 #include <wx/app.h>
+#include <wx/display.h>
 #include <wx/aui/floatpane.h>
 #include <wx/button.h>
 #include <wx/bookctrl.h>
@@ -84,6 +87,8 @@
 #include <cstdlib>
 
 void ocpnios_FitToWidth(wxWindow* root);  // fit_width.cpp
+void ocpnios_RelayoutOverlays();  // frame_ios.cpp
+void ocpnios_ListButtons(wxWindow* top);  // connections_ios.cpp
 void ocpnios_RoundWindow(QWidget* w, double radius);  // action_sheet.mm
 void ocpnios_ShowMenuSheet(const QList<QAction*>& menus, QWidget* anchor,
                            const QString& cancel);  // action_sheet.mm
@@ -179,6 +184,9 @@ QRect UsableArea(QWidget* w) {
 // kon niet meer terug (Xander, 11 nov 2026). De tekst gaat dan in een schuifvlak en de
 // melding past op het scherm, in het midden.
 void FitMessageBox(QMessageBox* mb) {
+  // iOS-meldingen hebben geen pictogram; het desktop-uitroepteken en het rode kruis
+  // (wxICON_WARNING/ERROR, bijv. de poortwaarschuwing in de verbindingseditor) vallen weg.
+  if (mb->icon() != QMessageBox::NoIcon) mb->setIcon(QMessageBox::NoIcon);
   const QRect avail = UsableArea(mb);
   if (!avail.isValid()) return;
   const int maxH = avail.height() - 32;
@@ -435,10 +443,11 @@ bool IsMainWindow(QWidget* w) {
 // hoogte). Links en rechts loopt de kaart door tot de rand, wat liggend ~125 pt breedte
 // oplevert; menubalk en statusregel krijgen daar zelf binnenmarges zodat hun tekst
 // binnen de veilige zone blijft.
-// Inspringing (punten) voor bedieningselementen op de kaart: de kaart loopt links en rechts
-// door tot de schermrand, maar werkbalk, kompas, zoomblok en kaartbalk vielen liggend onder
-// de afgeronde hoeken (foto iPhone, Xander 10 nov 2026). OpenCPN leest deze waarden.
-int g_ocpniosInsetLeft = 0, g_ocpniosInsetRight = 0;
+// Overlays on the chart (toolbar, compass, zoom bar, chart bar, scale bar) are placed by
+// OpenCPN, which asks ocpnios_OverlayInsetLeft/Right below how far to stay from the edge.
+// s_safeArea/s_orient: last values seen, to re-lay out after a change.
+QMargins s_safeArea;
+int s_orient = -1;
 
 void ApplySafeArea(QWidget* w) {
   QWindow* qw = w->windowHandle();
@@ -446,26 +455,26 @@ void ApplySafeArea(QWidget* w) {
   if (!qw || !mw) return;
   const QMargins s = qw->safeAreaMargins();
   // Liggend zit het eiland links bij InvertedLandscape (toestel linksom gedraaid) en
-  // rechts bij Landscape (gemeten in de simulator, 8 nov 2026). Links staat de werkbalk
-  // van OpenCPN; die mag niet onder het eiland vallen. Rechts mag de kaart eronder.
+  // rechts bij Landscape (gemeten in de simulator, 8 nov 2026).
   const Qt::ScreenOrientation o =
       qw->screen() ? qw->screen()->orientation() : Qt::PrimaryOrientation;
-  const int left = (o == Qt::InvertedLandscapeOrientation) ? s.left() : 0;
+  // The chart runs to the screen edge on both sides, also under the island; overlays
+  // keep clear of it themselves (see OverlayInset).
+  const int left = 0;
   // Venstermodus (iPadOS 26) zonder menubalk: linksboven liggen de vensterknopjes (●●●)
   // over de werkbalk; bovenin een strook vrijhouden.
   // Gemeten (iPad-simulator, 10 nov 2026): de knopjes reiken tot ~64 pt onder de bovenrand.
   const int top = (ocpnios_AppIsWindowed() && !mw->menuWidget()) ? std::max(s.top(), 66)
                                                                    : s.top();
   w->setContentsMargins(left, top, 0, s.bottom());
-  const int newL = std::max(0, s.left() - left), newR = std::max(0, s.right());
-  if (newL != g_ocpniosInsetLeft || newR != g_ocpniosInsetRight) {
-    g_ocpniosInsetLeft = newL;
-    g_ocpniosInsetRight = newR;
-    // Na draaien kwam de nieuwe veilige zone pas binnen nadat OpenCPN het zoomblok al had
-    // geplaatst (rechtsonder bleef het onder de hoek). Opnieuw laten indelen.
-    QTimer::singleShot(0, []() {
-      if (wxTheApp && wxTheApp->GetTopWindow()) wxTheApp->GetTopWindow()->SendSizeEvent();
-    });
+  if (s != s_safeArea || int(o) != s_orient) {
+    s_safeArea = s;
+    s_orient = int(o);
+    // After rotating, the new safe area can arrive after OpenCPN has placed the bars
+    // (zoom bar in the middle in portrait, build 5). Place them again now, and once more
+    // after the rotation animation, when orientation and safe area have settled.
+    QTimer::singleShot(0, []() { ocpnios_RelayoutOverlays(); });
+    QTimer::singleShot(500, []() { ocpnios_RelayoutOverlays(); });
   }
   // Menubalk en statusregel: tekst buiten de afgeronde hoeken houden. contentsMargins
   // wordt door QMenuBar genegeerd, daarom een stylesheet-padding.
@@ -658,6 +667,8 @@ void FitSheetContent(QWidget* top, bool force = false) {
   if (!ww) return;
   top->setProperty(kFittedWidthProp, top->width());
   ocpnios_FitToWidth(ww);
+  // Text buttons as iOS list rows (Data Monitor, priorities).
+  ocpnios_ListButtons(ww);
   UpdateTabPickers(top);
   UpdateSheetScroll(top);
 }
@@ -707,9 +718,13 @@ void RaiseFloatingWindows(bool refit) {
       // Eerst terug naar de maat die het venster bij het openen vroeg: anders blijft
       // een venster dat liggend werd ingekort, na terugdraaien te klein (knoppen
       // buiten beeld; gezien bij het veilige-modus-venster, 8 nov 2026).
-      const QSize wanted = top->property(kWantedSizeProp).toSize();
-      if (wanted.isValid()) top->resize(wanted);
-      ShrinkToArea(top);
+      // Een venster dat zijn plugin zelf indeelt (ocpnios_floating, mayara_pi) niet
+      // terugzetten: de plugin deelt het na draaien opnieuw in.
+      if (!top->property("ocpnios_floating").toBool()) {
+        const QSize wanted = top->property(kWantedSizeProp).toSize();
+        if (wanted.isValid()) top->resize(wanted);
+        ShrinkToArea(top);
+      }
       FitToScreen(top);
       FitSheetContent(top, true);
     }
@@ -822,6 +837,12 @@ void EnsureSheetHeader(QWidget* dialog) {
   // Ook dieper zoeken: bij een venster met eigen menubalk zit de balk in een houder.
   if (dialog->findChild<QWidget*>(kHeaderName)) return;
   if (dialog->property(kSheetProp).isValid()) return;  // al bekeken, bewust zonder balk
+  // Een plugin die zijn venster zelf indeelt (mayara_pi: radar naast de werkbalk, staand
+  // boven, liggend rechts) markeert het met "ocpnios_floating": geen blad, eigen plek.
+  if (dialog->property("ocpnios_floating").toBool()) {
+    dialog->setProperty(kSheetProp, 4);
+    return;
+  }
 
   wxWindow* ww = wxWindow::QtRetrieveWindowPointer(dialog);
   if (!ww) {
@@ -1484,6 +1505,77 @@ void InstallWindowFit() {
 // Draait zodra QApplication is aangemaakt (wxApp maakt hem in wxEntry).
 Q_COREAPP_STARTUP_FUNCTION(InstallWindowFit)
 
-// Voor OpenCPN (chcanv, toolbar, MUIBar, piano): zie g_ocpniosInsetLeft.
-int ocpnios_OverlayInsetLeft() { return g_ocpniosInsetLeft; }
-int ocpnios_OverlayInsetRight() { return g_ocpniosInsetRight; }
+namespace {
+// Room (points) an overlay at the left or right edge of a chart canvas keeps free, for the
+// span top..bottom (canvas client points). Only what overlaps the island vertically keeps
+// clear of it; everything else goes to the edge and only avoids the rounded corners
+// (Xander after TestFlight build 5: the zoom bar stayed 62 pt from the right edge in
+// landscape, while the island is only in the middle of the screen height).
+//
+// Assumptions, measured in the iPhone 17 Pro simulator with a masked screenshot
+// (24 nov 2026): the island spans 139..263 of 402 pt, so the middle half of the height
+// (101..302) is taken as its band; this also covers the wider notch of older iPhones.
+// The corner follows a circle with a radius equal to the landscape side inset (62 pt);
+// on notch iPhones those two values are also close. In portrait no side has an island
+// and the chart starts and ends far enough from the corners, so the result is 0.
+int OverlayInset(wxWindow* canvas, int top, int bottom, bool right) {
+  if (!canvas) return 0;
+  QWidget* cw = canvas->GetHandle();
+  QWindow* qw = cw && cw->window() ? cw->window()->windowHandle() : nullptr;
+  QScreen* screen = qw && qw->screen() ? qw->screen() : QGuiApplication::primaryScreen();
+  if (!qw || !screen) return 0;
+  const QRect sg = screen->geometry();
+  const QMargins s = qw->safeAreaMargins();
+  const Qt::ScreenOrientation o = screen->orientation();
+  const QPoint p0 = cw->mapToGlobal(QPoint(0, top));
+  const QPoint p1 = cw->mapToGlobal(QPoint(cw->width(), bottom));
+  const int h = sg.height();
+  // The canvas lies inside the window's top and bottom margins (ApplySafeArea). Clamp to
+  // them: at startup the toolbar asks before the canvas is laid out (canvas still at
+  // y = 4 instead of 63 in portrait, simulator 24 nov 2026), which indented it 45 pt.
+  const int y0 = std::max(p0.y() - sg.top(), s.top());
+  const int y1 = std::min(p1.y() - sg.top(), h - s.bottom());
+  // How far the canvas edge on this side already is from the screen edge.
+  const int gap = right ? sg.right() - p1.x() : p0.x() - sg.left();
+
+  int need = 0;
+  const bool islandSide = right ? (o == Qt::LandscapeOrientation)
+                                : (o == Qt::InvertedLandscapeOrientation);
+  const int side = right ? s.right() : s.left();
+  if (islandSide && side > 0 && y1 > h / 4 && y0 < h * 3 / 4) need = side;
+
+  const double r = std::max({s.left(), s.right(), s.top()});
+  // Horizontal intrusion of the corner at distance d from the top or bottom edge, plus
+  // 4 pt so a box's sharp corner does not touch the curve (it had 2 pt without). Below
+  // 1 pt (the zoom bar, 55 pt above the bottom edge) the corner does not count.
+  auto corner = [r](double d) {
+    if (d >= r) return 0.0;
+    const double a = r - std::max(0.0, d);
+    const double x = r - std::sqrt(r * r - a * a);
+    return x < 1 ? 0.0 : x + 4;
+  };
+  need = std::max(need, int(std::ceil(std::max(corner(y0), corner(h - y1)))));
+  return std::max(0, need - std::max(0, gap));
+}
+}  // namespace
+
+// Voor OpenCPN (chcanv, toolbar, MUIBar, piano).
+int ocpnios_OverlayInsetLeft(wxWindow* canvas, int top, int bottom) {
+  return OverlayInset(canvas, top, bottom, false);
+}
+int ocpnios_OverlayInsetRight(wxWindow* canvas, int top, int bottom) {
+  return OverlayInset(canvas, top, bottom, true);
+}
+
+// libs/gui/src/dialog_base.cpp (BaseDialog::AddHtmlContent): the html height is
+// measured while the window is still narrow and came out taller than the
+// screen; the buttons (e.g. Agree/Cancel of the welcome dialog) then fell off.
+// Limit it to 60% of the app window (not the whole screen in windowed mode on
+// iPadOS); longer text scrolls.
+void ocpnios_FitDialogHtml(wxWindow* dlg, int& width, int& height) {
+  wxRect area = wxDisplay(dlg).GetClientArea();
+  const QRect app = ocpnios_AppWindowRect();
+  if (app.isValid()) area = wxRect(app.x(), app.y(), app.width(), app.height());
+  height = std::min(height, std::max(120, area.height * 6 / 10));
+  width = std::min(width, area.width - 40);
+}

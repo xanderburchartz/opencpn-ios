@@ -1,0 +1,58 @@
+diff --git a/model/src/base_platform.cpp b/model/src/base_platform.cpp
+index aef97a7c5..83e2b6d9d 100644
+--- a/model/src/base_platform.cpp
++++ b/model/src/base_platform.cpp
+@@ -74,6 +74,27 @@
+ 
+ #include "model/base_platform.h"
+ #include "model/cmdline.h"
++
++#ifdef __WXOSX__
++#include <cstdio>
++#include <unistd.h>
++// Test build only (not part of the port series): refuse to run unless started
++// through the launcher that isolates HOME and the private data dir, so that a
++// test build never touches the regular OpenCPN installation.
++static const struct TestHomeGuard {
++  TestHomeGuard() {
++    const char* dir = getenv("OCPN_TEST_HOMEDIR");
++    const char* home = getenv("HOME");
++    if (!dir || !home || !*home ||
++        std::string(dir).rfind(std::string(home) + "/", 0) != 0) {
++      fprintf(stderr,
++              "Test build: start through Contents/MacOS/OpenCPN "
++              "(OCPN_TEST_HOMEDIR must be inside HOME)\n");
++      _exit(78);
++    }
++  }
++} test_home_guard;
++#endif
+ #include "model/config_vars.h"
+ #include "model/gui_vars.h"
+ #include "model/logger.h"
+@@ -361,10 +382,8 @@ wxString& AbstractPlatform::DefaultPrivateDataDir() {
+     m_PrivateDataDir = config_home + "/opencpn";
+ 
+ #elif defined __WXOSX__
+-    m_PrivateDataDir =
+-        std_path.GetUserConfigDir();  // should be ~/Library/Preferences
+-    appendOSDirSlash(&m_PrivateDataDir);
+-    m_PrivateDataDir.Append("opencpn");
++    // Test build only: isolated private data dir.
++    m_PrivateDataDir = getenv("OCPN_TEST_HOMEDIR");
+ #else
+     if (getenv("OCPN_TEST_HOMEDIR"))
+       m_PrivateDataDir = getenv("OCPN_TEST_HOMEDIR");
+@@ -627,10 +646,8 @@ wxString& AbstractPlatform::GetConfigFileName() {
+     m_config_file_name.Prepend(GetHomeDir());
+ 
+ #elif defined __WXOSX__
+-    m_config_file_name =
+-        std_path.GetUserConfigDir();  // should be ~/Library/Preferences
+-    appendOSDirSlash(&m_config_file_name);
+-    m_config_file_name.Append("opencpn");
++    // Test build only: isolated private data dir.
++    m_config_file_name = getenv("OCPN_TEST_HOMEDIR");
+     appendOSDirSlash(&m_config_file_name);
+     m_config_file_name.Append("opencpn.ini");
+ #elif defined FLATPAK

@@ -1,7 +1,8 @@
 From 81895f83507167d3a537b7034abf5d7a5421eb21 Mon Sep 17 00:00:00 2001
 From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:50:14 +0100
-Subject: [PATCH] N2K net: send the PGN 126996 request at most once a minute
+Subject: [PATCH 1/2] N2K net: send the PGN 126996 request at most once a
+ minute
 
 PrepareForTX() runs before every transmit. While m_TX_available is false
 it sends an ISO request (PGN 59904) for PGN 126996 to all devices, and
@@ -79,6 +80,3 @@ index 12e2588ad..4037d5ca4 100644
      // Send a broadcast request for PGN 126996, Product Information
      std::vector<unsigned char> payload;
      payload.push_back(0x14);
--- 
-2.50.1 (Apple Git-155)
-

@@ -1,0 +1,89 @@
+From e5a2c897cda4e5a2c69d7685dd6238893674edc1 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 10/32] s57chart: report a cell cancelled by an update
+
+When an update cancels a cell (DSID EDTN=0), S57Reader::ApplyUpdates now
+says so, and InitENCMinimal logs the reason and shows a notification
+instead of only "Cannot initialize ENC file". The notification goes to
+the main thread with CallAfter, since this may run in a chart database
+worker thread.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/s57chart.cpp              | 29 +++++++++++++++++++++++++++++
+ libs/s57-charts/src/s57reader.cpp |  3 +++
+ 2 files changed, 32 insertions(+)
+
+diff --git a/gui/src/s57chart.cpp b/gui/src/s57chart.cpp
+index dc18b9336..68cf8e68d 100644
+--- a/gui/src/s57chart.cpp
++++ b/gui/src/s57chart.cpp
+@@ -45,6 +45,7 @@
+ #include <wx/tokenzr.h>
+ #include <wx/textfile.h>
+ #include <wx/filename.h>
++#include <wx/app.h>
+ 
+ #include <wx/listimpl.cpp>
+ 
+@@ -62,6 +63,8 @@
+ #include "model/plugin_comm.h"
+ 
+ #include "gdal/cpl_csv.h"
++#include "gdal/cpl_error.h"
++#include "model/notification_manager.h"
+ #include "ssl/sha1.h"
+ 
+ #include "chart_ctx_factory.h"
+@@ -6123,7 +6126,33 @@ bool s57chart::InitENCMinimal(const wxString &FullPath) {
+   S57Reader *pENCReader = m_pENCDS->GetModule(0);
+   pENCReader->SetClassBased(g_poRegistrar);
+ 
++  CPLErrorReset();
+   int rc = pENCReader->Ingest();
++  if (rc != 0) {
++    // Without this line the log only says "Cannot initialize ENC file",
++    // even when the cell was withdrawn by an update.
++    wxString why(CPLGetLastErrorMsg(), wxConvUTF8);
++    wxLogMessage("   S57 updates for %s failed (code %d): %s", FullPath, rc,
++                 why.IsEmpty() ? wxString("no reason given") : why);
++    // Also notify the user of a withdrawn cell (text from
++    // S57Reader::ApplyUpdates). This may run in a chart database worker
++    // thread, so the notification goes to the main thread via CallAfter.
++    int cancel_update = 0;
++    if (wxTheApp && sscanf(why.mb_str(), "Update %d cancels this cell",
++                           &cancel_update) == 1) {
++      wxString cell = wxFileName(FullPath).GetName();
++      wxTheApp->CallAfter([cell, cancel_update]() {
++        wxString msg = wxString::Format(
++            wxGetTranslation("ENC cell %s has been cancelled by its producer "
++                             "(update %d) and is not shown. Install a current "
++                             "chart for this area.",
++                             "opencpn"),
++            cell, cancel_update);
++        NotificationManager::GetInstance().AddNotification(
++            NotificationSeverity::kWarning, msg.ToStdString());
++      });
++    }
++  }
+   return (rc == 0);  // true;
+ }
+ 
+diff --git a/libs/s57-charts/src/s57reader.cpp b/libs/s57-charts/src/s57reader.cpp
+index a991d9995..b5101e7ec 100644
+--- a/libs/s57-charts/src/s57reader.cpp
++++ b/libs/s57-charts/src/s57reader.cpp
+@@ -2366,6 +2366,9 @@ int S57Reader::ApplyUpdates(DDFModule *poUpdateModule, int iUpdate)
+       /* Check for canceled cell */;
+       char *u = (char *)(poRecord->GetStringSubfield("DSID", 0, "EDTN", 0));
+       if (!strncmp(u, "0", 1)) {
++        // Record the reason; s57chart writes it to opencpn.log.
++        CPLError(CE_Warning, CPLE_AppDefined,
++                 "Update %d cancels this cell (DSID EDTN=0).", iUpdate);
+         return BAD_UPDATE;
+       }
+     }
+-- 
+2.54.0 (Apple Git-157)
+

@@ -218,6 +218,14 @@ class KineticFilter : public QObject {
     // Lijsten/tekst regelt hun eigen QScroller.
     for (QWidget* p = w; p; p = p->parentWidget())
       if (p->property("ocpnios_kinetic").toBool()) return false;
+    // A drag grip on the right of a list (priorities, connections_ios.cpp):
+    // the finger moves the row, not the page.
+    for (QWidget* p = w; p; p = p->parentWidget()) {
+      const int grip = p->property("ocpnios_grip_right").toInt();
+      if (grip > 0 &&
+          p->mapFromGlobal(e->globalPosition().toPoint()).x() >= p->width() - grip)
+        return false;
+    }
     QAbstractScrollArea* sa = ScrollAreaFor(w);
     if (!sa) return false;
     m_area = sa;
@@ -236,6 +244,16 @@ class KineticFilter : public QObject {
     QPointF d = e->globalPosition() - m_start;
     if (!m_scrolling) {
       if (std::abs(d.x()) < 10 && std::abs(d.y()) < 10) return false;
+      // Rows that are swiped sideways (connections list, connections_ios.cpp):
+      // a horizontal move is for the row, not for the page.
+      if (std::abs(d.x()) > std::abs(d.y())) {
+        for (QWidget* p = m_child; p; p = p->parentWidget())
+          if (p->property("ocpnios_hswipe").toBool()) {
+            m_area = nullptr;
+            m_child = nullptr;
+            return false;
+          }
+      }
       m_scrolling = true;
       // Druk op het kind annuleren: loslaten ver buiten het kind, dus geen klik.
       if (m_child) {

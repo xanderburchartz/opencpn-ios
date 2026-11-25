@@ -1,0 +1,102 @@
+From 5800a3abc06e47f934741dad2df046fb372f33d2 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 27/32] chartdldr_pi: translate and sort source names, fetch a
+ new catalog
+
+This changes the behaviour on all platforms:
+
+This changes the behaviour on all platforms:
+
+- Source and section names in the "Add source" tree are translatable and
+  sorted by the shown name; sources covering a whole region come first.
+- After adding a source its catalog is fetched at once, so the separate
+  "Update" step is no longer needed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ plugins/chartdldr_pi/src/chartdldr_pi.cpp | 35 ++++++++++++++++++++---
+ 1 file changed, 31 insertions(+), 4 deletions(-)
+
+diff --git a/plugins/chartdldr_pi/src/chartdldr_pi.cpp b/plugins/chartdldr_pi/src/chartdldr_pi.cpp
+index a580cbfc5..261d811aa 100644
+--- a/plugins/chartdldr_pi/src/chartdldr_pi.cpp
++++ b/plugins/chartdldr_pi/src/chartdldr_pi.cpp
+@@ -32,6 +32,8 @@
+ #include "wx/wx.h"
+ #endif  // precompiled headers
+ 
++#include <algorithm>
++#include <vector>
+ #include "chartdldr_pi.h"
+ #include "wxWTranslateCatalog.h"
+ #include <wx/stdpaths.h>
+@@ -1639,6 +1641,11 @@ void ChartDldrPanelImpl::AddSource(wxCommandEvent &event) {
+     SelectCatalog(m_lbChartSources->GetItemCount() - 1);
+     pPlugIn->m_ChartSources.push_back(std::move(cs));
+     pPlugIn->SaveConfig();
++    // Fetch the catalog right away instead of showing "(Please update first)"
++    // and making the user find Update. On success UpdateChartList opens the
++    // chart list.
++    wxCommandEvent update;
++    UpdateChartList(update);
+   }
+ #ifdef __ANDROID__
+   androidEnableRotation();
+@@ -2354,7 +2361,9 @@ bool ChartDldrGuiAddSourceDlg::LoadSection(const wxTreeItemId &root,
+        element = element.next_sibling()) {
+     if (!strcmp(element.name(), "name")) {
+       item = m_treeCtrlPredefSrcs->AppendItem(
+-          root, wxString::FromUTF8(element.first_child().value()), 0, 0);
++          root,
++          wxGetTranslation(wxString::FromUTF8(element.first_child().value())),
++          0, 0);
+ 
+       wxFont *pFont = OCPNGetFont(_("Dialog"));
+       if (pFont) m_treeCtrlPredefSrcs->SetItemFont(item, *pFont);
+@@ -2366,12 +2375,28 @@ bool ChartDldrGuiAddSourceDlg::LoadSection(const wxTreeItemId &root,
+   return true;
+ }
+ 
++// Sources covering a whole region ("EURIS - All ...", "All ...") first, then
++// alphabetically by the shown (translated) name.
++static bool CompareSources(const std::pair<wxString, pugi::xml_node> &a,
++                           const std::pair<wxString, pugi::xml_node> &b) {
++  bool a_all = a.first.StartsWith("EURIS") || a.first.StartsWith("All ");
++  bool b_all = b.first.StartsWith("EURIS") || b.first.StartsWith("All ");
++  if (a_all != b_all) return a_all;
++  return wxGetTranslation(a.first).CmpNoCase(wxGetTranslation(b.first)) < 0;
++}
++
+ bool ChartDldrGuiAddSourceDlg::LoadCatalogs(const wxTreeItemId &root,
+                                             pugi::xml_node &node) {
++  std::vector<std::pair<wxString, pugi::xml_node>> items;
+   for (pugi::xml_node element = node.first_child(); element;
+        element = element.next_sibling()) {
+-    if (!strcmp(element.name(), "catalog")) LoadCatalog(root, element);
++    if (strcmp(element.name(), "catalog")) continue;
++    wxString n =
++        wxString::FromUTF8(element.child("name").first_child().value());
++    items.emplace_back(n, element);
+   }
++  std::stable_sort(items.begin(), items.end(), CompareSources);
++  for (auto &it : items) LoadCatalog(root, it.second);
+ 
+   return true;
+ }
+@@ -2390,8 +2415,10 @@ bool ChartDldrGuiAddSourceDlg::LoadCatalog(const wxTreeItemId &root,
+     else if (!strcmp(element.name(), "dir"))
+       dir = wxString::FromUTF8(element.first_child().value());
+   }
+-  ChartSource *cs = new ChartSource(name, location, dir);
+-  wxTreeItemId id = m_treeCtrlPredefSrcs->AppendItem(root, name, 1, 1, cs);
++  // The name is shown and stored translated (the XML holds the English name).
++  ChartSource *cs = new ChartSource(wxGetTranslation(name), location, dir);
++  wxTreeItemId id =
++      m_treeCtrlPredefSrcs->AppendItem(root, wxGetTranslation(name), 1, 1, cs);
+ 
+   wxFont *pFont = OCPNGetFont(_("Dialog"));
+   if (pFont) m_treeCtrlPredefSrcs->SetItemFont(id, *pFont);
+-- 
+2.54.0 (Apple Git-157)
+

@@ -11,6 +11,7 @@
 #undef glBindTexture
 #undef glTexImage2D
 #undef glGetFloatv
+#undef glGetIntegerv
 
 #include <QOpenGLContext>
 #include <dlfcn.h>
@@ -363,6 +364,13 @@ void ocpnios_glGetFloatv(GLenum pname, GLfloat *data) {
     glGetFloatv(pname, data);
   }
 }
+void ocpnios_glGetIntegerv(GLenum pname, GLint *data) {
+  if (pname == GL_MATRIX_MODE) {
+    *data = (GLint)S().matrix_mode;
+  } else {
+    glGetIntegerv(pname, data);
+  }
+}
 void glMultMatrixd(const GLdouble *m) {
   Mat4 t;
   for (int i = 0; i < 16; ++i) t.m[i] = (float)m[i];
@@ -378,6 +386,7 @@ void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
   c[3] = a;
 }
 void glColor3f(GLfloat r, GLfloat g, GLfloat b) { glColor4f(r, g, b, 1.f); }
+void glColor4fv(const GLfloat *v) { glColor4f(v[0], v[1], v[2], v[3]); }
 void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a) {
   glColor4f(r / 255.f, g / 255.f, b / 255.f, a / 255.f);
 }

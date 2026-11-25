@@ -1,0 +1,65 @@
+From 5da268e1726163267b3650d29d56f852fe1c8d55 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 13/32] RoutePrintout: write wide strings to the
+ wostringstreams
+
+Non-ASCII route and point names were lost with a non-UTF-8 locale when a
+std::string was written to a std::wostringstream. Write wide strings.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/route_printout.cpp | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/gui/src/route_printout.cpp b/gui/src/route_printout.cpp
+index 42ca9c692..3c81d0adc 100644
+--- a/gui/src/route_printout.cpp
++++ b/gui/src/route_printout.cpp
+@@ -188,7 +188,7 @@ RoutePrintout::RoutePrintout(Route* route, const std::set<int>& options,
+         } else {
+           point_speed << toUsrSpeed(point->GetPlannedSpeed());
+         }
+-        point_speed << getUsrSpeedUnit().ToStdString();
++        point_speed << getUsrSpeedUnit().ToStdWstring();
+         m_table << point_speed.str();
+       } else {
+         m_table << "---";
+@@ -285,25 +285,25 @@ void RoutePrintout::DrawPage(wxDC* dc, int page) {
+ 
+   distance << std::fixed << std::setprecision(1)
+            << toUsrDistance(m_route->m_route_length)
+-           << getUsrDistanceUnit().ToStdString();
++           << getUsrDistanceUnit().ToStdWstring();
+ 
+   if (m_route->m_RouteNameString.Trim().Len() > 0) {
+-    title << m_route->m_RouteNameString.ToStdString();
++    title << m_route->m_RouteNameString.ToStdWstring();
+     title << " (" << distance.str() << ")";
+   } else {
+-    title << _("Total distance ").ToStdString() << distance.str();
++    title << _("Total distance ").ToStdWstring() << distance.str();
+   }
+ 
+   if (m_route->m_RouteStartString.Trim().Len() > 0) {
+-    subtitle << _("From").ToStdString() << " "
+-             << m_route->m_RouteStartString.ToStdString();
++    subtitle << _("From").ToStdWstring() << " "
++             << m_route->m_RouteStartString.ToStdWstring();
+     if (m_route->m_RouteEndString.Trim().Len() > 0) {
+-      subtitle << " " << _("To").ToStdString() << " "
+-               << m_route->m_RouteEndString.ToStdString();
++      subtitle << " " << _("To").ToStdWstring() << " "
++               << m_route->m_RouteEndString.ToStdWstring();
+     }
+   } else if (m_route->m_RouteEndString.Trim().Len() > 0) {
+-    subtitle << _("Destination").ToStdString() << " "
+-             << m_route->m_RouteEndString.ToStdString();
++    subtitle << _("Destination").ToStdWstring() << " "
++             << m_route->m_RouteEndString.ToStdWstring();
+   }
+ 
+   int title_width, title_height;
+-- 
+2.54.0 (Apple Git-157)
+

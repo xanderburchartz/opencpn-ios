@@ -22,7 +22,7 @@ PATRONEN="$ROOT/prive/patronen.txt"
 # Werknotities (logboek, plan, lessen, sessie-afspraken, afbeeldingen van het logboek) en de
 # Nederlandse docs; de openbare repo krijgt alleen de Engelse (README.en.md, docs/building.md,
 # docs/o-charts.md).
-UITSLUITEN='^(CLAUDE\.md|PLAN\.md|lessen\.md|docs/logboek\.md|docs/overzicht-[^/]*\.md|docs/bronnen\.md|docs/concept-[^/]*|docs/zelf-bouwen\.md|docs/o-charts-ios\.md|docs/qt-installeren\.md|docs/licenties-verspreiding\.md|docs/upstream\.md|docs/upstream-prs\.md|docs/meetplan-[^/]*\.md|docs/img/.*|docs/screenshots/fixes/.*|prive/.*)$'
+UITSLUITEN='^(CLAUDE\.md|PLAN\.md|lessen\.md|docs/logboek\.md|docs/overzicht-[^/]*\.md|docs/bronnen\.md|docs/concept-[^/]*|docs/zelf-bouwen\.md|docs/o-charts-ios\.md|docs/qt-installeren\.md|docs/licenties-verspreiding\.md|docs/upstream\.md|docs/upstream-prs\.md|docs/testflight\.md|docs/platformbuilds\.md|docs/meetplan-[^/]*\.md|docs/img/.*|docs/screenshots/fixes/.*|prive/.*)$'
 # De master-reeks staat in de fork (xanderburchartz/OpenCPN, branch ios-port), niet als patches.
 # Losse fixes alleen als ze bij OpenCPN geplaatst zijn (Xander leest ze eerst na); voeg een map
 # toe aan GEPLAATST zodra de PR er staat.

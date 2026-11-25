@@ -32,6 +32,7 @@ typedef double GLdouble;
 #define GL_LINE_SMOOTH_HINT 0x0C52
 #define GL_POLYGON_SMOOTH_HINT 0x0C53
 #define GL_MODELVIEW 0x1700
+#define GL_MATRIX_MODE 0x0BA0
 #define GL_MODELVIEW_MATRIX 0x0BA6
 #define GL_PROJECTION_MATRIX 0x0BA7
 #define GL_PROJECTION 0x1701
@@ -98,6 +99,7 @@ void glMultMatrixf(const GLfloat *m);
 void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f);
 void glPointSize(GLfloat size);  // via gl_PointSize in de shader
 void ocpnios_glGetFloatv(GLenum pname, GLfloat *data);  // + GL_MODELVIEW/PROJECTION_MATRIX
+void ocpnios_glGetIntegerv(GLenum pname, GLint *data);  // + GL_MATRIX_MODE
 void glMultMatrixd(const GLdouble *m);
 void glPolygonMode(GLenum face, GLenum mode);      // geen ES-equivalent; doet niets
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width,
@@ -107,6 +109,7 @@ void glColor3ub(GLubyte r, GLubyte g, GLubyte b);
 void glColor3ubv(const GLubyte *v);
 void glColor3f(GLfloat r, GLfloat g, GLfloat b);
 void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a);
+void glColor4fv(const GLfloat *v);
 
 void glMatrixMode(GLenum mode);
 void glLoadIdentity(void);
@@ -168,6 +171,7 @@ void *ocpnios_glcompat_getproc(const char *name);
 #define glBindTexture ocpnios_glBindTexture
 #define glTexImage2D ocpnios_glTexImage2D
 #define glGetFloatv ocpnios_glGetFloatv
+#define glGetIntegerv ocpnios_glGetIntegerv
 #endif
 
 #endif  // OCPNIOS_GLCOMPAT_H

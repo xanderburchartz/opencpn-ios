@@ -13,8 +13,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${OCPNIOS_TEAM_ID:?zet OCPNIOS_TEAM_ID}"
 BUILD="${OCPNIOS_BUILD:-device}"
-SRC="$ROOT/build/$BUILD/ocpn/opencpn.app"
-OUTDIR="$ROOT/build/$BUILD/signed"
+# OCPNIOS_BUILD_SUFFIX: zelfde achtervoegsel als bij build-ocpn-ios.sh (bijv. "-master").
+SFX="${OCPNIOS_BUILD_SUFFIX:-}"
+SRC="$ROOT/build/$BUILD/ocpn$SFX/opencpn.app"
+OUTDIR="$ROOT/build/$BUILD/signed$SFX"
 APP="$OUTDIR/opencpn.app"
 # Personal Team: Xcode maakt per toestel een eigen profiel. Bewaard in
 # build/device/profielen/ (iphone.mobileprovision, ipad.mobileprovision); standaard iPhone.
@@ -27,14 +29,23 @@ rsync -a --delete "$SRC/" "$APP/"
 cp "$PROFILE" "$APP/embedded.mobileprovision"
 
 PB=/usr/libexec/PlistBuddy
-"$PB" -c "Set :CFBundleDisplayName OpenCPN" "$APP/Info.plist"
-"$PB" -c "Delete :NSLocalNetworkUsageDescription" "$APP/Info.plist" 2>/dev/null || true
-"$PB" -c "Add :NSLocalNetworkUsageDescription string 'OpenCPN leest NMEA- en AIS-gegevens van instrumenten op het lokale netwerk.'" "$APP/Info.plist"
+# De naam (CFBundleDisplayName) zet de bouw al (OCPNIOS_APP_NAME, standaard OpenCPN).
+# De toestemmingsteksten zet de bouw al (scripts/finish-bundle.sh, Engels met nl.lproj).
 
 # Rechten uit het profiel halen
 ENT="$OUTDIR/entitlements.plist"
 security cms -D -i "$APP/embedded.mobileprovision" > "$OUTDIR/profiel.plist"
 plutil -extract Entitlements xml1 -o "$ENT" "$OUTDIR/profiel.plist"
+# Wildcardprofiel (teamprofiel, application-identifier TEAM.*): vul de bundel-ID in, zoals Xcode
+# doet. Anders weigert iOS een upgrade van een app die met TEAM.<bundel-ID> geïnstalleerd is.
+APPID="$("$PB" -c "Print :application-identifier" "$ENT")"
+case "$APPID" in
+  *.\*)
+    FULLID="${APPID%\*}$("$PB" -c "Print :CFBundleIdentifier" "$APP/Info.plist")"
+    "$PB" -c "Set :application-identifier $FULLID" "$ENT"
+    "$PB" -c "Set :keychain-access-groups:0 $FULLID" "$ENT" 2>/dev/null || true
+    ;;
+esac
 
 IDENT="$(security find-identity -v -p codesigning | awk '/Apple Development/ {print $2; exit}')"
 [ -n "$IDENT" ] || { echo "geen Apple Development-identiteit gevonden" >&2; exit 1; }

@@ -1,25 +1,26 @@
-From 935ec60d636f67c064988986c81d8337594a3d33 Mon Sep 17 00:00:00 2001
+From a1ee4b8382075050f1c60de5510be97882a0830a Mon Sep 17 00:00:00 2001
 From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:50:09 +0100
-Subject: [PATCH 03/13] iOS: chart database and SENC handling in the app
+Subject: [PATCH 18/32] iOS: chart database and SENC handling in the app
  sandbox
 
 The app data directory gets a new path on every install. Rebuild the
-chart database when a chart directory no longer exists, find the basemap
-in the current bundle, and log SENC build exceptions.
+chart database when a chart directory no longer exists, and log SENC
+build exceptions.
 
-All changes are inside #ifdef __OCPN__IOS__; other platforms are unchanged.
+Also clamp basemap polygon latitudes to +-85 degrees: points at +-90
+(Antarctica) lie infinitely far away in Mercator, and Qt's rasterizer
+then filled the screen.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  gui/src/chartdbs.cpp          | 11 +++++++++++
- gui/src/s57chart.cpp          |  1 +
  gui/src/senc_manager.cpp      |  3 +++
  gui/src/shapefile_basemap.cpp | 10 ++++++++++
- 4 files changed, 25 insertions(+)
+ 3 files changed, 24 insertions(+)
 
 diff --git a/gui/src/chartdbs.cpp b/gui/src/chartdbs.cpp
-index 3d6800a35..d4f2daa58 100644
+index 3d6800a35..16d143ac7 100644
 --- a/gui/src/chartdbs.cpp
 +++ b/gui/src/chartdbs.cpp
 @@ -1483,6 +1483,17 @@ bool ChartDatabase::Read(const wxString &filePath) {
@@ -32,7 +33,7 @@ index 3d6800a35..d4f2daa58 100644
 +    // old path; rebuild it from the (restored) config in that case.
 +    if (!wxDirExists(dir.BeforeFirst('^'))) {
 +      wxLogMessage(
-+          "iOS: Chartdb: chart directory no longer exists, rebuilding "
++          "Chartdb: chart directory no longer exists, rebuilding "
 +          "database");
 +      return false;
 +    }
@@ -40,20 +41,8 @@ index 3d6800a35..d4f2daa58 100644
      m_chartDirs.Add(dir);
    }
  
-diff --git a/gui/src/s57chart.cpp b/gui/src/s57chart.cpp
-index 5ca2b08cf..28c7fec74 100644
---- a/gui/src/s57chart.cpp
-+++ b/gui/src/s57chart.cpp
-@@ -45,6 +45,7 @@
- #include <wx/tokenzr.h>
- #include <wx/textfile.h>
- #include <wx/filename.h>
-+#include <wx/app.h>  // iOS: wxTheApp->CallAfter
- 
- #include <wx/listimpl.cpp>
- 
 diff --git a/gui/src/senc_manager.cpp b/gui/src/senc_manager.cpp
-index dd92640ce..103021dc8 100644
+index dd92640ce..9fc213745 100644
 --- a/gui/src/senc_manager.cpp
 +++ b/gui/src/senc_manager.cpp
 @@ -311,6 +311,9 @@ void *SENCBuildThread::Entry() {
@@ -61,7 +50,7 @@ index dd92640ce..103021dc8 100644
    catch (const std::exception &e /*SE_Exception e*/) {
      const char *msg = e.what();
 +#ifdef __OCPN__IOS__
-+    wxLogMessage("iOS: SENCBuildThread exception: %s", msg);
++    wxLogMessage("SENCBuildThread exception: %s", msg);
 +#endif
      if (m_manager) {
        //             OCPN_CompressionThreadEvent
@@ -90,5 +79,5 @@ index b88dbef67..ae63b9f26 100644
          poly_pt[cnt].x = round(q.m_x);
          poly_pt[cnt].y = round(q.m_y);
 -- 
-2.50.1 (Apple Git-155)
+2.54.0 (Apple Git-157)
 

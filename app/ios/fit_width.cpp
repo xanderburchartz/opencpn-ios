@@ -842,6 +842,7 @@ void ocpnios_SheetLook(wxWindow* root);  // verderop
 void ocpnios_EdgeMargins(wxWindow* root);
 void ocpnios_FitColumns(QWidget* q);      // verderop
 
+static void RadioGrids(wxWindow* root);
 void ocpnios_FitToWidth(wxWindow* root) {
   if (!root) return;
   constexpr int kMargin = 6;
@@ -851,6 +852,7 @@ void ocpnios_FitToWidth(wxWindow* root) {
   CenterRowItems(root);
   CollapseStretch(root);
   FlattenInnerScroll(root);
+  RadioGrids(root);  // before wrapping: one radio button per row needs no wrap
   // Opnieuw indelen, van binnen naar buiten.
   std::function<void(wxWindow*)> relayout = [&](wxWindow* w) {
     for (wxWindow* c : w->GetChildren())
@@ -1460,6 +1462,8 @@ class FormValueText : public QObject {
   bool eventFilter(QObject* obj, QEvent* ev) override {
     auto* cb = qobject_cast<QComboBox*>(obj);
     if (!cb || ev->type() != QEvent::Paint || cb->isEditable()) return false;
+    // Weer een gewone keuzelijst gemaakt (verbindingseditor: label erboven).
+    if (!cb->property("ocpnios_formvalue").toBool()) return false;
     QPainter p(cb);
     QStyleOptionComboBox opt;
     opt.initFrom(cb);
@@ -1644,7 +1648,124 @@ void ocpnios_FixControls(wxWindow* root);
 void ocpnios_PlainPageCard(wxWindow* root);
 void ocpnios_FormGrids(wxWindow* root);
 
+// Rasters "schakelaar | waarde" (AIS-objecten: "Geen CPA-waarschuwingen als ... |
+// [20.0]", "Gebruik WPL ... | [keuzelijst]", "Speel geluid ... | [Test]"). Naast elkaar
+// werd de tekst per woord afgebroken of overschreven door de waarde ernaast (Xander,
+// 24 nov 2026). Zoals iOS: de schakelaar als regel over de volle breedte (tekst links,
+// schakelaar rechts), de waarde op een eigen regel eronder rechts; een knop als eigen
+// blauwe actieregel. Alleen plaatsen veranderen, de onderdelen blijven die van OpenCPN.
+static std::set<wxSizer*> g_checkValueGrids;
+void ocpnios_CheckValueGrids(wxWindow* root) {
+  std::vector<wxFlexGridSizer*> grids;
+  ForEachSizer(root, [&](wxSizer* sz) {
+    auto* fg = dynamic_cast<wxFlexGridSizer*>(sz);
+    if (!fg || g_checkValueGrids.count(sz) || fg->GetCols() != 2) return;
+    std::vector<wxSizerItem*> v(fg->GetChildren().begin(), fg->GetChildren().end());
+    if (v.size() < 2 || v.size() % 2) return;
+    bool any = false;
+    for (size_t i = 0; i + 1 < v.size(); i += 2) {
+      wxWindow* l = v[i]->GetWindow();
+      wxWindow* r = v[i + 1]->GetWindow();
+      if (!l || !r) return;
+      const bool check = dynamic_cast<wxCheckBox*>(l) != nullptr;
+      const bool empty = dynamic_cast<wxStaticText*>(r) && r->GetLabel().Strip(wxString::both).empty();
+      const bool value = dynamic_cast<wxTextCtrl*>(r) || dynamic_cast<wxChoice*>(r) ||
+                         dynamic_cast<wxSpinCtrl*>(r) || dynamic_cast<wxButton*>(r);
+      const bool emptyL = dynamic_cast<wxStaticText*>(l) && l->GetLabel().Strip(wxString::both).empty();
+      if (check && (value || empty)) {
+        if (value) any = true;
+      } else if (!(emptyL && empty)) {
+        return;  // another kind of row: not this pattern
+      }
+    }
+    if (any) grids.push_back(fg);
+  });
+  for (wxFlexGridSizer* fg : grids) {
+    g_checkValueGrids.insert(fg);
+    std::vector<wxWindow*> wins;
+    for (wxSizerItem* it : fg->GetChildren()) wins.push_back(it->GetWindow());
+    for (wxWindow* w : wins) fg->Detach(w);
+    fg->Clear(false);
+    if (fg->IsColGrowable(1)) fg->RemoveGrowableCol(1);
+    fg->SetCols(1);
+    if (!fg->IsColGrowable(0)) fg->AddGrowableCol(0);
+    for (size_t i = 0; i + 1 < wins.size(); i += 2) {
+      wxWindow* l = wins[i];
+      wxWindow* r = wins[i + 1];
+      const bool emptyR = dynamic_cast<wxStaticText*>(r) && r->GetLabel().Strip(wxString::both).empty();
+      if (!dynamic_cast<wxCheckBox*>(l)) {  // empty filler row
+        l->Hide();
+        r->Hide();
+        continue;
+      }
+      fg->Add(l, 0, wxEXPAND | wxALL, 4);
+      if (emptyR) {
+        r->Hide();
+      } else if (auto* b = dynamic_cast<wxButton*>(r)) {
+        // An action of its own: a blue row over the full width.
+        const bool dark = QCoreApplication::instance() &&
+                          QCoreApplication::instance()->property("ocpnios_dark").toBool();
+        b->SetMinSize(wxSize(-1, 44));
+        b->SetMaxSize(wxSize(-1, -1));
+        if (QWidget* q = b->GetHandle())
+          q->setStyleSheet(QString("QPushButton { background: transparent; color: #007aff;"
+                                   " border: none; text-align: left; padding: 10px 4px; font-weight: normal; }"
+                                   "QPushButton:pressed { color: %1; }")
+                               .arg(dark ? "#66aaff" : "#5aa0ff"));
+        fg->Add(b, 0, wxEXPAND | wxLEFT | wxRIGHT, 4);
+      } else if (dynamic_cast<wxChoice*>(r)) {
+        // A choice under its switch over the full width ("APRS positierappc...").
+        r->SetMinSize(wxSize(-1, r->GetMinSize().y));
+        r->SetMaxSize(wxSize(-1, -1));
+        fg->Add(r, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
+      } else {
+        // The value under its switch, on the right, as a form value.
+        auto* row = new wxBoxSizer(wxHORIZONTAL);
+        row->AddStretchSpacer(1);
+        r->SetMaxSize(wxSize(-1, -1));
+        row->Add(r, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 6);
+        fg->Add(row, 0, wxEXPAND | wxBOTTOM, 6);
+      }
+    }
+  }
+}
+
+// Grids of radio buttons side by side (MMSI edit window: "Default tracking | Always
+// track | Never track | Persistent", three columns): wider than a phone, the labels were
+// wrapped and ran over the next radio button (Xander, 24 Nov 2026). When the row does
+// not fit, one item per row.
+static void RadioGrids(wxWindow* root) {
+  const int room = root->GetClientSize().x;
+  if (room < 100) return;
+  bool changed = false;
+  ForEachSizer(root, [&](wxSizer* sz) {
+    auto* gs = dynamic_cast<wxGridSizer*>(sz);
+    if (!gs || dynamic_cast<wxFlexGridSizer*>(sz) || gs->GetCols() < 2) return;
+    int radios = 0, width = 0, cols = gs->GetCols(), i = 0, rowW = 0;
+    for (wxSizerItem* it : sz->GetChildren()) {
+      wxWindow* w = it->IsWindow() ? it->GetWindow() : nullptr;
+      if (!w) return;
+      if (dynamic_cast<wxRadioButton*>(w)) radios++;
+      else if (!dynamic_cast<wxCheckBox*>(w)) return;
+      rowW += w->GetBestSize().x + 2 * it->GetBorder();
+      if (++i % cols == 0) {
+        width = std::max(width, rowW);
+        rowW = 0;
+      }
+    }
+    width = std::max(width, rowW);
+    if (radios < 2 || width <= room - 40) return;
+    gs->SetCols(1);
+    gs->SetRows(0);
+    for (wxSizerItem* it : sz->GetChildren()) it->SetFlag(it->GetFlag() | wxEXPAND);
+    changed = true;
+  });
+  if (changed) root->Layout();
+}
+
 void ocpnios_SectionGrids(wxWindow* root) {
+  RadioGrids(root);
+  ocpnios_CheckValueGrids(root);
   std::vector<wxFlexGridSizer*> grids;
   ForEachSizer(root, [&](wxSizer* sz) {
     auto* fg = dynamic_cast<wxFlexGridSizer*>(sz);
@@ -1846,7 +1967,164 @@ void ocpnios_SectionGrids(wxWindow* root) {
 // iOS-formulierregels: label links, waarde rechts tegen dezelfde rand als de
 // schakelaars, keuzelijsten als grijze waarde met pijltje. Elk raster had eigen randen
 // en uitlijning, de waarden stonden op vier verschillende plaatsen (Xander, 11 nov 2026).
+// Buttons as iOS action rows: blue text on the card, left aligned with the other texts,
+// no filled button; an add action with a "+", a removal in red. kind() returns 0
+// (action), 1 (add) or 2 (destructive) for each button. Labels lose the desktop
+// "...". Buttons with a style of their own (header, connection rows) are left alone.
+// Buttons that only share a row with each other ("Select All | Clear All") get one row
+// each.
+void ocpnios_ActionRows(wxWindow* root, const std::function<int(wxButton*)>& kind) {
+  const bool dark = QCoreApplication::instance() &&
+                    QCoreApplication::instance()->property("ocpnios_dark").toBool();
+  const QString blue = dark ? "#d06060" : "#007aff";
+  const QString red = dark ? "#ff453a" : "#ff3b30";
+  const QString grey = dark ? "#636366" : "#c7c7cc";
+  bool changed = false;
+  std::set<wxBoxSizer*> rows;
+  std::function<void(wxWindow*)> visit = [&](wxWindow* w) {
+    for (wxWindow* c : w->GetChildren()) {
+      if (c->IsTopLevel()) continue;
+      visit(c);
+      auto* b = dynamic_cast<wxButton*>(c);
+      QWidget* q = b ? b->GetHandle() : nullptr;
+      if (!q || b->GetLabel().empty() || q->property("ocpnios_actionrow").toBool() ||
+          q->property("ocpnios_nav").toBool() || q->property("ocpnios_plainbtn").toBool() ||
+          q->property("ocpnios_colored").toBool() || !q->styleSheet().isEmpty() ||
+          b->GetId() == wxID_OK || b->GetId() == wxID_CANCEL || b->GetId() == wxID_APPLY)
+        continue;
+      const int k = kind(b);
+      wxString label = b->GetLabel();
+      label.Trim();
+      while (label.EndsWith(".") || label.EndsWith(wxString::FromUTF8("\u2026")))
+        label.RemoveLast();
+      label.Trim();
+      if (k == 1) label = "+  " + label;
+      if (label != b->GetLabel()) b->SetLabel(label);
+      q->setProperty("ocpnios_actionrow", true);
+      q->setStyleSheet(QString("QPushButton { background: transparent; color: %1; border: none;"
+                               " text-align: left; padding: 10px 0px; font-weight: normal; }"
+                               "QPushButton:pressed { color: %2; }"
+                               "QPushButton:disabled { color: %3; }")
+                           .arg(k == 2 ? red : blue, dark ? "#e08080" : "#66aaff", grey));
+      b->SetMinSize(wxSize(-1, 44));
+      b->SetMaxSize(wxSize(-1, -1));
+      b->InvalidateBestSize();
+      if (wxSizer* cs = b->GetContainingSizer()) {
+        auto* bs = dynamic_cast<wxBoxSizer*>(cs);
+        if (bs && bs->GetOrientation() == wxHORIZONTAL) {
+          bool onlyButtons = true;
+          for (wxSizerItem* it : bs->GetChildren())
+            if (!it->IsSpacer() && !(it->IsWindow() && dynamic_cast<wxButton*>(it->GetWindow())))
+              onlyButtons = false;
+          if (onlyButtons) rows.insert(bs);
+        } else if (wxSizerItem* it = cs->GetItem(b)) {
+          // The 44 pt row is the spacing; no extra border above and below.
+          it->SetFlag((it->GetFlag() | wxEXPAND) &
+                      ~(wxALIGN_CENTER_HORIZONTAL | wxALIGN_RIGHT | wxTOP | wxBOTTOM));
+          it->SetProportion(0);
+          // A column of only buttons (Chart Files: Add, Remove, Compress): no spacers
+          // between the rows either.
+          bool onlyButtons = true;
+          for (wxSizerItem* x : cs->GetChildren())
+            if (!x->IsSpacer() && !(x->IsWindow() && dynamic_cast<wxButton*>(x->GetWindow())))
+              onlyButtons = false;
+          if (onlyButtons)
+            for (wxSizerItem* x : cs->GetChildren())
+              if (x->IsSpacer()) {
+                x->SetMinSize(wxSize(0, 0));
+                x->SetProportion(0);
+              }
+        }
+      }
+      changed = true;
+    }
+  };
+  visit(root);
+  for (wxBoxSizer* bs : rows) {
+    bs->SetOrientation(wxVERTICAL);
+    for (wxSizerItem* it : bs->GetChildren()) {
+      it->SetProportion(0);
+      it->SetFlag((it->GetFlag() | wxEXPAND) &
+                  ~(wxALIGN_CENTER_HORIZONTAL | wxALIGN_RIGHT | wxTOP | wxBOTTOM));
+    }
+    // The row itself over the full width of its card.
+    std::function<void(wxSizer*)> widen = [&](wxSizer* sz) {
+      for (wxSizerItem* it : sz->GetChildren()) {
+        if (!it->IsSizer()) continue;
+        if (it->GetSizer() == bs) it->SetFlag(it->GetFlag() | wxEXPAND);
+        else widen(it->GetSizer());
+      }
+    };
+    if (root->GetSizer()) widen(root->GetSizer());
+  }
+  if (changed) root->Layout();
+}
+
+// Grids "label | field | unit" (Vector Chart Display: Shallow Depth [6.56] feet): the
+// field stood in the middle of the row and the unit at the far right. As an iOS form
+// row: label left, field and unit together on the right.
+static std::set<wxSizer*> g_unitGrids;
+static void UnitGrids(wxWindow* root) {
+  std::vector<std::pair<wxSizer*, wxSizerItem*>> grids;
+  ForEachSizer(root, [&](wxSizer* sz) {
+    for (wxSizerItem* it : sz->GetChildren()) {
+      auto* fg = it->IsSizer() ? dynamic_cast<wxFlexGridSizer*>(it->GetSizer()) : nullptr;
+      if (!fg || g_unitGrids.count(fg) || fg->GetCols() != 3) continue;
+      std::vector<wxSizerItem*> v(fg->GetChildren().begin(), fg->GetChildren().end());
+      if (v.empty() || v.size() % 3) continue;
+      bool ok = true;
+      for (size_t i = 0; ok && i < v.size(); i += 3)
+        ok = v[i]->IsWindow() && dynamic_cast<wxStaticText*>(v[i]->GetWindow()) &&
+             v[i + 1]->IsWindow() &&
+             (dynamic_cast<wxTextCtrl*>(v[i + 1]->GetWindow()) ||
+              dynamic_cast<wxSpinCtrl*>(v[i + 1]->GetWindow())) &&
+             v[i + 2]->IsWindow() && dynamic_cast<wxStaticText*>(v[i + 2]->GetWindow());
+      if (ok) grids.push_back({sz, it});
+    }
+  });
+  for (auto& [parent, gi] : grids) {
+    auto* fg = static_cast<wxFlexGridSizer*>(gi->GetSizer());
+    g_unitGrids.insert(fg);
+    g_sectionGrids.insert(fg);  // done here, FormGrids leaves it alone
+    gi->SetFlag((gi->GetFlag() | wxEXPAND) & ~(wxALIGN_CENTER_HORIZONTAL | wxALIGN_RIGHT));
+    const int vb = ValueRightBorder(parent, gi);
+    std::vector<wxWindow*> wins;
+    for (wxSizerItem* it : fg->GetChildren()) wins.push_back(it->GetWindow());
+    for (wxWindow* w : wins) fg->Detach(w);
+    for (int c = fg->GetCols() - 1; c >= 0; c--)
+      if (fg->IsColGrowable(c)) fg->RemoveGrowableCol(c);
+    fg->SetCols(2);
+    fg->AddGrowableCol(0);
+    int fieldW = 0;
+    for (size_t i = 1; i < wins.size(); i += 3) {
+      wins[i]->SetMinSize(wxSize(-1, wins[i]->GetMinSize().y));
+      wins[i]->SetMaxSize(wxSize(-1, -1));
+      wins[i]->InvalidateBestSize();
+      fieldW = std::max(fieldW, wins[i]->GetBestSize().x);
+    }
+    fieldW = std::min(std::max(fieldW, 70), 84);
+    for (size_t i = 0; i + 2 < wins.size(); i += 3) {
+      fg->Add(wins[i], 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
+      if (auto* ql = qobject_cast<QLabel*>(wins[i]->GetHandle()))
+        ql->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+      auto* row = new wxBoxSizer(wxHORIZONTAL);
+      wins[i + 1]->SetMinSize(wxSize(fieldW, wins[i + 1]->GetMinSize().y));
+      wins[i + 1]->SetMaxSize(wxSize(fieldW, -1));
+      row->Add(wins[i + 1], 0, wxALIGN_CENTER_VERTICAL);
+      row->Add(wins[i + 2], 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
+      fg->Add(row, 0, wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL | wxRIGHT, vb);
+      row->GetItem((size_t)0)->SetFlag(wxALIGN_CENTER_VERTICAL | wxTOP | wxBOTTOM);
+      row->GetItem((size_t)0)->SetBorder(4);
+    }
+  }
+  if (!grids.empty()) {
+    root->Layout();
+    if (auto* sw = dynamic_cast<wxScrolledWindow*>(root)) sw->FitInside();
+  }
+}
+
 void ocpnios_FormGrids(wxWindow* root) {
+  UnitGrids(root);
   auto isValue = [](wxSizerItem* it) {
     if (!it || !it->IsWindow() || !it->IsShown()) return false;
     wxWindow* w = it->GetWindow();
@@ -1893,15 +2171,41 @@ void ocpnios_FormGrids(wxWindow* root) {
       }
       return false;
     };
-    const int labelIndent = hasSwitch(parent) ? 6 : 0;
+    // RowSwitch tekent zijn tekst op x = 0 van de schakelaar (niet meer 6 pt binnen de
+    // rand): de labels stonden 6 pt rechts van de schakelaarteksten (Eigen Schip, AIS,
+    // Routes; Xander 24 nov 2026 "niet goed uitgelijnd").
+    const int labelIndent = 0;
+    (void)hasSwitch;
     std::vector<wxWindow*> fields;  // invulvakjes: even breed
     std::vector<wxSizerItem*> v(fg->GetChildren().begin(), fg->GetChildren().end());
     // Eén regel "label | tekstveld" (Filter in Routebeheer): een zoekregel, het veld vult
     // de rest van de breedte. Rechts op eigen breedte was het een vakje van 40 pt
     // (Markeringen, iPhone 12 nov 2026).
+    // Alleen bij een kort label: "Toon markeringspunten alleen bij kaartschaal kleiner
+    // dan 1:" en "Straal van aankomstcirkel" zijn invulregels met de waarde rechts (het
+    // veld stond midden in de regel, Xander 24 nov 2026).
     const bool searchRow = cols == 2 && v.size() == 2 && isLabel(v[0]) &&
                            dynamic_cast<wxTextCtrl*>(v[1]->GetWindow()) &&
-                           !dynamic_cast<wxSpinCtrl*>(v[1]->GetWindow());
+                           !dynamic_cast<wxSpinCtrl*>(v[1]->GetWindow()) &&
+                           v[0]->GetWindow()->GetBestSize().x < 120;
+    // Eén regel "lang label | veld" (Toon markeringspunten alleen bij kaartschaal kleiner
+    // dan 1: [0]): naast het veld brak het label per woord af. Het label over de volle
+    // breedte, het veld eronder rechts, zoals de regel met schakelaar erboven.
+    if (cols == 2 && v.size() == 2 && !searchRow && isLabel(v[0]) && isValue(v[1]) &&
+        !dynamic_cast<wxChoice*>(v[1]->GetWindow()) && root->GetClientSize().x > 0 &&
+        v[0]->GetWindow()->GetBestSize().x > root->GetClientSize().x * 55 / 100) {
+      wxWindow* lw = v[0]->GetWindow();
+      wxWindow* rw = v[1]->GetWindow();
+      fg->Detach(lw);
+      fg->Detach(rw);
+      if (fg->IsColGrowable(1)) fg->RemoveGrowableCol(1);
+      fg->SetCols(1);
+      if (!fg->IsColGrowable(0)) fg->AddGrowableCol(0);
+      fg->Add(lw, 0, wxEXPAND | wxLEFT, labelIndent);
+      fg->Add(rw, 0, wxALIGN_RIGHT | wxRIGHT | wxTOP, vb);
+      changed = true;
+      continue;
+    }
     for (size_t i = 0; i + 1 < v.size(); i += cols == 2 ? 2 : 1) {
       if (!isLabel(v[i]) || !isValue(v[i + 1])) continue;
       wxSizerItem* l = v[i];
@@ -1988,10 +2292,16 @@ void ocpnios_PlainPageCard(wxWindow* root) {
   // Ook niet bij een eigen schuiflijst in de pagina (Plugins: de pluginlijst tekent zelf
   // iOS-kaarten op grijs; de kaart eromheen gaf een witte rand, iPhone 11 nov 2026).
   std::function<bool(wxWindow*)> hasBook = [&](wxWindow* w) {
-    for (wxWindow* c : w->GetChildren())
-      if (dynamic_cast<wxBookCtrlBase*>(c) || dynamic_cast<wxScrolledWindow*>(c) ||
+    for (wxWindow* c : w->GetChildren()) {
+      // A list inside a group box (Vector Chart Display: "User Standard Objects") is
+      // already a card; it kept the switches and depth fields above it off a card.
+      const bool boxedList = dynamic_cast<wxScrolledWindow*>(c) &&
+                             dynamic_cast<wxStaticBoxSizer*>(c->GetContainingSizer());
+      if (dynamic_cast<wxBookCtrlBase*>(c) ||
+          (dynamic_cast<wxScrolledWindow*>(c) && !boxedList) ||
           (!c->IsTopLevel() && hasBook(c)))
         return true;
+    }
     return false;
   };
   if (hasBook(root)) return;
@@ -2249,6 +2559,10 @@ void ocpnios_GroupBoxCards(wxWindow* root) {
           for (QRadioButton* r : rq->findChildren<QRadioButton*>()) {
             const int need = r->sizeHint().width();
             if (r->width() < need) { r->setMinimumWidth(need); grew = true; }
+            // Ook de hoogte: anders vielen de staarten van g, y en p weg ("Sianal",
+            // "Mavara" in het zoekvenster van mayara_pi, 24 nov 2026).
+            const int needH = r->sizeHint().height();
+            if (r->height() < needH) { r->setMinimumHeight(needH); grew = true; }
           }
           if (grew) { rb->InvalidateBestSize(); changed = true; }
           const int x = rb->GetPosition().x;
@@ -2988,7 +3302,9 @@ class DirTreeDelegate : public QStyledItemDelegate {
   }
 
   QSize sizeHint(const QStyleOptionViewItem& o, const QModelIndex& ix) const override {
-    return QSize(QStyledItemDelegate::sizeHint(o, ix).width(), kDirRow);
+    // Bron in Prioriteiten op twee regels (zie SourceLines): wat hoger.
+    const bool two = IsSource(ix);
+    return QSize(QStyledItemDelegate::sizeHint(o, ix).width(), two ? kDirRow + 14 : kDirRow);
   }
 
   void paint(QPainter* p, const QStyleOptionViewItem& opt,
@@ -3033,14 +3349,60 @@ class DirTreeDelegate : public QStyledItemDelegate {
     p->setFont(font);
     p->setPen(opt.palette.color(QPalette::Text));
     const QRect tr(x, r.top(), r.right() - 12 - x, r.height());
-    const QString text = QFontMetrics(font).elidedText(Label(ix), Qt::ElideMiddle, tr.width());
-    p->drawText(tr, Qt::AlignVCenter | Qt::AlignLeft, text);
+    QString line1, line2;
+    if (IsSource(ix) && SourceLines(Label(ix), line1, line2)) {
+      // Prioriteiten (connections_ios.cpp): de verbinding zoals in de lijst met
+      // verbindingen ("TCP:localhost:10111"), eronder grijs de zin en het protocol. Op
+      // één regel viel de poort weg ("nmea0183…:0;GNRMC").
+      const QFontMetrics fm(font);
+      const int h1 = fm.height();
+      QFont small = opt.font;
+      small.setBold(false);
+      small.setPointSizeF(small.pointSizeF() * 0.85);
+      const QFontMetrics sm(small);
+      const int top = r.top() + (r.height() - h1 - sm.height() - 2) / 2;
+      // Vet (actieve bron) tekende iets breder dan gemeten: wat marge.
+      p->drawText(QRect(x, top, tr.width(), h1), Qt::AlignLeft | Qt::AlignVCenter,
+                  fm.elidedText(line1, Qt::ElideMiddle, tr.width() - 10));
+      p->setFont(small);
+      p->setPen(dark ? QColor(0x8d, 0x8d, 0x93) : QColor(0x8e, 0x8e, 0x93));
+      p->drawText(QRect(x, top + h1 + 2, tr.width(), sm.height()),
+                  Qt::AlignLeft | Qt::AlignVCenter,
+                  sm.elidedText(line2, Qt::ElideRight, tr.width()));
+    } else {
+      const QString text = QFontMetrics(font).elidedText(Label(ix), Qt::ElideMiddle, tr.width());
+      p->drawText(tr, Qt::AlignVCenter | Qt::AlignLeft, text);
+    }
     p->setPen(QPen(dark ? QColor(0x38, 0x38, 0x3a) : QColor(0xc6, 0xc6, 0xc8), 0.6));
     p->drawLine(QPointF(x, r.bottom() + 0.5), QPointF(r.right(), r.bottom() + 0.5));
     p->restore();
   }
 
  private:
+  // Een bron onder een categorie in Prioriteiten (eigenschap gezet in connections_ios.cpp).
+  bool IsSource(const QModelIndex& ix) const {
+    return m_tv && m_tv->property("ocpnios_prio_sources").toBool() && DirDepth(m_tv, ix) >= 2 &&
+           ix.data(Qt::DisplayRole).toString().contains(';');
+  }
+  // "nmea0183 TCP:localhost:10111:0;GNRMC" -> "TCP:localhost:10111" en
+  // "GNRMC · nmea0183". Het laatste ":0" (volgnummer binnen de verbinding) valt weg.
+  static bool SourceLines(const QString& label, QString& line1, QString& line2) {
+    const int sp = label.indexOf(' ');
+    const int sc = label.lastIndexOf(';');
+    if (sp <= 0 || sc <= sp) return false;
+    const QString proto = label.left(sp);
+    QString iface = label.mid(sp + 1, sc - sp - 1);
+    const QString what = label.mid(sc + 1);
+    const int lc = iface.lastIndexOf(':');
+    if (lc > 0 && iface.count(':') >= 3) {
+      bool num = false;
+      iface.mid(lc + 1).toInt(&num);
+      if (num) iface = iface.left(lc);
+    }
+    line1 = iface;
+    line2 = what.isEmpty() ? proto : what + QString::fromUtf8(" \u00b7 ") + proto;
+    return true;
+  }
   QString Label(const QModelIndex& ix) const {
     QString t = ix.data(Qt::DisplayRole).toString();
     if (DirDepth(m_tv, ix) > 0 || !t.startsWith('/')) return t;

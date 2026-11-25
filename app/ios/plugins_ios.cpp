@@ -8,10 +8,13 @@
 #include <wx/wx.h>
 #include <wx/scrolwin.h>
 #include <wx/sizer.h>
+#include <wx/textwrapper.h>
 #include <wx/utils.h>
 
 #include <QCoreApplication>
+#include <QFontMetrics>
 #include <QVariant>
+#include <QWidget>
 
 #include "model/config_vars.h"
 #include "navutil.h"
@@ -33,6 +36,56 @@ wxColour ocpnios_PluginCardBg() {
   return IosDark() ? wxColour(0x1c, 0x1c, 0x1e) : wxColour(255, 255, 255);
 }
 
+namespace {
+// Wraps like PanelHardBreakWrapper in pluginmanager.cpp, but measures as Qt
+// draws (font after the stylesheet; wx measured about 15% too narrow) and
+// breaks a word without spaces that is wider than the line per character
+// (e.g. "$STALK,84,36,9D,88,40,00,FF,02,06*02").
+class IosPluginWrapper : public wxTextWrapper {
+public:
+  IosPluginWrapper(wxWindow* win, const wxString& text, int width)
+      : m_win(win), m_width(width) {
+    Wrap(win, text, width);
+  }
+  const wxString& GetWrapped() const { return m_wrapped; }
+
+protected:
+  void OnOutputLine(const wxString& line) override {
+    if (Width(line) <= m_width) {
+      m_wrapped += line;
+      return;
+    }
+    wxString part;
+    for (wxUniChar c : line) {
+      if (!part.empty() && Width(part + c) > m_width) {
+        m_wrapped += part + '\n';
+        part.clear();
+      }
+      part += c;
+    }
+    m_wrapped += part;
+  }
+  void OnNewLine() override { m_wrapped += '\n'; }
+
+private:
+  int Width(const wxString& t) const {
+    if (QWidget* w = m_win->GetHandle()) {
+      w->ensurePolished();
+      return QFontMetrics(w->font()).horizontalAdvance(
+          QString::fromUtf8(t.utf8_str().data()));
+    }
+    return m_win->GetTextExtent(t).x;
+  }
+  wxWindow* m_win;
+  int m_width;
+  wxString m_wrapped;
+};
+}  // namespace
+
+wxString ocpnios_PluginWrap(wxWindow* win, const wxString& text, int width) {
+  return IosPluginWrapper(win, text, width).GetWrapped();
+}
+
 // ---------------------------------------------------------------------------
 // gui/src/routemanagerdialog.cpp: on a phone the list on top and the buttons
 // below in two columns.
@@ -40,7 +93,7 @@ wxColour ocpnios_PluginCardBg() {
 
 // FlexGrid with two growable columns: a wxGridSizer made every cell as wide
 // as the widest button ("Send to Peer") and ran off the right edge.
-wxSizer* ocpnios_RmdButtonSizer() {
+static wxSizer* RmdButtonSizer() {
   auto* fg = new wxFlexGridSizer(0, 2, 0, 0);
   fg->AddGrowableCol(0, 1);
   fg->AddGrowableCol(1, 1);
@@ -57,6 +110,23 @@ void ocpnios_RmdFitButtons(wxWindow* dlg, int margin, wxScrolledWindow* winr,
                            wxScrolledWindow* winl) {
   for (wxScrolledWindow* w : {winr, wint, winw, winl}) {
     if (!w || !w->GetSizer()) continue;
+    // The core builds the desktop layout: list and button column side by side,
+    // buttons in one column. Stack the panel and move the buttons into a
+    // two-column grid.
+    if (auto* panel = dynamic_cast<wxBoxSizer*>(w->GetParent()->GetSizer()))
+      panel->SetOrientation(wxVERTICAL);
+    wxSizer* column = w->GetSizer();
+    wxSizer* grid = RmdButtonSizer();
+    for (wxSizerItem* it : column->GetChildren()) {
+      if (it->IsWindow())
+        grid->Add(it->GetWindow(), it->GetProportion(), it->GetFlag(),
+                  it->GetBorder());
+      else if (it->IsSpacer())
+        grid->Add(it->GetSpacer().x, it->GetSpacer().y, it->GetProportion(),
+                  it->GetFlag(), it->GetBorder());
+    }
+    column->Clear(false);
+    w->SetSizer(grid);  // deletes the old column sizer
     // Half the screen width minus margins: the space a button has in a column.
     const int colw = dlg->GetParent()->GetClientSize().x / 2 - 6 * margin -
                      2 * dlg->GetCharWidth();

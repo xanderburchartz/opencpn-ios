@@ -1,0 +1,757 @@
+From 02e87144368385e2a27d893d028d30431d2adc4f Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 25/32] grib_pi: iOS layout
+
+GRIB control bar, settings and request dialogs fitted to a phone screen
+(compact bar as on Android, plus the file open button that Android
+replaces with its own screen). The last GRIB file is remembered across
+reinstalls and app kills, and GRIB files get their own Documents/GRIB folder.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ plugins/grib_pi/src/CursorData.cpp         |  68 +++++++++
+ plugins/grib_pi/src/GribRequestDialog.cpp  |  96 ++++++++++++
+ plugins/grib_pi/src/GribRequestDialog.h    |   3 +
+ plugins/grib_pi/src/GribSettingsDialog.cpp | 153 +++++++++++++++++++
+ plugins/grib_pi/src/GribSettingsDialog.h   |   3 +
+ plugins/grib_pi/src/GribUIDialog.cpp       | 168 ++++++++++++++++++++-
+ plugins/grib_pi/src/GribUIDialog.h         |   8 +
+ plugins/grib_pi/src/grib_pi.cpp            |  17 +++
+ 8 files changed, 515 insertions(+), 1 deletion(-)
+
+diff --git a/plugins/grib_pi/src/CursorData.cpp b/plugins/grib_pi/src/CursorData.cpp
+index 611698c0c..d5fd24c8e 100644
+--- a/plugins/grib_pi/src/CursorData.cpp
++++ b/plugins/grib_pi/src/CursorData.cpp
+@@ -24,6 +24,10 @@
+ #include "grib_pi.h"
+ 
+ #include "folder.xpm"
++#ifdef __OCPN__IOS__
++#include <QLineEdit>
++#include <QWidget>
++#endif
+ 
+ extern int m_Altitude;
+ extern double m_cursor_lat, m_cursor_lon;
+@@ -34,6 +38,31 @@ extern int m_DialogStyle;
+ //---------------------------------------------------------------------------------------
+ CursorData::CursorData(wxWindow *window, GRIBUICtrlBar &parent)
+     : CursorDataBase(window), m_gparent(parent) {
++#ifdef __OCPN__IOS__
++  // The read-only values as plain text, like values in an iOS list; as white
++  // boxes next to the switches they looked like a form to fill in.
++  for (wxWindow *c : GetChildren()) {
++    auto *tc = dynamic_cast<wxTextCtrl *>(c);
++    if (!tc || !tc->HasFlag(wxTE_READONLY)) continue;
++    QWidget *h = tc->GetHandle();
++    auto *le = qobject_cast<QLineEdit *>(h);
++    if (!le && h) le = h->findChild<QLineEdit *>();
++    if (le) {
++      le->setFrame(false);
++      le->setStyleSheet(
++          "QLineEdit { background: transparent; border: none; padding: 0 2px; "
++          "}");
++    }
++  }
++  // The title as a grey section header on the switch margin.
++  if (QWidget *q = m_stTrackingText->GetHandle())
++    q->setStyleSheet("QLabel { color: #8a8a8e; }");
++  if (wxSizerItem *it =
++          m_stTrackingText->GetContainingSizer()->GetItem(m_stTrackingText)) {
++    it->SetFlag(wxEXPAND | wxLEFT | wxTOP);
++    it->SetBorder(16);
++  }
++#endif
+   // transform checkboxes ID to have a formal link to data type and set the
+   // initial value
+   wxWindowListNode *node = this->GetChildren().GetFirst();
+@@ -96,6 +125,37 @@ void CursorData::AddTrackingControl(wxControl *ctrl1, wxControl *ctrl2,
+                                     bool show, bool vertical, int wctrl2,
+                                     int wctrl3_4) {
+   if (show) {
++#ifdef __OCPN__IOS__
++    // iOS: align switch and values on one line; the values sat at the top of
++    // the row and the 31 pt switch lower. Same layout, vertically centered,
++    // switch on the sheet margin.
++    m_fgTrackingControls->Add(
++        ctrl1, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxTOP | wxBOTTOM, 16);
++    ctrl1->Show();
++    for (wxControl *c : {ctrl2, ctrl3, ctrl4}) {
++      if (!c) continue;
++      if (c == ctrl2)
++        c->SetMinSize(wxSize(wctrl2, -1));
++      else if (c == ctrl3)
++        c->SetMinSize(wxSize(wctrl3_4, -1));
++      else
++        c->SetMinSize(wxSize(vertical ? wctrl2 : wctrl3_4, -1));
++      c->Show();
++    }
++    if (ctrl2)
++      m_fgTrackingControls->Add(ctrl2, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 8);
++    else
++      m_fgTrackingControls->Add(0, 0, 1, wxALL, 1);
++    if (ctrl3)
++      m_fgTrackingControls->Add(ctrl3, 0, wxALIGN_CENTER_VERTICAL, 0);
++    else if (!vertical)
++      m_fgTrackingControls->Add(0, 0, 1, wxALL, 1);
++    if (ctrl4)
++      m_fgTrackingControls->Add(ctrl4, 0, wxALIGN_CENTER_VERTICAL, 0);
++    else if (!vertical)
++      m_fgTrackingControls->Add(0, 0, 1, wxALL, 1);
++    return;
++#endif
+     m_fgTrackingControls->Add(ctrl1, 0, wxALL, 1);
+     ctrl1->Show();
+     if (ctrl2) {
+@@ -132,11 +192,19 @@ void CursorData::AddTrackingControl(wxControl *ctrl1, wxControl *ctrl2,
+ void CursorData::PopulateTrackingControls(bool vertical) {
+   m_fgTrackingControls->Clear();
+   if (!vertical) {
++#ifdef __OCPN__IOS__
++    // iOS: the bar is always compact (GribUIDialog.cpp). window_fit wraps
++    // the dialog sizer in an outer sizer for the header bar, so the C cast
++    // below found no grid and chose 12 columns: the cursor data ended up in one
++    // row wider than an iPhone.
++    m_fgTrackingControls->SetCols(4);
++#else
+     wxFlexGridSizer *ps = (wxFlexGridSizer *)(m_gparent.GetSizer());
+     if (ps && (ps->GetCols() == 1))
+       m_fgTrackingControls->SetCols(4);  // compact mode
+     else
+       m_fgTrackingControls->SetCols(12);
++#endif
+   } else
+     m_fgTrackingControls->SetCols(2);
+ 
+diff --git a/plugins/grib_pi/src/GribRequestDialog.cpp b/plugins/grib_pi/src/GribRequestDialog.cpp
+index 676e7683c..15c09fba1 100644
+--- a/plugins/grib_pi/src/GribRequestDialog.cpp
++++ b/plugins/grib_pi/src/GribRequestDialog.cpp
+@@ -33,6 +33,10 @@
+ #include "pi_gl.h"
+ 
+ #include "GribRequestDialog.h"
++#ifdef __OCPN__IOS__
++#include <QWidget>
++#include "folder.xpm"
++#endif
+ #include "GribOverlayFactory.h"
+ #include <wx/wfstream.h>
+ #include "grib_pi.h"
+@@ -58,11 +62,94 @@ wxString toMailFormat(int NEflag,
+ extern int m_SavedZoneSelMode;
+ extern int m_ZoneSelMode;
+ 
++#ifdef __OCPN__IOS__
++// Form values and flat buttons, from the iOS app layer.
++void ocpnios_MarkFormValue(wxWindow *w);
++void ocpnios_FlatIconButtons(wxWindow *root);
++
++// Returns the sizer in the tree below root that holds child.
++static wxSizer *FindParentSizer(wxSizer *root, wxSizer *child) {
++  for (wxSizerItem *item : root->GetChildren()) {
++    wxSizer *sizer = item->GetSizer();
++    if (!sizer) continue;
++    if (sizer == child) return root;
++    if (wxSizer *found = FindParentSizer(sizer, child)) return found;
++  }
++  return nullptr;
++}
++
++// Adds a form row: label left, choice right, on the sheet margin.
++static void AddFormRow(wxSizer *sizer, wxWindow *label, wxWindow *choice) {
++  wxBoxSizer *row = new wxBoxSizer(wxHORIZONTAL);
++  row->Add(label, 0, wxALIGN_CENTER_VERTICAL);
++  row->Add(choice, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, 12);
++  sizer->Add(row, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 16);
++  ocpnios_MarkFormValue(choice);
++}
++
++// The request dialog stacked to the width of a phone screen.
++void GribRequestSetting::SetCompactLayout() {
++  // Area: three columns (label, number, N/S or E/W) instead of six; side by
++  // side "E" and "W" were cut off. Numbers as tall as a field.
++  fgZoneCoordinatesSizer->SetCols(3);
++  fgZoneCoordinatesSizer->AddGrowableCol(0);
++  for (wxSpinCtrl *sp : {m_spMaxLat, m_spMaxLon, m_spMinLat, m_spMinLon}) {
++    sp->SetMinSize(wxSize(110, 36));
++    if (wxSizerItem *it = fgZoneCoordinatesSizer->GetItem(sp))
++      it->SetFlag(it->GetFlag() | wxALIGN_CENTER_VERTICAL | wxTOP);
++  }
++  for (wxSizerItem *it : fgZoneCoordinatesSizer->GetChildren())
++    it->SetFlag(it->GetFlag() | wxALIGN_CENTER_VERTICAL);
++
++  // The switch row spans the full width; otherwise its label wrapped with the
++  // switch halfway. Area choice and coordinates are stacked.
++  auto *zone =
++      dynamic_cast<wxFlexGridSizer *>(m_cUseSavedZone->GetContainingSizer());
++  if (zone) {
++    zone->AddGrowableCol(0);
++    if (wxSizerItem *it = zone->GetItem(m_cUseSavedZone))
++      it->SetFlag(it->GetFlag() | wxEXPAND);
++    if (auto *area = dynamic_cast<wxFlexGridSizer *>(
++            FindParentSizer(GetSizer(), zone))) {
++      area->SetCols(1);
++      area->AddGrowableCol(0);
++    }
++  }
++
++  // The area selection button with its iOS symbol too.
++  wxBitmap zoneBitmap = GRIBUICtrlBar::GetScaledBitmap(
++      wxBitmap(selzone), _T("selzone"), m_parent.GetScaleFactor());
++  m_bpManualSelection->SetBitmapLabel(zoneBitmap);
++  m_bpManualSelection->SetBitmapPressed(zoneBitmap.ConvertToDisabled());
++
++  // World: duration and model as form rows and the download button on its own
++  // row; side by side the button fell off the screen.
++  wxSizer *world = m_panelWorld->GetSizer();
++  // Deletes the row sizer; its controls are reused below.
++  world->Remove(m_btnDownloadWorld->GetContainingSizer());
++  if (wxSizerItem *it = world->GetItem(m_staticTextInfo)) {
++    it->SetFlag(wxLEFT | wxRIGHT | wxTOP);
++    it->SetBorder(16);
++  }
++  AddFormRow(world, m_stForecastLength, m_chForecastLength);
++  AddFormRow(world, m_stECMWFResolution, m_chECMWFResolution);
++  world->Add(m_btnDownloadWorld, 0, wxEXPAND | wxALL, 16);
++  m_panelWorld->Layout();
++
++  // Bitmap buttons styled as iOS buttons.
++  ocpnios_FlatIconButtons(this);
++  Layout();
++}
++#endif
++
+ //----------------------------------------------------------------------------------------------------------
+ //          GRIB Request Implementation
+ //----------------------------------------------------------------------------------------------------------
+ GribRequestSetting::GribRequestSetting(GRIBUICtrlBar &parent)
+     : GribRequestSettingBase(&parent), m_parent(parent) {
++#ifdef __OCPN__IOS__
++  SetCompactLayout();
++#endif
+   m_VpFocus = nullptr;
+   m_VpMouse = nullptr;
+   m_oDC = nullptr;
+@@ -347,6 +434,15 @@ void GribRequestSetting::OnClose(wxCloseEvent &event) {
+ }
+ 
+ void GribRequestSetting::SetRequestDialogSize() {
++#ifdef __OCPN__IOS__
++  // iOS: area spin controls as tall as an iOS field; with the desktop font
++  // height the digits were half cut off.
++  for (wxSpinCtrl *sp : {m_spMaxLat, m_spMaxLon, m_spMinLat, m_spMinLon}) {
++    const int h = wxMax(36, sp->GetBestSize().y);
++    sp->SetMinSize(wxSize(110, h));
++    if (QWidget *q = sp->GetHandle()) q->setMinimumHeight(h);
++  }
++#endif
+   int y;
+   /*first let's size the mail display space*/
+   GetTextExtent(_T("abc"), nullptr, &y, 0, 0, OCPNGetFont(_("Dialog")));
+diff --git a/plugins/grib_pi/src/GribRequestDialog.h b/plugins/grib_pi/src/GribRequestDialog.h
+index 6ea1c24e1..8086850ce 100644
+--- a/plugins/grib_pi/src/GribRequestDialog.h
++++ b/plugins/grib_pi/src/GribRequestDialog.h
+@@ -236,6 +236,9 @@ public:
+ private:
+   void HighlightArea(double latmax, double lonmax, double latmin,
+                      double lonmin);
++#ifdef __OCPN__IOS__
++  void SetCompactLayout();
++#endif
+   void ReadLocalCatalog();
+   void FillTreeCtrl(wxJSONValue &data);
+   void ApplyRequestConfig(unsigned rs, unsigned it, unsigned tr);
+diff --git a/plugins/grib_pi/src/GribSettingsDialog.cpp b/plugins/grib_pi/src/GribSettingsDialog.cpp
+index 88a9a7d67..c6d81f3f6 100644
+--- a/plugins/grib_pi/src/GribSettingsDialog.cpp
++++ b/plugins/grib_pi/src/GribSettingsDialog.cpp
+@@ -24,6 +24,9 @@
+ 
+ #include "grib_pi.h"
+ #include "folder.xpm"
++#ifdef __OCPN__IOS__
++#include <QWidget>
++#endif
+ 
+ static const wxString units0_names[] = {
+     _("Knots"), _("m/s"), _("mph"), _("km/h"), _("Beaufort"), wxEmptyString};
+@@ -644,6 +647,92 @@ double GribOverlaySettings::GetMax(int settings) {
+   return CalibrateValue(settings, max);
+ }
+ 
++#ifdef __OCPN__IOS__
++// Puts a value and the label in the grid cell before it on one row, in the
++// label's place. The value fills the rest of the row.
++static void JoinFormRow(wxFlexGridSizer *grid, wxWindow *value) {
++  size_t index = 0;
++  for (wxSizerItem *item : grid->GetChildren()) {
++    if (item->GetWindow() == value) break;
++    index++;
++  }
++  if (index == 0 || index == grid->GetItemCount()) return;
++  wxWindow *label = grid->GetItem(index - 1)->GetWindow();
++  if (!label) return;
++  label->SetMinSize(wxDefaultSize);
++  grid->Detach(label);
++  grid->Detach(value);
++  wxBoxSizer *row = new wxBoxSizer(wxHORIZONTAL);
++  row->Add(label, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5);
++  row->Add(value, 1, wxALIGN_CENTER_VERTICAL | wxALL, 5);
++  grid->Insert(index - 1, row, 0, wxEXPAND, 0);
++}
++
++// Puts a spacing number next to "Spacing (pixels)", right-aligned, with
++// Fixed and Minimum below; the empty cell below the label is dropped.
++static void MoveSpacingNumber(wxFlexGridSizer *grid, wxSizer *from,
++                              wxWindow *spin, wxFlexGridSizer *holder) {
++  if (!grid) return;
++  if (grid->GetItemCount() > 2 && grid->GetItem((size_t)2)->IsSpacer())
++    grid->Remove(2);
++  from->Detach(spin);
++  grid->Insert(1, spin, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT | wxALL, 5);
++  grid->AddGrowableCol(0);
++  if (holder && !holder->IsColGrowable(0)) holder->AddGrowableCol(0);
++}
++
++// The settings pages are stacked to the width of a phone screen.
++void GribSettingsDialog::SetCompactLayout() {
++  // Data page: one column instead of item | options | more options, with each
++  // label and value on one row. ShowSettings still shows and hides controls.
++  auto *grid =
++      dynamic_cast<wxFlexGridSizer *>(m_cDataUnits->GetContainingSizer());
++  if (grid) {
++    grid->SetCols(1);
++    grid->AddGrowableCol(0);
++    JoinFormRow(grid, m_cDataUnits);
++    JoinFormRow(grid, m_cOverlayColors);
++    JoinFormRow(grid, m_sParticleDensity);
++    MoveSpacingNumber(dynamic_cast<wxFlexGridSizer *>(
++                          m_cBarbArrFixSpac->GetContainingSizer()),
++                      m_fgBarbedData2, m_sBarbArrSpacing, m_fgBarbedData1);
++    MoveSpacingNumber(
++        dynamic_cast<wxFlexGridSizer *>(m_cDirArrFixSpac->GetContainingSizer()),
++        m_fgDirArrData2, m_sDirArrSpacing, m_fgDirArrData1);
++    MoveSpacingNumber(m_fgNumData1, grid, m_sNumbersSpacing, nullptr);
++    // Inset like the card around it (app/ios/fit_width.cpp), or the choices
++    // and switches overflow the card edge.
++    if (wxSizerItem *it = m_fgSetDataSizer->GetItem(grid, true)) {
++      it->SetFlag(wxEXPAND | wxLEFT | wxRIGHT);
++      it->SetBorder(20);
++    }
++  }
++
++  // Playback page: rows without indent, the control fills the rest of the row.
++  wxWindow *const playbackControls[] = {m_sUpdatesPerSecond, m_cLoopStartPoint,
++                                        m_sSlicesPerUpdate};
++  for (wxWindow *control : playbackControls) {
++    auto *row = dynamic_cast<wxFlexGridSizer *>(control->GetContainingSizer());
++    if (!row) continue;
++    row->GetItem((size_t)0)->SetBorder(0);
++    row->AddGrowableCol(2);
++  }
++  if (auto *playback =
++          dynamic_cast<wxFlexGridSizer *>(m_cLoopMode->GetContainingSizer())) {
++    playback->AddGrowableCol(0);
++    if (wxSizerItem *it =
++            playback->GetItem(m_cLoopStartPoint->GetContainingSizer()))
++      it->SetFlag(wxALL | wxEXPAND);
++  }
++
++  // GUI page: the names get the free width; otherwise "Data at cursor"
++  // wrapped mid-word.
++  if (auto *gui = dynamic_cast<wxFlexGridSizer *>(
++          m_biShowCursorData->GetContainingSizer()))
++    gui->AddGrowableCol(1);
++}
++#endif
++
+ GribSettingsDialog::GribSettingsDialog(GRIBUICtrlBar &parent,
+                                        GribOverlaySettings &Settings,
+                                        int &lastdatatype, int fileIntervalIndex)
+@@ -651,6 +740,9 @@ GribSettingsDialog::GribSettingsDialog(GRIBUICtrlBar &parent,
+       m_parent(parent),
+       m_extSettings(Settings),
+       m_lastdatatype(lastdatatype) {
++#ifdef __OCPN__IOS__
++  SetCompactLayout();
++#endif
+   m_Settings = m_extSettings;
+   // populate interval choice
+   m_sSlicesPerUpdate->Clear();
+@@ -753,6 +845,58 @@ void GribSettingsDialog::OnPageChange(wxNotebookEvent &event) {
+ }
+ 
+ void GribSettingsDialog::SetSettingsDialogSize() {
++#ifdef __OCPN__IOS__
++  // iOS: the dialog becomes a full-screen sheet (app/ios/window_fit.cpp). The
++  // sizing below gave the pages their content width, at most screen - 80 pt:
++  // clipped on the right and scrolling horizontally. Here: scroll vertically
++  // only and let the sheet set the width; app/ios/fit_width.cpp lays out the
++  // rows to the screen width. Height: what remains beside the header bar
++  // (window_fit), tab bar and Apply button; with a 10 pt minimum the pages
++  // disappeared (only the button showed).
++  int availH = 400, availW = -1;
++  if (wxWindow *frame = wxTheApp->GetTopWindow()) {
++    availH = frame->GetClientSize().y - 2 * m_sButton->GetSize().GetY() - 140;
++    availW = frame->GetClientSize().x;
++  }
++  availH = wxMax(200, availH);
++  // Limit the width: the notebook took the width of the widest page (GUI),
++  // after which the Data page ran off the screen.
++  if (availW > 100) m_nSettingsBook->SetMaxSize(wxSize(availW, -1));
++  for (size_t i = 0; i < m_nSettingsBook->GetPageCount(); i++) {
++    auto *sc = dynamic_cast<wxScrolledWindow *>(m_nSettingsBook->GetPage(i));
++    if (!sc) continue;
++    sc->SetScrollRate(0, 5);
++    // wxStaticBoxSizer takes at least the best width of its static box. In wxQt
++    // that is the QGroupBox sizeHint, which follows the box's current width;
++    // after a wider layout it stayed 421 pt and Data ran off the screen after
++    // visiting GUI. The title is short, so a small best width is enough.
++    for (wxWindow *c : sc->GetChildren()) {
++      if (dynamic_cast<wxStaticBox *>(c))
++        c->CacheBestSize(
++            wxSize(c->GetTextExtent(c->GetLabel()).x + 40, c->GetBestSize().y));
++      // Sliders: drop a fixed width from an earlier, wider layout (Transparency
++      // was stuck at 405 pt and the card ran off the screen). They stretch
++      // instead.
++      if (dynamic_cast<wxSlider *>(c)) {
++        c->SetMinSize(wxSize(80, c->GetMinSize().y));
++        c->SetMaxSize(wxSize(-1, -1));
++        if (QWidget *q = c->GetHandle()) {
++          q->setMinimumWidth(0);
++          q->setMaximumWidth(QWIDGETSIZE_MAX);
++        }
++      }
++    }
++    int need = availH;
++    if (wxSizer *sz = sc->GetSizer())
++      need = wxMin(availH, sz->GetMinSize().y + 10);
++    sc->SetMinSize(wxSize(10, need));
++    if (availW > 100) sc->SetMaxSize(wxSize(availW, -1));
++    if (wxSizer *sz = sc->GetSizer()) sz->FitInside(sc);
++  }
++  Layout();
++  Refresh();
++  return;
++#endif
+ #ifdef __OCPN__ANDROID__
+   /*Sizing do not work with wxScolledWindow so we need to compute it
+   using fixed X/Y margin to try to center nicely the dialog in the screen*/
+@@ -1032,6 +1176,15 @@ void GribSettingsDialog::ShowSettings(int params, bool show) {
+       // m_sIsoBarSpacing->SetMinSize(wxSize(70, -1));
+       break;
+     case ISO_LINE_SHORT:
++#ifdef __OCPN__IOS__
++      // iOS: the number next to "Spacing (pixels)" instead of one row lower,
++      // below "Always visible".
++      if (!m_fIsoBarSpacing->IsColGrowable(0))
++        m_fIsoBarSpacing->AddGrowableCol(0);
++      m_fIsoBarSpacing->Add(m_sIsoBarSpacing, 0,
++                            wxALIGN_CENTER_VERTICAL | wxALL, 5);
++      break;
++#endif
+       m_fIsoBarVisibility->Add(m_sIsoBarSpacing, 0, 5,
+                                wxTOP | wxLEFT | wxEXPAND);
+       //  m_sIsoBarSpacing->SetMinSize(wxSize(-1, -1));
+diff --git a/plugins/grib_pi/src/GribSettingsDialog.h b/plugins/grib_pi/src/GribSettingsDialog.h
+index 967334fcf..99d5eefb3 100644
+--- a/plugins/grib_pi/src/GribSettingsDialog.h
++++ b/plugins/grib_pi/src/GribSettingsDialog.h
+@@ -165,6 +165,9 @@ private:
+   void OnSpacingModeChange(wxCommandEvent& event);
+   void OnPageChange(wxNotebookEvent& event);
+   void OnCtrlandDataStyleChanged(wxCommandEvent& event);
++#ifdef __OCPN__IOS__
++  void SetCompactLayout();
++#endif
+ 
+   GRIBUICtrlBar& m_parent;
+ 
+diff --git a/plugins/grib_pi/src/GribUIDialog.cpp b/plugins/grib_pi/src/GribUIDialog.cpp
+index 0317e0a18..90b0cfb8c 100644
+--- a/plugins/grib_pi/src/GribUIDialog.cpp
++++ b/plugins/grib_pi/src/GribUIDialog.cpp
+@@ -46,12 +46,21 @@
+ #include "email.h"
+ #include "folder.xpm"
+ #include "GribUIDialog.h"
++#ifdef __OCPN__IOS__
++#include <QWidget>
++#endif
+ #include <wx/arrimpl.cpp>
+ 
+ #ifdef __ANDROID__
+ #include "android_jvm.h"
+ #endif
+ 
++#ifdef __OCPN__IOS__
++// iOS symbols and flat buttons, from the iOS app layer.
++wxBitmap ocpnios_PluginSymbol(const char *symbol, int pointSize);
++void ocpnios_FlatIconButtons(wxWindow *root);
++#endif
++
+ // general variables
+ double m_cursor_lat, m_cursor_lon;
+ int m_Altitude;
+@@ -187,6 +196,9 @@ GRIBUICtrlBar::GRIBUICtrlBar(wxWindow *parent, wxWindowID id,
+ 
+   wxFileConfig *pConf = GetOCPNConfigObject();
+ 
++#ifdef __OCPN__IOS__
++  SetCompactLayout();
++#endif
+   m_gGrabber = new GribGrabberWin(this);  // add the grabber to the dialog
+   m_fgCtrlGrabberSize->Add(m_gGrabber, 0, wxALL, 0);
+ 
+@@ -253,6 +265,43 @@ GRIBUICtrlBar::GRIBUICtrlBar(wxWindow *parent, wxWindowID id,
+ 
+     pConf->SetPath(_T ( "/Directories" ));
+     pConf->Read(_T ( "GRIBDirectory" ), &m_grib_dir);
++#ifdef __OCPN__IOS__
++    // iOS: every install gives the app a new container directory, so saved
++    // absolute paths point to a directory that no longer exists and the last
++    // GRIB file was not loaded. Use the same file name under Documents. GRIB
++    // files get their own Documents/GRIB folder ("OpenCPN > GRIB" in the Files
++    // app) instead of lying loose next to Charts and log; loose ones are moved
++    // there.
++    {
++      wxString docs = wxStandardPaths::Get().GetDocumentsDir();
++      wxString gribs = docs + wxFileName::GetPathSeparator() + _T("GRIB");
++      if (!wxDir::Exists(gribs))
++        wxFileName::Mkdir(gribs, 0755, wxPATH_MKDIR_FULL);
++      {
++        wxArrayString loose;
++        wxDir::GetAllFiles(docs, &loose, wxEmptyString, wxDIR_FILES);
++        for (const wxString &f : loose) {
++          wxString ext = wxFileName(f).GetExt().Lower();
++          if (ext == _T("grb") || ext == _T("grb2") || ext == _T("grib") ||
++              ext == _T("grib2"))
++            wxRenameFile(f,
++                         gribs + wxFileName::GetPathSeparator() +
++                             wxFileName(f).GetFullName(),
++                         false);
++        }
++      }
++      wxString d = m_grib_dir;
++      while (d.EndsWith(_T("/"))) d.RemoveLast();
++      if (!wxDir::Exists(m_grib_dir) || d == docs) m_grib_dir = gribs;
++      for (size_t i = 0; i < m_file_names.GetCount(); i++) {
++        if (wxFileName::FileExists(m_file_names[i])) continue;
++        const wxString name = wxFileName(m_file_names[i]).GetFullName();
++        wxFileName moved(gribs, name);
++        if (!moved.FileExists()) moved = wxFileName(docs, name);
++        if (moved.FileExists()) m_file_names[i] = moved.GetFullPath();
++      }
++    }
++#endif
+ 
+     pConf->SetPath(_T( "/PlugIns/GRIB" ));
+     pConf->Read(_T( "ManualRequestZoneSizing" ), &m_SavedZoneSelMode, 0);
+@@ -382,6 +431,88 @@ GRIBUICtrlBar::~GRIBUICtrlBar() {
+   delete m_pTimelineSet;
+ }
+ 
++#ifdef __OCPN__IOS__
++// The wide bar does not fit on an iPhone. Use the compact layout of Android,
++// keeping the open file and request buttons that Android has elsewhere.
++void GRIBUICtrlBar::SetCompactLayout() {
++  // As on Android, the grabber and the boat projection are not shown.
++  m_fgCtrlBarSizer->Detach(m_fgCtrlGrabberSize);
++  m_fgCtrlBarSizer = new wxFlexGridSizer(0, 1, 0, 0);
++  m_fgCtrlBarSizer->AddGrowableCol(0);
++  m_fgCtrlBarSizer->SetFlexibleDirection(wxHORIZONTAL);
++  m_fgCtrlBarSizer->SetNonFlexibleGrowMode(wxFLEX_GROWMODE_NONE);
++  // Deletes the wide layout; its controls are reused below.
++  SetSizer(m_fgCtrlBarSizer);
++  m_ProjectBoatPanel->Destroy();
++  m_ProjectBoatPanel = nullptr;
++
++  wxBoxSizer *mainBox = new wxBoxSizer(wxVERTICAL);
++  m_fgCtrlBarSizer->Add(mainBox, 1, wxEXPAND, 0);
++
++  // The time spans the row between the arrows, which keep the sheet margin.
++  wxBoxSizer *timeRow = new wxBoxSizer(wxHORIZONTAL);
++  mainBox->Add(timeRow, 0, wxEXPAND, 5);
++  timeRow->Add(m_bpPrev, 0, wxLEFT, 8);
++  timeRow->Add(m_cRecordForecast, 1, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT,
++               4);
++  timeRow->Add(m_bpNext, 0, wxRIGHT, 8);
++
++  // The time slider gets the free space between the buttons.
++  wxBoxSizer *buttonRow = new wxBoxSizer(wxHORIZONTAL);
++  mainBox->Add(buttonRow, 0, wxEXPAND, 5);
++  buttonRow->Add(m_bpAltitude, 0, wxALL, 1);
++  buttonRow->Add(m_bpNow, 0, wxALL, 1);
++  buttonRow->Add(m_bpZoomToCenter, 0, wxALL, 1);
++  buttonRow->Add(m_bpShowCursorData, 0, wxALL, 1);
++  buttonRow->Add(m_bpPlay, 0, wxBOTTOM | wxLEFT | wxTOP, 1);
++  m_sTimeline->SetMinSize(wxSize(80, -1));
++  buttonRow->Add(m_sTimeline, 1, wxEXPAND | wxLEFT | wxRIGHT, 4);
++  buttonRow->Add(m_bpOpenFile, 0, wxALL, 1);
++  buttonRow->Add(m_bpSettings, 0, wxALL, 1);
++  buttonRow->Add(m_bpRequest, 0, wxALL, 1);
++
++  m_fgCDataSizer = new wxFlexGridSizer(0, 2, 0, 0);
++  m_fgCDataSizer->SetFlexibleDirection(wxVERTICAL);
++  m_fgCDataSizer->AddGrowableCol(0);
++  m_fgCDataSizer->SetNonFlexibleGrowMode(wxFLEX_GROWMODE_SPECIFIED);
++  mainBox->Add(m_fgCDataSizer, 1, wxEXPAND, 5);
++
++  ocpnios_FlatIconButtons(this);
++  // A bottom panel below the chart (app/ios/window_fit.cpp), even when the
++  // cursor data makes the bar taller than 40% of the screen.
++  if (QWidget *q = GetHandle()) q->setProperty("ocpnios_panel", true);
++}
++
++wxBitmap GRIBUICtrlBar::GetScaledBitmap(wxBitmap bitmap,
++                                        const wxString svgFileName,
++                                        double scale_factor) {
++  // Same meaning per button; unknown names keep the bitmap.
++  static const char *const kSymbols[][2] = {
++      {"prev", "chevron.left"},
++      {"next", "chevron.right"},
++      {"altitude", "square.3.layers.3d"},
++      {"now", "clock.arrow.circlepath"},
++      {"zoomto", "viewfinder"},
++      {"curdata", "list.bullet.rectangle.fill"},
++      {"ncurdata", "list.bullet.rectangle"},
++      {"play", "play.fill"},
++      {"stop", "stop.fill"},
++      {"openfile", "folder"},
++      {"setting", "gearshape"},
++      {"request", "icloud.and.arrow.down"},
++      {"request_end", "checkmark.icloud"},
++      {"selzone", "rectangle.dashed"},
++  };
++  for (const auto &s : kSymbols) {
++    if (svgFileName != s[0]) continue;
++    wxBitmap symbol = ocpnios_PluginSymbol(s[1], 20);
++    if (symbol.IsOk()) return symbol;
++    break;
++  }
++  return GRIBUICtrlBarBase::GetScaledBitmap(bitmap, svgFileName, scale_factor);
++}
++#endif
++
+ void GRIBUICtrlBar::SetScaledBitmap(double factor) {
+   //  Round to the nearest "quarter", to avoid rendering artifacts
+   m_ScaledFactor = wxRound(factor * 4.0) / 4.0;
+@@ -411,7 +542,7 @@ void GRIBUICtrlBar::SetScaledBitmap(double factor) {
+ 
+   // Careful here, this MinSize() sets the final width of the control bar,
+   // overriding the width of the wxChoice above it.
+-#ifdef __OCPN__ANDROID__
++#if defined(__OCPN__ANDROID__) || defined(__OCPN__IOS__)
+   m_sTimeline->SetSize(wxSize(20 * m_ScaledFactor, -1));
+   m_sTimeline->SetMinSize(wxSize(20 * m_ScaledFactor, -1));
+ #else
+@@ -462,6 +593,20 @@ void GRIBUICtrlBar::OpenFile(bool newestFile) {
+   ArrayOfGribRecordSets *rsa = m_bGRIBActiveFile->GetRecordSetArrayPtr();
+   wxString title;
+   if (m_bGRIBActiveFile->IsOK()) {
++#ifdef __OCPN__IOS__
++    // iOS: upstream saves the directory and file names only in ~GRIBUICtrlBar.
++    // iOS terminates the app without running it, so the last file was lost
++    // after a restart. Write it immediately.
++    if (wxFileConfig *cfg = GetOCPNConfigObject()) {
++      cfg->DeleteGroup(_T("/Settings/GRIB/FileNames"));
++      cfg->SetPath(_T("/Settings/GRIB/FileNames"));
++      for (unsigned int i = 0; i < m_file_names.GetCount(); i++)
++        cfg->Write(wxString::Format(_T("Filename%u"), i), m_file_names[i]);
++      cfg->SetPath(_T("/Directories"));
++      cfg->Write(_T("GRIBDirectory"), m_grib_dir);
++      cfg->Flush();
++    }
++#endif
+     wxFileName fn(m_bGRIBActiveFile->GetFileNames()[0]);
+     title = (_("File: "));
+     title.Append(fn.GetFullName());
+@@ -1741,6 +1886,27 @@ void GRIBUICtrlBar::PopulateComboDataList() {
+     m_cRecordForecast->Append(toUsrDateTimeFormat_Plugin(t));
+   }
+   m_cRecordForecast->SetSelection(index);
++#ifdef __OCPN__IOS__
++  // iOS: the choice got its width when the bar opened, while it only held
++  // "Item0", and then showed just the first letter of the date. Size it to the
++  // longest time plus room for the arrow.
++  {
++    int w = 0;
++    for (unsigned int i = 0; i < m_cRecordForecast->GetCount(); i++)
++      w = wxMax(
++          w,
++          m_cRecordForecast->GetTextExtent(m_cRecordForecast->GetString(i)).x);
++    const int need = w + 60;
++    m_cRecordForecast->SetMinSize(wxSize(need, -1));
++    m_cRecordForecast->SetMaxSize(wxSize(-1, -1));
++    if (QWidget *q = m_cRecordForecast->GetHandle()) {
++      q->setMaximumWidth(QWIDGETSIZE_MAX);
++      q->setMinimumWidth(need);
++    }
++    Layout();
++    Fit();
++  }
++#endif
+ }
+ 
+ void GRIBUICtrlBar::OnZoomToCenterClick(wxCommandEvent &event) {
+diff --git a/plugins/grib_pi/src/GribUIDialog.h b/plugins/grib_pi/src/GribUIDialog.h
+index 85041d311..8d22676a3 100644
+--- a/plugins/grib_pi/src/GribUIDialog.h
++++ b/plugins/grib_pi/src/GribUIDialog.h
+@@ -249,6 +249,11 @@ public:
+     return id > wxID_ANY && id < (int)GribOverlaySettings::GEO_ALTITUDE;
+   }
+   void SetScaledBitmap(double factor);
++#ifdef __OCPN__IOS__
++  /** Hides the base version to show iOS symbols instead of the bitmaps. */
++  static wxBitmap GetScaledBitmap(wxBitmap bitmap, const wxString svgFileName,
++                                  double scale_factor);
++#endif
+   void OpenFileFromJSON(wxString json);
+ 
+   //
+@@ -358,6 +363,9 @@ private:
+   void OnRequestForecastData(wxCommandEvent &event);
+   void createRequestDialog();
+   void OnCompositeDialog(wxCommandEvent &event);
++#ifdef __OCPN__IOS__
++  void SetCompactLayout();
++#endif
+ 
+   void OnTimeline(wxScrollEvent &event);
+   void OnShowCursorData(wxCommandEvent &event);
+diff --git a/plugins/grib_pi/src/grib_pi.cpp b/plugins/grib_pi/src/grib_pi.cpp
+index 1baceb60c..76acfa990 100644
+--- a/plugins/grib_pi/src/grib_pi.cpp
++++ b/plugins/grib_pi/src/grib_pi.cpp
+@@ -232,6 +232,23 @@ bool grib_pi::MouseEventHook(wxMouseEvent &event) {
+ 
+ void grib_pi::ShowPreferencesDialog(wxWindow *parent) {
+   GribPreferencesDialog *Pref = new GribPreferencesDialog(parent);
++#ifdef __OCPN__IOS__
++  // The directory box belongs in the scrolled window, like its content; with
++  // the dialog as parent its title overlapped the radio buttons above.
++  if (auto *folder = dynamic_cast<wxStaticBoxSizer *>(
++          Pref->m_textDirectory->GetContainingSizer())) {
++    wxWindow *scrollWin = Pref->m_textDirectory->GetParent();
++    wxWindow *browse = folder->GetItem((size_t)1)->GetWindow();
++    auto *box = new wxStaticBox(scrollWin, wxID_ANY,
++                                folder->GetStaticBox()->GetLabel());
++    box->Lower();  // below the controls it frames
++    auto *moved = new wxStaticBoxSizer(box, wxHORIZONTAL);
++    // Deletes the old sizer and its box; the controls are added again below.
++    scrollWin->GetSizer()->Replace(folder, moved);
++    moved->Add(Pref->m_textDirectory, 1, wxALL, 5);
++    moved->Add(browse, 0, wxALL, 5);
++  }
++#endif
+ 
+   DimeWindow(Pref);     // aplly global colours scheme
+   SetDialogFont(Pref);  // Apply global font
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,9 +1,10 @@
 // iOS parts of the OpenCPN main frame (gui/src/ocpn_frame.cpp) and of MyApp
 // (gui/src/ocpn_app.cpp): resize handling during rotation, colours of menu bar and
-// status bar per colour scheme, end of startup, floating plugin panes. Members of
+// status bar per colour scheme, end of startup. Members of
 // MyFrame are declared in gui/include/gui/ocpn_frame.h; the free functions are
 // declared at their call sites. They live here so that the core files only carry
-// the hooks that call them.
+// the hooks that call them. Built once MyFrame declares IosOnSize
+// (app/CMakeLists.txt).
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "gl_headers.h"  // Must come before anything using GL stuff
 
@@ -19,6 +20,7 @@
 #include "compass.h"
 #include "navutil.h"         // pConfig
 #include "ocpn_frame.h"
+#include "toolbar.h"         // g_MainToolbar
 #include "color_scheme.h"    // OcpnIosApplyUiColors (app/ios/color_scheme.mm)
 
 #ifdef __OCPN__IOS__
@@ -85,6 +87,59 @@ void MyFrame::IosRescaleCanvases() {
   }
 }
 
+// iOS: place the overlays on the chart again (zoom bar, compass, chart bar, toolbar).
+// Called from ApplySafeArea (app/ios/window_fit.cpp) after the safe area or the
+// orientation changed. After rotating back to portrait the zoom bar stayed in the
+// middle of the screen (Xander, TestFlight build 5): on the device the new safe area
+// can arrive after the resize, and MyFrame::IosOnSize skips a repeated size event with
+// the same size, so nothing placed the bars again. Only while the app is active:
+// resizing the GL canvas in the background crashes in Qt (crash report build 5).
+void ocpnios_RelayoutOverlays() {
+  if (!gFrame || !qGuiApp) return;
+  if (QGuiApplication::applicationState() != Qt::ApplicationActive) {
+    // Rotated while in the background: place the bars once the app is active again.
+    static bool waiting = false;
+    if (!waiting) {
+      waiting = true;
+      auto *conn = new QMetaObject::Connection;
+      *conn = QObject::connect(qGuiApp, &QGuiApplication::applicationStateChanged, qGuiApp,
+                               [conn](Qt::ApplicationState st) {
+                                 if (st != Qt::ApplicationActive) return;
+                                 QObject::disconnect(*conn);
+                                 delete conn;
+                                 waiting = false;
+                                 ocpnios_RelayoutOverlays();
+                               });
+    }
+    return;
+  }
+  for (unsigned int i = 0; i < g_canvasArray.GetCount(); i++) {
+    ChartCanvas *cc = g_canvasArray.Item(i);
+    if (!cc) continue;
+    cc->SetMUIBarPosition();
+    cc->FormatPianoKeys();
+    if (cc->GetCompass()) cc->UpdateGPSCompassStatusBox(true);
+    cc->Refresh(false);
+  }
+  if (g_MainToolbar) {
+    g_MainToolbar->SetDefaultPosition();
+    g_MainToolbar->Realize();
+  }
+}
+
+// iOS: screen rectangle of the main toolbar, so a floating plugin window
+// (mayara_pi, see app/cmake/ios-plugins.cmake) can leave it reachable. Empty
+// when there is no toolbar.
+wxRect ocpnios_ToolbarScreenRect() {
+  if (!g_MainToolbar || !g_MainToolbar->IsToolbarShown()) return wxRect();
+  ChartCanvas *cc = g_canvasArray.GetCount() ? g_canvasArray.Item(0) : nullptr;
+  if (!cc) return wxRect();
+  wxRect r = g_MainToolbar->GetToolbarRect();
+  r.SetPosition(cc->ClientToScreen(r.GetPosition()));
+  wxLogDebug("ocpnios: toolbar rect %d,%d %dx%d", r.x, r.y, r.width, r.height);
+  return r;
+}
+
 // iOS: end of startup, called from the last step of MyFrame::OnInitTimer.
 void ocpnios_OnStartupDone() {
   // iOS: iOS never quits an app cleanly (it is suspended and later killed), so
@@ -116,26 +171,4 @@ void ocpnios_OnStartupDone() {
   }
 }
 
-// iOS: plugin instrument panes (Dashboard, Tactics) are never docked next to the
-// chart. Docked, the pane took a whole column and left a large grey area below
-// the instruments. Floating instead, and draggable over the chart
-// (app/ios/window_fit.cpp). A docked position saved earlier floats on startup.
-// Called from MyApp::BuildMainFrame (ocpn_app.cpp) and ApplyLocale (ocpn_frame.cpp).
-void ocpnios_FloatPluginPanes(wxAuiManager* mgr) {
-  if (!mgr) return;
-  bool changed = false;
-  wxAuiPaneInfoArray& panes = mgr->GetAllPanes();
-  for (size_t i = 0; i < panes.GetCount(); i++) {
-    wxAuiPaneInfo& p = panes.Item(i);
-    if (!p.window || dynamic_cast<ChartCanvas*>(p.window)) continue;
-    if (p.IsToolbar()) continue;
-    p.Dockable(false);
-    if (p.IsDocked()) {
-      p.Float();
-      if (p.floating_pos.x < 0 || p.floating_pos.y < 0) p.FloatingPosition(80, 80);
-      changed = true;
-    }
-  }
-  if (changed) mgr->Update();
-}
 #endif

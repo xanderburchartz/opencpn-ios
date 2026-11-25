@@ -1,0 +1,34 @@
+From 78cac5c64f4065d6a7fbc31121f7092ebda96d96 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 07/32] ChartCanvas: stop a running jump animation when zooming
+
+StartSmoothJump animates position and scale with m_easeTimer. Zooming
+while it runs (for example right after the own-ship button) is undone
+because the next animation step resets the scale. Stop the animation in
+DoZoomCanvas.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/chcanv.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/gui/src/chcanv.cpp b/gui/src/chcanv.cpp
+index b0c9ea82e..1e11f4768 100644
+--- a/gui/src/chcanv.cpp
++++ b/gui/src/chcanv.cpp
+@@ -4726,6 +4726,11 @@ void ChartCanvas::DoZoomCanvas(double factor, bool can_zoom_to_cursor) {
+ 
+   //    Cannot allow Yield() re-entrancy here
+   if (m_bzooming) return;
++  // Stop a running jump animation, it would reset the scale every frame.
++  if (m_animationActive) {
++    m_easeTimer.Stop();
++    m_animationActive = false;
++  }
+   m_bzooming = true;
+ 
+   double old_ppm = GetVP().view_scale_ppm;
+-- 
+2.54.0 (Apple Git-157)
+

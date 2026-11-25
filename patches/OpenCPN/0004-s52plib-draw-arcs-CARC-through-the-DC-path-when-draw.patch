@@ -1,0 +1,37 @@
+From 98f93e670ad27a64ef0adac145a4c92e5003dc1b Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 04/32] s52plib: draw arcs (CARC) through the DC path when
+ drawing to a DC
+
+RenderCARC chooses RenderCARC_GLSL whenever m_useGLSL is set. m_useGLSL is
+set by SetGLOptions and never cleared, but RenderCARC_GLSL only draws with
+GL and has no wxDC branch. When the chart is drawn to a DC (m_pdc set)
+after GL was enabled, arcs such as light sectors do not end up on the
+DC. Use the GLSL path only when there is no DC.
+
+Same change as OpenCPN pull request #5555.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ libs/s52plib/src/s52plib.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libs/s52plib/src/s52plib.cpp b/libs/s52plib/src/s52plib.cpp
+index 7bbfdb532..5c29265b7 100644
+--- a/libs/s52plib/src/s52plib.cpp
++++ b/libs/s52plib/src/s52plib.cpp
+@@ -7098,7 +7098,9 @@ int s52plib::RenderMPS(ObjRazRules *rzRules, Rules *rules) {
+ 
+ int s52plib::RenderCARC(ObjRazRules *rzRules, Rules *rules) {
+ #ifdef ocpnUSE_GL
+-  if (m_useGLSL)
++  // m_useGLSL stays true once the GL options were set, also when drawing to a
++  // wxDC; RenderCARC_GLSL has no DC branch.
++  if (m_useGLSL && !m_pdc)
+     return RenderCARC_GLSL(rzRules, rules);
+   else
+ #endif
+-- 
+2.54.0 (Apple Git-157)
+

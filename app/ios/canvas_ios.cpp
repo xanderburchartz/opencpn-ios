@@ -7,7 +7,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "gl_headers.h"  // Must come before anything using GL stuff
 
+#include <algorithm>
 #include <cmath>
+#include <map>
 
 #include <wx/wx.h>
 #include <wx/checkbox.h>
@@ -59,7 +61,7 @@ void ChartCanvas::IosOnZoom(wxZoomGestureEvent &event) {
     m_drag_vec_x.clear();
     m_drag_vec_y.clear();
     m_drag_vec_t.clear();
-    m_ocpnios_pinch_seen = true;
+    m_iosPinchSeen = true;
     return;
   }
   if (!s_inPinch || event.IsGestureStart() || event.IsGestureEnd()) return;
@@ -88,8 +90,8 @@ bool ChartCanvas::IosClampDragTime(size_t n_vel, double &tacc) {
   // iOS: with tacc == 0 (all samples in the same ms, or no samples, e.g. after a
   // pinch) the velocity became infinite, followed by wxRound asserts and the chart
   // at an unusable position. Never apply inertia after a pinch.
-  if (!(tacc > 0) || m_ocpnios_pinch_seen) {
-    m_ocpnios_pinch_seen = false;
+  if (!(tacc > 0) || m_iosPinchSeen) {
+    m_iosPinchSeen = false;
     m_drag_vec_x.clear();
     m_drag_vec_y.clear();
     m_drag_vec_t.clear();
@@ -171,8 +173,8 @@ void ChartCanvas::IosRedrawNewCoverage(wxMemoryDC &temp_dc, ViewPort &svp,
   m_pQuilt->ComputeRenderRegion(svp, chart_get_region);
   OCPNRegion diff = m_pQuilt->GetFullQuiltRenderedRegion();
   if (diff.IsOk() && !diff.IsEmpty()) {
-    if (m_ocpnios_cache_rendered.IsOk()) {
-      OCPNRegion old_r = m_ocpnios_cache_rendered;
+    if (m_iosCacheRendered.IsOk()) {
+      OCPNRegion old_r = m_iosCacheRendered;
       old_r.Offset(-dx, -dy);
       diff.Subtract(old_r);
     }
@@ -197,8 +199,21 @@ void ChartCanvas::IosUpdateCompassScale(bool &b_update) {
       m_displayScale = cs;
       VPoint.SetPixelScale(m_displayScale);
     }
-    if (cs != m_ocpnios_compass_cs) {
-      m_ocpnios_compass_cs = cs;
+    // After rotating the compass/GPS box stood partly off the right edge (TestFlight
+    // build 4, iPhone Pro Max with the notification bell): its width (m_rect) came from
+    // SetScaleFactor, while CreateBmp draws from backgrounds it keeps from an earlier
+    // call. Rebuild the bitmap once per canvas size, so the width used for placing the
+    // box below is the width that is drawn.
+    static std::map<ChartCanvas *, wxSize> s_lastSize;
+    const wxSize size = GetSize();
+    if (s_lastSize[this] != size && cs == m_iosCompassScale) {
+      s_lastSize[this] = size;
+      m_Compass->UpdateStatus(true);
+      if (m_notification_button) m_notification_button->UpdateStatus(true);
+      b_update = true;
+    }
+    if (cs != m_iosCompassScale) {
+      m_iosCompassScale = cs;
       m_Compass->SetScaleFactor(g_compass_scalefactor);
       // The notification bell has the same problem; UpdateStatus(true) recreates
       // its (static) background at the new size.

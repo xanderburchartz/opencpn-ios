@@ -1,23 +1,74 @@
-From b114fe5ec71b3137ef93721e307957125cf1011e Mon Sep 17 00:00:00 2001
+From 667e79a2c1801bfd120f7b16ab706b921313fe26 Mon Sep 17 00:00:00 2001
 From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:50:09 +0100
-Subject: [PATCH 07/13] iOS: Options dialog for small touch screens
+Subject: [PATCH 22/32] iOS: Options dialog for small touch screens
 
 On iOS the Options dialog works like the Settings app: a category list,
 pages with a back button, and pages fitted to the phone width. The layout
 code itself lives in the iOS app layer (app/ios/options_ios.cpp in the
-opencpn-ios repository); options.cpp only gets the hooks that call it and
-a few iOS-specific control settings.
-
-All changes are inside #ifdef __OCPN__IOS__; other platforms are unchanged.
+opencpn-ios repository); options.cpp gets the hooks that call it and the
+iOS layout of single controls.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- gui/src/options.cpp | 567 ++++++++++++++++++++++++++++++++++++--------
- 1 file changed, 470 insertions(+), 97 deletions(-)
+ gui/include/gui/options.h       |  32 +++
+ gui/src/options.cpp             | 358 +++++++++++++++++++++++++++++++-
+ model/include/model/ios_hooks.h |   9 +-
+ 3 files changed, 393 insertions(+), 6 deletions(-)
 
+diff --git a/gui/include/gui/options.h b/gui/include/gui/options.h
+index 62188b1cf..29b45c2ca 100644
+--- a/gui/include/gui/options.h
++++ b/gui/include/gui/options.h
+@@ -295,7 +295,11 @@ public:
+ 
+   void OnClose(wxCloseEvent &event);
+ 
++#ifdef __OCPN__IOS__
++  void ShowOKButtons(bool _show);  // app/ios/options_ios.cpp
++#else
+   void ShowOKButtons(bool _show) { m_OK_Cancel_Apply_buttons->Show(_show); }
++#endif
+ 
+   void CreateListbookIcons();
+   void CreateControls(void);
+@@ -404,6 +408,34 @@ public:
+ #else
+   wxNotebook *m_pListbook;
+ #endif
++#ifdef __OCPN__IOS__
++  // iOS: settings as iOS-style navigation (list, then page with a back button).
++  // Levels: 0 = categories, 1 = sections of a category (the tabs of a
++  // wxNotebook page), 2 = the page itself.
++  void IosShowList(bool list);
++  void IosGoLevel(int level);
++  void IosOpenCategory();
++  void IosOpenSubPage(int idx);
++  void IosBack();
++  void IosApplyLayout();
++  void IosApplyLook();
++  int m_iosLookDark = -1;  // last applied dark mode (IosApplyLayout)
++  wxNotebook *IosCurrentNotebook();
++  void IosFitPage(wxWindow *page);
++  bool m_iosListMode = true;
++  int m_iosLevel = 0;
++  wxButton *m_iosBackButton = nullptr;
++  wxStaticText *m_iosTitle = nullptr;
++  wxBoxSizer *m_iosHead = nullptr;
++  wxListBox *m_iosSubList = nullptr;
++  // Parts of CreateControls / CreatePanel_Units (app/ios/options_ios.cpp).
++  void IosCreateHeader(options *itemDialog1, wxBoxSizer *itemBoxSizer2,
++                       int border_size);
++  void IosSetupNavLists();
++  void IosMoveButtonsToHeader(int border_size);
++  void IosAddMagVarRow(wxScrolledWindow *panelUnits,
++                       wxFlexGridSizer *unitsSizer, int group_item_spacing);
++#endif
+ 
+   wxBoxSizer *m_OK_Cancel_Apply_buttons;
+ 
 diff --git a/gui/src/options.cpp b/gui/src/options.cpp
-index 763c23d97..6a6e07f7a 100644
+index 763c23d97..9a438ffa7 100644
 --- a/gui/src/options.cpp
 +++ b/gui/src/options.cpp
 @@ -166,6 +166,11 @@ static inline wxString ttCoordFormat() {
@@ -37,7 +88,7 @@ index 763c23d97..6a6e07f7a 100644
  END_EVENT_TABLE()
  
 +#ifdef __OCPN__IOS__
-+wxString ocpnios_DisplayPath(const wxString& path);  // app/ios/display_path.cpp
++#include "model/ios_hooks.h"
 +#endif
  OCPNChartDirPanel::OCPNChartDirPanel(wxWindow* parent, wxWindowID id,
                                       const wxPoint& pos, const wxSize& size,
@@ -122,44 +173,19 @@ index 763c23d97..6a6e07f7a 100644
  
  #if wxUSE_TIMEPICKCTRL
    pTrackDaily->SetLabel(_("Automatic Daily Tracks at"));
-@@ -2116,35 +2162,55 @@ void options::CreatePanel_Ownship(size_t parent, int border_size,
-                    border_size);
- #endif  // wxUSE_TIMEPICKCTRL
- 
-+  // iOS: radio buttons on their own line; all on one line was wider than the
-+  // screen (see also shipToActiveGrid above).
-+#ifdef __OCPN__IOS__
-+  wxBoxSizer* trackRadioSizer = new wxBoxSizer(wxHORIZONTAL);
-+#else
-+  wxBoxSizer* trackRadioSizer = trackSizer1;
-+#endif
-   pTrackRotateComputerTime =
-       new wxRadioButton(itemPanelShip, ID_TRACKROTATECOMPUTER, _("Computer"),
-                         wxDefaultPosition, wxDefaultSize, 0);
--  trackSizer1->Add(pTrackRotateComputerTime, 0,
--                   wxALIGN_CENTER_VERTICAL | wxRIGHT, border_size);
-+  trackRadioSizer->Add(pTrackRotateComputerTime, 0,
-+                       wxALIGN_CENTER_VERTICAL | wxRIGHT, border_size);
- 
-   pTrackRotateUTC =
-       new wxRadioButton(itemPanelShip, ID_TRACKROTATEUTC, _("UTC"),
-                         wxDefaultPosition, wxDefaultSize, 0);
--  trackSizer1->Add(pTrackRotateUTC, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT,
--                   border_size);
-+  trackRadioSizer->Add(pTrackRotateUTC, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT,
-+                       border_size);
- 
-   pTrackRotateLMT =
-       new wxRadioButton(itemPanelShip, ID_TRACKROTATELMT, _("LMT"),
-                         wxDefaultPosition, wxDefaultSize, 0);
--  trackSizer1->Add(pTrackRotateLMT, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT,
--                   border_size);
-+  trackRadioSizer->Add(pTrackRotateLMT, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT,
-+                       border_size);
+@@ -2136,15 +2182,36 @@ void options::CreatePanel_Ownship(size_t parent, int border_size,
  
    trackSizer->Add(trackSizer1, 1, wxEXPAND | wxALL, border_size);
  
 +#ifdef __OCPN__IOS__
++  // iOS: the radio buttons on their own row; on one row with the daily track
++  // time it was wider than the screen.
++  wxBoxSizer* trackRadioSizer = new wxBoxSizer(wxHORIZONTAL);
++  for (wxWindow* rb :
++       {pTrackRotateComputerTime, pTrackRotateUTC, pTrackRotateLMT}) {
++    trackSizer1->Detach(rb);
++    trackRadioSizer->Add(rb, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, border_size);
++  }
 +  trackSizer->Add(trackRadioSizer, 0, wxALIGN_RIGHT | wxLEFT | wxRIGHT,
 +                  border_size);
 +  // Highlight and colour in two columns instead of three side by side.
@@ -184,23 +210,7 @@ index 763c23d97..6a6e07f7a 100644
    wxStaticText* trackColourText =
        new wxStaticText(itemPanelShip, wxID_STATIC, _("Highlight Color"));
    hTrackGrid->Add(trackColourText, 1, wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL,
-@@ -2170,6 +2236,15 @@ void options::CreatePanel_Ownship(size_t parent, int border_size,
-                   group_item_spacing);
- }
- 
-+// iOS: on a narrow iPhone screen, label and input are stacked (one column)
-+// where a row would otherwise be wider than the screen (Routes/Points: 270 pt
-+// icon picker next to its label).
-+#ifdef __OCPN__IOS__
-+#define OCPNIOS_NARROW_COLS 1
-+#else
-+#define OCPNIOS_NARROW_COLS 2
-+#endif
-+
- void options::CreatePanel_Routes(size_t parent, int border_size,
-                                  int group_item_spacing) {
-   itemPanelRoutes = AddPage(parent, _("Routes/Points"));
-@@ -2196,15 +2271,26 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
+@@ -2196,15 +2263,33 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
    m_persist_active_route_chkbox = new wxCheckBox(
        itemPanelRoutes, wxID_ANY,
        _("Persist active route, automatically activate on start up"));
@@ -221,42 +231,52 @@ index 763c23d97..6a6e07f7a 100644
    routeSizer->AddSpacer(5);
  
    // Default ICON
--  wxFlexGridSizer* routepointiconSelect =
--      new wxFlexGridSizer(1, 2, group_item_spacing, group_item_spacing);
--  routepointiconSelect->AddGrowableCol(1);
-+  wxFlexGridSizer* routepointiconSelect = new wxFlexGridSizer(
-+      0, OCPNIOS_NARROW_COLS, group_item_spacing, group_item_spacing);
-+  routepointiconSelect->AddGrowableCol(OCPNIOS_NARROW_COLS - 1);
++#ifdef __OCPN__IOS__
++  // iOS: label above the input; side by side was wider than an iPhone.
++  wxFlexGridSizer* routepointiconSelect =
++      new wxFlexGridSizer(0, 1, group_item_spacing, group_item_spacing);
++  routepointiconSelect->AddGrowableCol(0);
++#else
+   wxFlexGridSizer* routepointiconSelect =
+       new wxFlexGridSizer(1, 2, group_item_spacing, group_item_spacing);
+   routepointiconSelect->AddGrowableCol(1);
++#endif
    routeSizer->Add(routepointiconSelect, 0, wxLEFT | wxRIGHT | wxEXPAND,
                    border_size);
  
-@@ -2265,9 +2351,9 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
+@@ -2265,9 +2350,15 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
    waypointSizer->AddSpacer(5);
  
    // Default ICON
--  wxFlexGridSizer* waypointiconSelect =
--      new wxFlexGridSizer(1, 2, group_item_spacing, group_item_spacing);
--  waypointiconSelect->AddGrowableCol(1);
-+  wxFlexGridSizer* waypointiconSelect = new wxFlexGridSizer(
-+      0, OCPNIOS_NARROW_COLS, group_item_spacing, group_item_spacing);
-+  waypointiconSelect->AddGrowableCol(OCPNIOS_NARROW_COLS - 1);
++#ifdef __OCPN__IOS__
++  wxFlexGridSizer* waypointiconSelect =
++      new wxFlexGridSizer(0, 1, group_item_spacing, group_item_spacing);
++  waypointiconSelect->AddGrowableCol(0);
++#else
+   wxFlexGridSizer* waypointiconSelect =
+       new wxFlexGridSizer(1, 2, group_item_spacing, group_item_spacing);
+   waypointiconSelect->AddGrowableCol(1);
++#endif
    waypointSizer->Add(waypointiconSelect, 0, wxLEFT | wxRIGHT | wxEXPAND,
                       border_size);
  
-@@ -2292,9 +2378,9 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
+@@ -2292,9 +2383,15 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
  
    waypointSizer->AddSpacer(5);
    // ScaMin
--  wxFlexGridSizer* ScaMinSizer =
--      new wxFlexGridSizer(1, 2, group_item_spacing, group_item_spacing);
--  ScaMinSizer->AddGrowableCol(1);
-+  wxFlexGridSizer* ScaMinSizer = new wxFlexGridSizer(
-+      0, OCPNIOS_NARROW_COLS, group_item_spacing, group_item_spacing);
-+  ScaMinSizer->AddGrowableCol(OCPNIOS_NARROW_COLS - 1);
++#ifdef __OCPN__IOS__
++  wxFlexGridSizer* ScaMinSizer =
++      new wxFlexGridSizer(0, 1, group_item_spacing, group_item_spacing);
++  ScaMinSizer->AddGrowableCol(0);
++#else
+   wxFlexGridSizer* ScaMinSizer =
+       new wxFlexGridSizer(1, 2, group_item_spacing, group_item_spacing);
+   ScaMinSizer->AddGrowableCol(1);
++#endif
    waypointSizer->Add(ScaMinSizer, 0, wxLEFT | wxRIGHT | wxEXPAND, border_size);
    pScaMinChckB =
        new wxCheckBox(itemPanelRoutes, wxID_ANY,
-@@ -2303,6 +2389,12 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
+@@ -2303,6 +2400,12 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
    m_pText_ScaMin = new wxTextCtrl(itemPanelRoutes, -1, "TEXTTEXTTEXT");
    ScaMinSizer->Add(m_pText_ScaMin, 0, wxALL | wxALIGN_RIGHT,
                     group_item_spacing);
@@ -269,7 +289,7 @@ index 763c23d97..6a6e07f7a 100644
  
    wxFlexGridSizer* ScaMaxSizer =
        new wxFlexGridSizer(1, 2, group_item_spacing, group_item_spacing);
-@@ -2321,6 +2413,19 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
+@@ -2321,6 +2424,19 @@ void options::CreatePanel_Routes(size_t parent, int border_size,
        new wxCheckBox(itemPanelRoutes, wxID_ANY,
                       _("Override the settings for chartscale based visibility "
                         "and show always"));
@@ -289,7 +309,7 @@ index 763c23d97..6a6e07f7a 100644
    waypointSizer->Add(pScaMinOverruleChckB, 0, wxALL, 5);
  
    waypointSizer->AddSpacer(5);
-@@ -2484,6 +2589,11 @@ void options::CreatePanel_ChartsLoad(size_t parent, int border_size,
+@@ -2484,6 +2600,11 @@ void options::CreatePanel_ChartsLoad(size_t parent, int border_size,
    m_scrollRate = 1;
  #endif
    m_scrollWinChartList->SetScrollRate(m_scrollRate, m_scrollRate);
@@ -301,7 +321,7 @@ index 763c23d97..6a6e07f7a 100644
  
    boxSizerCharts = new wxBoxSizer(wxVERTICAL);
    m_scrollWinChartList->SetSizer(boxSizerCharts);
-@@ -2538,10 +2648,19 @@ void options::CreatePanel_ChartsLoad(size_t parent, int border_size,
+@@ -2538,10 +2659,19 @@ void options::CreatePanel_ChartsLoad(size_t parent, int border_size,
  
    wxFlexGridSizer* itemFlexGridSizerUpdate = new wxFlexGridSizer(1);
    itemFlexGridSizerUpdate->SetFlexibleDirection(wxHORIZONTAL);
@@ -321,7 +341,7 @@ index 763c23d97..6a6e07f7a 100644
  
    pUpdateCheckBox = new wxCheckBox(chartPanelWin, ID_UPDCHECKBOX,
                                     _("Force Full Database Rebuild"));
-@@ -2643,8 +2762,14 @@ void options::CreatePanel_Configs(size_t parent, int border_size,
+@@ -2643,8 +2773,14 @@ void options::CreatePanel_Configs(size_t parent, int border_size,
          new wxStaticBox(m_DisplayConfigsPage, wxID_ANY, _("Template Status"));
      m_templateStatusBoxSizer =
          new wxStaticBoxSizer(templateStatusBox, wxHORIZONTAL);
@@ -336,7 +356,7 @@ index 763c23d97..6a6e07f7a 100644
  
      wxBoxSizer* statSizer = new wxBoxSizer(wxVERTICAL);
      m_templateStatusBoxSizer->Add(statSizer, 0, wxALL | wxEXPAND, border_size);
-@@ -2666,17 +2791,30 @@ void options::CreatePanel_Configs(size_t parent, int border_size,
+@@ -2666,17 +2802,33 @@ void options::CreatePanel_Configs(size_t parent, int border_size,
          new wxStaticBox(m_DisplayConfigsPage, wxID_ANY, _("Saved Templates"));
      wxStaticBoxSizer* configSizer =
          new wxStaticBoxSizer(configsBox, wxHORIZONTAL);
@@ -357,20 +377,20 @@ index 763c23d97..6a6e07f7a 100644
      wxBoxSizer* boxSizercPanel = new wxBoxSizer(wxVERTICAL);
      cPanel->SetSizer(boxSizercPanel);
  
--    m_scrollWinConfigList =
--        new wxScrolledWindow(cPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
--                             wxBORDER_RAISED | wxVSCROLL);
-+    m_scrollWinConfigList = new wxScrolledWindow(
-+        cPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
 +#ifdef __OCPN__IOS__
-+        wxBORDER_NONE | wxVSCROLL);  // iOS: list as a card, no border
++    // iOS: list as a card, no border.
++    m_scrollWinConfigList =
++        new wxScrolledWindow(cPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
++                             wxBORDER_NONE | wxVSCROLL);
 +#else
-+        wxBORDER_RAISED | wxVSCROLL);
+     m_scrollWinConfigList =
+         new wxScrolledWindow(cPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                              wxBORDER_RAISED | wxVSCROLL);
 +#endif
      m_scrollWinConfigList->SetScrollRate(1, 1);
      boxSizercPanel->Add(m_scrollWinConfigList, 0, wxALL | wxEXPAND,
                          border_size);
-@@ -2891,8 +3029,14 @@ void options::OnConfigMouseSelected(wxMouseEvent& event) {
+@@ -2891,8 +3043,14 @@ void options::OnConfigMouseSelected(wxMouseEvent& event) {
          auto panel = dynamic_cast<wxPanel*>(win);
          if (panel) {
            if (panel == selectedPanel) {
@@ -385,78 +405,6 @@ index 763c23d97..6a6e07f7a 100644
              auto cPanel = dynamic_cast<ConfigPanel*>(panel);
              if (cPanel) m_selectedConfigPanelGUID = cPanel->GetConfigGUID();
            } else
-@@ -2910,6 +3054,16 @@ void options::OnConfigMouseSelected(wxMouseEvent& event) {
- void options::CreatePanel_Advanced(size_t parent, int border_size,
-                                    int group_item_spacing) {
-   m_ChartDisplayPage = AddPage(parent, _("Advanced"));
-+#ifdef __OCPN__IOS__
-+  // iOS: drop alignments that wx 3.3 ignores in these sizers and reports at
-+  // every start (sizer.cpp DoInsert): vertical centring in a vertical sizer,
-+  // right alignment in a horizontal one. See also inputFlags in CreateControls.
-+  const int kCentreV = 0;
-+  const int kRightH = 0;
-+#else
-+  const int kCentreV = wxALIGN_CENTRE_VERTICAL;
-+  const int kRightH = wxALIGN_RIGHT;
-+#endif
- 
-   if (m_bcompact) {
-     wxSize sz = g_Platform->getDisplaySize();
-@@ -2963,8 +3117,7 @@ void options::CreatePanel_Advanced(size_t parent, int border_size,
-     wxStaticText* crat = new wxStaticText(m_ChartDisplayPage, wxID_ANY,
-                                           _("Chart Rotation Averaging Time"));
-     crat->Wrap(-1);
--    wrapperSizer->Add(crat, 0,
--                      wxALL | wxEXPAND | wxALIGN_LEFT | wxALIGN_CENTRE_VERTICAL,
-+    wrapperSizer->Add(crat, 0, wxALL | wxEXPAND | wxALIGN_LEFT | kCentreV,
-                       group_item_spacing);
- 
-     wxBoxSizer* pCOGUPFilterRow = new wxBoxSizer(wxHORIZONTAL);
-@@ -2973,7 +3126,7 @@ void options::CreatePanel_Advanced(size_t parent, int border_size,
-     pCOGUPUpdateSecs =
-         new wxTextCtrl(m_ChartDisplayPage, ID_OPTEXTCTRL, "", wxDefaultPosition,
-                        wxSize(sz.x / 5, -1), wxTE_RIGHT);
--    pCOGUPFilterRow->Add(pCOGUPUpdateSecs, 0, wxALIGN_RIGHT | wxALL,
-+    pCOGUPFilterRow->Add(pCOGUPUpdateSecs, 0, kRightH | wxALL,
-                          group_item_spacing);
- 
-     pCOGUPFilterRow->Add(
-@@ -2987,10 +3140,9 @@ void options::CreatePanel_Advanced(size_t parent, int border_size,
-     wxStaticText* zoomTextHead = new wxStaticText(
-         m_ChartDisplayPage, wxID_ANY, _("Chart Zoom/Scale Weighting"));
-     zoomTextHead->Wrap(-1);
--    itemBoxSizerUI->Add(
--        zoomTextHead, 0,
--        wxALL | wxEXPAND | wxALIGN_LEFT | wxALIGN_CENTRE_VERTICAL,
--        group_item_spacing);
-+    itemBoxSizerUI->Add(zoomTextHead, 0,
-+                        wxALL | wxEXPAND | wxALIGN_LEFT | kCentreV,
-+                        group_item_spacing);
-     itemBoxSizerUI->Add(0, border_size * 1);
- 
-     itemBoxSizerUI->Add(
-@@ -3060,7 +3212,7 @@ void options::CreatePanel_Advanced(size_t parent, int border_size,
-     pScreenMM =
-         new wxTextCtrl(m_ChartDisplayPage, ID_OPTEXTCTRL, "", wxDefaultPosition,
-                        wxSize(sz.x / 5, -1), wxTE_RIGHT);
--    pmmRow->Add(pScreenMM, 0, wxALIGN_RIGHT | wxALL, group_item_spacing);
-+    pmmRow->Add(pScreenMM, 0, kRightH | wxALL, group_item_spacing);
- 
-     pmmRow->Add(new wxStaticText(m_ChartDisplayPage, wxID_ANY, _("mm")),
-                 inputFlags);
-@@ -3762,6 +3914,12 @@ void options::CreatePanel_VectorCharts(size_t parent, int border_size,
-   }
- }
- 
-+#ifdef __OCPN__IOS__
-+// iOS: tide datasets shown by file name (app/ios/options_ios.cpp).
-+wxString ocpnios_TcShow(const wxString& full);
-+wxString ocpnios_TcFull(const wxString& shown);
-+#endif
-+
- void options::CreatePanel_TidesCurrents(size_t parent, int border_size,
-                                         int group_item_spacing) {
-   wxScrolledWindow* tcPanel = AddPage(parent, _("Tides && Currents"));
 @@ -3800,6 +3958,9 @@ void options::CreatePanel_TidesCurrents(size_t parent, int border_size,
      tcDataSelected->InsertItem(li);
  
@@ -558,74 +506,26 @@ index 763c23d97..6a6e07f7a 100644
  
      // spacer
      unitsSizer->Add(0, border_size * 4);
-@@ -4538,37 +4736,44 @@ void options::CreatePanel_Units(size_t parent, int border_size,
+@@ -4538,6 +4736,10 @@ void options::CreatePanel_Units(size_t parent, int border_size,
      unitsSizer->Add(new wxStaticText(panelUnits, wxID_ANY, ""));
  
      //  Mag Heading user variation
 +#ifdef __OCPN__IOS__
 +    // iOS: as a row in the same form (app/ios/options_ios.cpp).
 +    IosAddMagVarRow(panelUnits, unitsSizer, group_item_spacing);
-+    if (false) {
-+#endif
-+      wxStaticBox* itemStaticBoxVar = new wxStaticBox(panelUnits, wxID_ANY, "");
++#else
  
--    wxStaticBox* itemStaticBoxVar = new wxStaticBox(panelUnits, wxID_ANY, "");
-+      wxStaticBoxSizer* itemStaticBoxSizerVar =
-+          new wxStaticBoxSizer(itemStaticBoxVar, wxVERTICAL);
-+      wrapperSizer->Add(itemStaticBoxSizerVar, 0, wxALL | wxEXPAND, 5);
+     wxStaticBox* itemStaticBoxVar = new wxStaticBox(panelUnits, wxID_ANY, "");
  
--    wxStaticBoxSizer* itemStaticBoxSizerVar =
--        new wxStaticBoxSizer(itemStaticBoxVar, wxVERTICAL);
--    wrapperSizer->Add(itemStaticBoxSizerVar, 0, wxALL | wxEXPAND, 5);
-+      itemStaticBoxSizerVar->Add(0, border_size * 4);
+@@ -4569,6 +4771,7 @@ void options::CreatePanel_Units(size_t parent, int border_size,
+                      group_item_spacing);
  
--    itemStaticBoxSizerVar->Add(0, border_size * 4);
-+      itemStaticTextUserVar = new wxStaticText(panelUnits, wxID_ANY,
-+                                               _("Assumed magnetic variation"));
-+      itemStaticBoxSizerVar->Add(itemStaticTextUserVar, 1, wxEXPAND | wxALL,
-+                                 group_item_spacing);
- 
--    itemStaticTextUserVar =
--        new wxStaticText(panelUnits, wxID_ANY, _("Assumed magnetic variation"));
--    itemStaticBoxSizerVar->Add(itemStaticTextUserVar, 1, wxEXPAND | wxALL,
--                               group_item_spacing);
-+      wxBoxSizer* magVarSizer = new wxBoxSizer(wxHORIZONTAL);
-+      itemStaticBoxSizerVar->Add(magVarSizer, 1, wxEXPAND | wxALL,
-+                                 group_item_spacing);
- 
--    wxBoxSizer* magVarSizer = new wxBoxSizer(wxHORIZONTAL);
--    itemStaticBoxSizerVar->Add(magVarSizer, 1, wxEXPAND | wxALL,
--                               group_item_spacing);
-+      pMagVar = new wxTextCtrl(panelUnits, ID_OPTEXTCTRL, "", wxDefaultPosition,
-+                               wxSize(150, -1), wxTE_RIGHT);
-+      magVarSizer->AddSpacer(100);
- 
--    pMagVar = new wxTextCtrl(panelUnits, ID_OPTEXTCTRL, "", wxDefaultPosition,
--                             wxSize(150, -1), wxTE_RIGHT);
--    magVarSizer->AddSpacer(100);
-+      magVarSizer->Add(pMagVar, 0, wxALIGN_CENTRE_VERTICAL, group_item_spacing);
- 
--    magVarSizer->Add(pMagVar, 0, wxALIGN_CENTRE_VERTICAL, group_item_spacing);
-+      itemStaticTextUserVar2 =
-+          new wxStaticText(panelUnits, wxID_ANY, _("deg (-W, +E)"));
- 
--    itemStaticTextUserVar2 =
--        new wxStaticText(panelUnits, wxID_ANY, _("deg (-W, +E)"));
-+      magVarSizer->Add(itemStaticTextUserVar2, 0,
-+                       wxALL | wxALIGN_CENTRE_VERTICAL, group_item_spacing);
- 
--    magVarSizer->Add(itemStaticTextUserVar2, 0, wxALL | wxALIGN_CENTRE_VERTICAL,
--                     group_item_spacing);
--
--    itemStaticBoxSizerVar->Add(0, border_size * 40);
-+      itemStaticBoxSizerVar->Add(0, border_size * 40);
-+#ifdef __OCPN__IOS__
-+    }
+     itemStaticBoxSizerVar->Add(0, border_size * 40);
 +#endif
  
    } else {
      wxFlexGridSizer* unitsSizer = new wxFlexGridSizer(2);
-@@ -4583,7 +4788,13 @@ void options::CreatePanel_Units(size_t parent, int border_size,
+@@ -4583,7 +4786,13 @@ void options::CreatePanel_Units(size_t parent, int border_size,
      // another sizer instead of letting it grow.
      wxBoxSizer* wrapperSizer = new wxBoxSizer(wxVERTICAL);
      panelUnits->SetSizer(wrapperSizer);
@@ -639,7 +539,7 @@ index 763c23d97..6a6e07f7a 100644
  
      // spacer
      unitsSizer->Add(0, border_size * 4);
-@@ -4885,6 +5096,16 @@ OCPNSoundPanel::OCPNSoundPanel(wxWindow* parent, wxWindowID id,
+@@ -4885,6 +5094,16 @@ OCPNSoundPanel::OCPNSoundPanel(wxWindow* parent, wxWindowID id,
    SetSoundFileLabel(m_sound_file);
  
    //  Select/Test sound
@@ -656,7 +556,7 @@ index 763c23d97..6a6e07f7a 100644
    wxFlexGridSizer* soundSizer1 = new wxFlexGridSizer(3);
    soundSizer1->SetHGap(border_size * 2);
    StaticBoxSizer1->Add(soundSizer1, 1, wxALL | wxLEFT, border_size);
-@@ -4896,11 +5117,17 @@ OCPNSoundPanel::OCPNSoundPanel(wxWindow* parent, wxWindowID id,
+@@ -4896,11 +5115,17 @@ OCPNSoundPanel::OCPNSoundPanel(wxWindow* parent, wxWindowID id,
    TestSound = new wxButton(this, ID_TESTSOUND, _("Test"), wxDefaultPosition,
                             m_small_button_size, 0);
    soundSizer1->Add(TestSound, 0, wxALL | wxALIGN_RIGHT, group_item_spacing);
@@ -674,7 +574,7 @@ index 763c23d97..6a6e07f7a 100644
    wxString soundLabel = wxString(" " + _("Audio file name:") + "\n " + file);
  
    ChartDirPanelHardBreakWrapper wrapper(this, soundLabel,
-@@ -5122,6 +5349,12 @@ void options::CreatePanel_Sounds(size_t parent, int border_size,
+@@ -5122,6 +5347,12 @@ void options::CreatePanel_Sounds(size_t parent, int border_size,
  #endif
  
    if (!deviceCount) StatBoxSoundConfig->Hide();
@@ -687,7 +587,7 @@ index 763c23d97..6a6e07f7a 100644
  
  #ifdef __ANDROID__
    stSoundDeviceIndex->Hide();
-@@ -5545,6 +5778,11 @@ void options::CreatePanel_UI(size_t parent, int border_size,
+@@ -5545,6 +5776,11 @@ void options::CreatePanel_UI(size_t parent, int border_size,
    // Need to set wxChoice vertical size explicitely in Android
    fontChoiceSize = wxSize(-1, m_fontHeight * 3 / 4);
  #endif
@@ -699,7 +599,7 @@ index 763c23d97..6a6e07f7a 100644
  
    wxStaticBoxSizer* itemFontStaticBoxSizer =
        new wxStaticBoxSizer(itemFontStaticBox, fLayout);
-@@ -5621,8 +5859,8 @@ void options::CreatePanel_UI(size_t parent, int border_size,
+@@ -5621,8 +5857,8 @@ void options::CreatePanel_UI(size_t parent, int border_size,
    miscOptions->Add(pShowMenuBar, 0, wxALL, border_size);
  #endif
  
@@ -710,7 +610,7 @@ index 763c23d97..6a6e07f7a 100644
  #endif
  
    pShowChartBar = new wxCheckBox(itemPanelFont, wxID_ANY, _("Show Chart Bar"));
-@@ -5634,6 +5872,23 @@ void options::CreatePanel_UI(size_t parent, int border_size,
+@@ -5634,6 +5870,23 @@ void options::CreatePanel_UI(size_t parent, int border_size,
    pShowCompassWin->SetValue(FALSE);
    miscOptions->Add(pShowCompassWin, 0, wxALL, border_size);
  
@@ -734,7 +634,7 @@ index 763c23d97..6a6e07f7a 100644
    wxBoxSizer* pToolbarAutoHide = new wxBoxSizer(wxHORIZONTAL);
    miscOptions->Add(pToolbarAutoHide, 0, wxALL | wxEXPAND, group_item_spacing);
  
-@@ -5647,6 +5902,7 @@ void options::CreatePanel_UI(size_t parent, int border_size,
+@@ -5647,6 +5900,7 @@ void options::CreatePanel_UI(size_t parent, int border_size,
  
    pToolbarAutoHide->Add(new wxStaticText(itemPanelFont, wxID_ANY, _("seconds")),
                          group_item_spacing);
@@ -742,7 +642,7 @@ index 763c23d97..6a6e07f7a 100644
  
    auto enable_debug_cb = new wxCheckBox(itemPanelFont, wxID_ANY,
                                          _("Enable Debug in root context menu"));
-@@ -5958,6 +6214,11 @@ void options::CreateControls() {
+@@ -5958,6 +6212,11 @@ void options::CreateControls() {
  
    m_small_button_size =
        wxSize(-1, (int)(1.2 * (font_size_y + font_descent /*+ font_lead*/)));
@@ -754,26 +654,7 @@ index 763c23d97..6a6e07f7a 100644
  
    m_nCharWidthMax = GetSize().x / GetCharWidth();
  
-@@ -5978,9 +6239,18 @@ void options::CreateControls() {
- 
-   labelFlags =
-       wxSizerFlags(0).Align(wxALIGN_RIGHT).Border(wxALL, group_item_spacing);
-+#ifdef __OCPN__IOS__
-+  // iOS: no wxALIGN_CENTRE_VERTICAL. The pages also use inputFlags in vertical
-+  // sizers; wx 3.3 ignores the flag there and reported it dozens of times at
-+  // every start (sizer.cpp DoInsert). In rows, fit_width.cpp (CenterRowItems)
-+  // centres the items.
-+  inputFlags =
-+      wxSizerFlags(0).Align(wxALIGN_LEFT).Border(wxALL, group_item_spacing);
-+#else
-   inputFlags = wxSizerFlags(0)
-                    .Align(wxALIGN_LEFT | wxALIGN_CENTRE_VERTICAL)
-                    .Border(wxALL, group_item_spacing);
-+#endif
-   verticleInputFlags =
-       wxSizerFlags(0).Align(wxALIGN_LEFT).Border(wxALL, group_item_spacing);
-   groupLabelFlags = wxSizerFlags(0)
-@@ -6045,7 +6315,14 @@ void options::CreateControls() {
+@@ -6045,7 +6304,14 @@ void options::CreateControls() {
    CreateListbookIcons();
  
    m_pListbook->SetImageList(m_topImgList);
@@ -788,7 +669,7 @@ index 763c23d97..6a6e07f7a 100644
  
    m_OK_Cancel_Apply_buttons = new wxBoxSizer(wxHORIZONTAL);
    itemBoxSizer2->Add(m_OK_Cancel_Apply_buttons, 0, wxALIGN_RIGHT | wxALL,
-@@ -6063,6 +6340,9 @@ void options::CreateControls() {
+@@ -6063,6 +6329,9 @@ void options::CreateControls() {
    m_ApplyButton = new wxButton(itemDialog1, ID_APPLY, _("Apply"));
    m_OK_Cancel_Apply_buttons->Add(m_ApplyButton, 0,
                                   wxALIGN_CENTER_VERTICAL | wxALL, border_size);
@@ -798,7 +679,7 @@ index 763c23d97..6a6e07f7a 100644
  
    m_pageDisplay = CreatePanel(_("Display"));
    CreatePanel_Display(m_pageDisplay, border_size, group_item_spacing);
-@@ -6126,6 +6406,10 @@ void options::CreateControls() {
+@@ -6126,6 +6395,10 @@ void options::CreateControls() {
    //      PlugIns can add panels, too
    if (g_pi_manager) g_pi_manager->NotifySetupOptions();
  
@@ -809,7 +690,7 @@ index 763c23d97..6a6e07f7a 100644
    SetColorScheme(static_cast<ColorScheme>(0));
  
    // Set the maximum size of the entire settings dialog
-@@ -6147,6 +6431,18 @@ void options::CreateControls() {
+@@ -6147,6 +6420,18 @@ void options::CreateControls() {
  }
  
  void options::SetInitialPage(int page_sel, int sub_page) {
@@ -828,7 +709,7 @@ index 763c23d97..6a6e07f7a 100644
    if (page_sel < (int)m_pListbook->GetPageCount())
      m_pListbook->SetSelection(page_sel);
    else
-@@ -6167,10 +6463,21 @@ void options::SetInitialPage(int page_sel, int sub_page) {
+@@ -6167,10 +6452,21 @@ void options::SetInitialPage(int page_sel, int sub_page) {
        }
      }
    }
@@ -836,7 +717,7 @@ index 763c23d97..6a6e07f7a 100644
 +  // iOS: always start with the category list, after the current event
 +  // loop pass, once the dialog has its size.
 +  m_iosListMode = true;
-+  CallAfter([this]() { IosGoLevel(0); });
++  CallAfter(&options::IosGoLevel, 0);
 +#endif
  }
  
@@ -845,12 +726,12 @@ index 763c23d97..6a6e07f7a 100644
 +#if defined(__OCPN__IOS__) && defined(OCPN_OPTIONS_USE_LISTBOOK)
 +  // iOS: reapply the iOS style after a colour scheme change (night: dark
 +  // cards).
-+  if (m_pListbook) CallAfter([this]() { IosApplyLook(); });
++  if (m_pListbook) CallAfter(&options::IosApplyLook);
 +#endif
  
  #ifdef OCPN_OPTIONS_USE_LISTBOOK
    wxListView* lv = m_pListbook->GetListView();
-@@ -7706,7 +8013,14 @@ void options::ApplyChanges(wxCommandEvent& event) {
+@@ -7706,7 +8002,14 @@ void options::ApplyChanges(wxCommandEvent& event) {
  
  // User Interface Panel
  #if wxUSE_XLOCALE || !wxCHECK_VERSION(3, 0, 0)
@@ -865,7 +746,7 @@ index 763c23d97..6a6e07f7a 100644
      wxString new_canon = "en_US";
      wxString lang_sel = m_itemLangListBox->GetStringSelection();
  
-@@ -7769,6 +8083,9 @@ void options::ApplyChanges(wxCommandEvent& event) {
+@@ -7769,6 +8072,9 @@ void options::ApplyChanges(wxCommandEvent& event) {
    wxString string_acc_control;
    for (int i = 0; i < tcDataSelected->GetItemCount(); i++) {
      wxString setName = tcDataSelected->GetItemText(i);
@@ -875,7 +756,7 @@ index 763c23d97..6a6e07f7a 100644
      string_acc_control += setName;
    }
    // Any change?
-@@ -7777,6 +8094,9 @@ void options::ApplyChanges(wxCommandEvent& event) {
+@@ -7777,6 +8083,9 @@ void options::ApplyChanges(wxCommandEvent& event) {
      int nEntry = tcDataSelected->GetItemCount();
      for (int i = 0; i < nEntry; i++) {
        wxString setName = tcDataSelected->GetItemText(i);
@@ -885,142 +766,64 @@ index 763c23d97..6a6e07f7a 100644
        TideCurrentDataSet.push_back(setName.ToStdString());
      }
      m_returnChanges |= TIDES_CHANGED;
-@@ -8666,6 +8986,33 @@ void options::DoOnPageChange(size_t page) {
+@@ -8666,6 +8975,23 @@ void options::DoOnPageChange(size_t page) {
            m_itemLangListBox->Append(loc_lang_name);
          }
        }
 +#elif defined(__OCPN__IOS__)
-+      // iOS: available languages from the .mo files in the bundle
-+      // (SharedSupport/locale/<lang>/LC_MESSAGES/opencpn.mo). The original
-+      // creates a wxLocale per language (~3 s, already on tapping "User
-+      // Interface", so the tap seemed ignored) and then sets a new wxLocale
-+      // with only "opencpn", losing the plugin translations until a restart.
-+      // Here the locale is not changed.
-+      {
-+        const wxString locDir = g_Platform->GetSharedDataDir() + "locale/";
-+        wxArrayString lang_array;
-+        lang_array.Add("en_US");
-+        for (int it = 0; it < nLang; it++) {
-+          const wxLanguageInfo* x = wxLocale::GetLanguageInfo(lang_list[it]);
-+          if (!x) continue;
-+          const wxString canon = x->CanonicalName;
-+          const wxString shortName = canon.BeforeFirst('_');
-+          if (wxFileExists(locDir + canon + "/LC_MESSAGES/opencpn.mo") ||
-+              wxFileExists(locDir + shortName + "/LC_MESSAGES/opencpn.mo"))
-+            if (wxNOT_FOUND == lang_array.Index(canon)) lang_array.Add(canon);
-+        }
-+        for (unsigned int k = 0; k < lang_array.GetCount(); k++)
-+          m_itemLangListBox->Append(GetOCPNKnownLanguage(lang_array[k]));
-+        m_itemLangListBox->SetStringSelection(current_sel);
-+        m_bVisitLang = TRUE;
-+        ::wxEndBusyCursor();
++      // iOS: list the languages that have a .mo file in the bundle; creating a
++      // wxLocale per language takes seconds.
++      const wxString locDir = g_Platform->GetSharedDataDir() + "locale/";
++      wxArrayString lang_array;
++      lang_array.Add("en_US");
++      for (int it = 0; it < nLang; it++) {
++        const wxLanguageInfo* x = wxLocale::GetLanguageInfo(lang_list[it]);
++        if (!x) continue;
++        const wxString canon = x->CanonicalName;
++        const wxString shortName = canon.BeforeFirst('_');
++        if (wxFileExists(locDir + canon + "/LC_MESSAGES/opencpn.mo") ||
++            wxFileExists(locDir + shortName + "/LC_MESSAGES/opencpn.mo"))
++          if (wxNOT_FOUND == lang_array.Index(canon)) lang_array.Add(canon);
 +      }
-+      if (false) {
++      for (unsigned int k = 0; k < lang_array.GetCount(); k++)
++        m_itemLangListBox->Append(GetOCPNKnownLanguage(lang_array[k]));
  #else
        wxArrayString lang_array;
  
-@@ -8738,53 +9085,62 @@ void options::DoOnPageChange(size_t page) {
-       m_bVisitLang = TRUE;
- 
-       ::wxEndBusyCursor();
--    }
-+#if defined(__OCPN__IOS__) && !defined(__WXMSW__)
-+    }  // if (false): end of the original branch
+@@ -8707,6 +9033,7 @@ void options::DoOnPageChange(size_t page) {
+         m_itemLangListBox->Append(loc_lang_name);
+       }
  #endif
--  } else if (m_pagePlugins == i) {  // 7 is the index of "Plugins" page
--    m_bVisitPlugins = TRUE;
--    top_frame::Get()->FreezeCharts();
--
--    // load the disabled plugins finally because the user might want to enable
--    // them
--    auto loader = PluginLoader::GetInstance();
--    if (LoadAllPlugIns(false)) {
--      delete m_pPlugInCtrl;
--      m_pPlugInCtrl = NULL;
--      delete m_PluginCatalogMgrPanel;
--      m_PluginCatalogMgrPanel = NULL;
--      itemBoxSizerPanelPlugins->Clear();
--    }
-+  }
++#ifndef __OCPN__IOS__  // iOS: keep the locale with the plugin catalogs.
+       // BUGBUG
+       //  Remember that wxLocale ctor has the effect of changing the system
+       //  locale, including the "C" libraries.
+@@ -8725,6 +9052,7 @@ void options::DoOnPageChange(size_t page) {
+ 
+       setlocale(LC_NUMERIC, "C");
+       plocale_def_lang->AddCatalog("opencpn");
 +#endif
-+}
-+else if (m_pagePlugins == i) {  // 7 is the index of "Plugins" page
-+  m_bVisitPlugins = TRUE;
-+  top_frame::Get()->FreezeCharts();
  
--    if (!m_pPlugInCtrl) {
--      //      Build the PlugIn Manager Panel
--      ::wxBeginBusyCursor();
-+  // load the disabled plugins finally because the user might want to enable
-+  // them
-+  auto loader = PluginLoader::GetInstance();
-+  if (LoadAllPlugIns(false)) {
-+    delete m_pPlugInCtrl;
-+    m_pPlugInCtrl = NULL;
-+    delete m_PluginCatalogMgrPanel;
-+    m_PluginCatalogMgrPanel = NULL;
-+    itemBoxSizerPanelPlugins->Clear();
-+  }
-+
-+  if (!m_pPlugInCtrl) {
-+    //      Build the PlugIn Manager Panel
-+    ::wxBeginBusyCursor();
+       m_itemLangListBox->SetStringSelection(current_sel);
  
--      m_pPlugInCtrl = new PluginListPanel(itemPanelPlugins, ID_PANELPIM,
--                                          wxDefaultPosition, wxDefaultSize);
--      m_pPlugInCtrl->SetScrollRate(m_scrollRate, m_scrollRate);
--      itemBoxSizerPanelPlugins->Add(m_pPlugInCtrl, 01,
--                                    wxEXPAND | wxGROW | wxALL, 4);
--      if (g_pi_manager) g_pi_manager->SetListPanelPtr(m_pPlugInCtrl);
-+    m_pPlugInCtrl = new PluginListPanel(itemPanelPlugins, ID_PANELPIM,
-+                                        wxDefaultPosition, wxDefaultSize);
-+    m_pPlugInCtrl->SetScrollRate(m_scrollRate, m_scrollRate);
-+    itemBoxSizerPanelPlugins->Add(m_pPlugInCtrl, 01, wxEXPAND | wxGROW | wxALL,
-+                                  4);
-+    if (g_pi_manager) g_pi_manager->SetListPanelPtr(m_pPlugInCtrl);
+@@ -8766,11 +9094,16 @@ void options::DoOnPageChange(size_t page) {
+                                     wxEXPAND | wxGROW | wxALL, 4);
+       if (g_pi_manager) g_pi_manager->SetListPanelPtr(m_pPlugInCtrl);
  
--      m_PluginCatalogMgrPanel = new CatalogMgrPanel(itemPanelPlugins);
--      m_PluginCatalogMgrPanel->SetListPanelPtr(m_pPlugInCtrl);
 +#ifndef __OCPN__IOS__
-+    // iOS: no plugin catalog. Plugins are built into the app; downloading and
-+    // installing is not possible on iOS (the catalog update and settings
-+    // buttons did nothing useful).
-+    m_PluginCatalogMgrPanel = new CatalogMgrPanel(itemPanelPlugins);
-+    m_PluginCatalogMgrPanel->SetListPanelPtr(m_pPlugInCtrl);
++      // iOS: no plugin catalog. Plugins are built into the app; downloading and
++      // installing is not possible on iOS (the catalog update and settings
++      // buttons did nothing useful).
+       m_PluginCatalogMgrPanel = new CatalogMgrPanel(itemPanelPlugins);
+       m_PluginCatalogMgrPanel->SetListPanelPtr(m_pPlugInCtrl);
  
--      itemBoxSizerPanelPlugins->Add(m_PluginCatalogMgrPanel, 0,
--                                    wxEXPAND | wxALL, 4);
--      itemBoxSizerPanelPlugins->Layout();
-+    itemBoxSizerPanelPlugins->Add(m_PluginCatalogMgrPanel, 0, wxEXPAND | wxALL,
-+                                  4);
+       itemBoxSizerPanelPlugins->Add(m_PluginCatalogMgrPanel, 0,
+                                     wxEXPAND | wxALL, 4);
 +#endif
-+    itemBoxSizerPanelPlugins->Layout();
+       itemBoxSizerPanelPlugins->Layout();
  
--      //  Update the PlugIn page to reflect the state of individual selections
--      m_pPlugInCtrl->UpdateSelections();
-+    //  Update the PlugIn page to reflect the state of individual selections
-+    m_pPlugInCtrl->UpdateSelections();
- 
--      ::wxEndBusyCursor();
-+    ::wxEndBusyCursor();
- 
--      wxDEFINE_EVENT(EVT_COMPAT_OS_CHANGE, wxCommandEvent);
--      GlobalVar<wxString> compat_os(&g_compatOS);
--    }
--    k_plugins = TOOLBAR_CHANGED;
--    // TODO  Only if o-charts is touched?
--    k_plugins |= FORCE_RELOAD;
-+    wxDEFINE_EVENT(EVT_COMPAT_OS_CHANGE, wxCommandEvent);
-+    GlobalVar<wxString> compat_os(&g_compatOS);
-   }
-+  k_plugins = TOOLBAR_CHANGED;
-+  // TODO  Only if o-charts is touched?
-+  k_plugins |= FORCE_RELOAD;
-+}
- }
- 
- wxString options::SelectSoundFile() {
-@@ -9443,7 +9799,12 @@ void options::OnInsertTideDataLocation(wxCommandEvent& event) {
+       //  Update the PlugIn page to reflect the state of individual selections
+@@ -9443,7 +9776,12 @@ void options::OnInsertTideDataLocation(wxCommandEvent& event) {
      int id = tcDataSelected->GetItemCount();  // next index
      li.SetId(id);
      long idx = tcDataSelected->InsertItem(li);
@@ -1033,60 +836,23 @@ index 763c23d97..6a6e07f7a 100644
  
      //    Record the currently selected directory for later use
      wxFileName fn(sel_file);
-@@ -9486,7 +9847,16 @@ OpenGLOptionsDlg::OpenGLOptionsDlg(wxWindow* parent)
-   SetFont(*dialogFont);
- 
-   wxBoxSizer* mainSizer = new wxBoxSizer(wxVERTICAL);
--  wxFlexGridSizer* flexSizer = new wxFlexGridSizer(2);
-+#ifdef __OCPN__IOS__
-+  // iOS: one column (heading above the setting); with two columns the dialog
-+  // was wider than an iPhone and texts were cut off on the right.
-+  const int nCols = 1;
-+  const int lblAlign = wxALIGN_LEFT;
-+#else
-+    const int nCols = 2;
-+    const int lblAlign = wxALIGN_RIGHT;
-+#endif
-+  wxFlexGridSizer* flexSizer = new wxFlexGridSizer(nCols);
- 
-   m_cbTextureCompression =
-       new wxCheckBox(this, wxID_ANY,
-@@ -9515,21 +9885,21 @@ OpenGLOptionsDlg::OpenGLOptionsDlg(wxWindow* parent)
-       new wxCheckBox(this, wxID_ANY, _("Use Accelerated Panning"));
- 
-   flexSizer->Add(new wxStaticText(this, wxID_ANY, _("Texture Settings")), 0,
--                 wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL, 5);
-+                 lblAlign | wxALIGN_CENTER_VERTICAL, 5);
-   flexSizer->Add(m_cbTextureCompression, 0, wxALL | wxEXPAND, 5);
-   flexSizer->AddSpacer(0);
-   flexSizer->Add(m_cbTextureCompressionCaching, 0, wxALL | wxEXPAND, 5);
--  flexSizer->Add(m_memorySize, 0, wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL, 5);
-+  flexSizer->Add(m_memorySize, 0, lblAlign | wxALIGN_CENTER_VERTICAL, 5);
-   flexSizer->Add(m_sTextureMemorySize, 0, wxALL | wxEXPAND, 5);
-   flexSizer->Add(new wxStaticText(this, wxID_ANY, _("Texture Cache")), 0,
--                 wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL, 5);
-+                 lblAlign | wxALIGN_CENTER_VERTICAL, 5);
-   flexSizer->Add(m_cacheSize, 0, wxALIGN_CENTER | wxALIGN_CENTER_VERTICAL, 5);
-   flexSizer->AddSpacer(0);
-   flexSizer->Add(btnRebuild, 0, wxALL | wxEXPAND, 5);
-   flexSizer->AddSpacer(0);
-   flexSizer->Add(btnClear, 0, wxALL | wxEXPAND, 5);
-   flexSizer->Add(new wxStaticText(this, wxID_ANY, _("Miscellaneous")), 0,
--                 wxALIGN_RIGHT | wxALIGN_CENTER_VERTICAL, 5);
-+                 lblAlign | wxALIGN_CENTER_VERTICAL, 5);
-   flexSizer->Add(m_cbPolygonSmoothing, 0, wxALL | wxEXPAND, 5);
-   flexSizer->AddSpacer(0);
-   flexSizer->Add(m_cbLineSmoothing, 0, wxALL | wxEXPAND, 5);
-@@ -9538,7 +9908,7 @@ OpenGLOptionsDlg::OpenGLOptionsDlg(wxWindow* parent)
-   flexSizer->Add(m_cbSoftwareGL, 0, wxALL | wxEXPAND, 5);
+@@ -9539,6 +9877,15 @@ OpenGLOptionsDlg::OpenGLOptionsDlg(wxWindow* parent)
    flexSizer->AddSpacer(0);
    flexSizer->Add(m_cbUseAcceleratedPanning, 0, wxALL | wxEXPAND, 5);
--  flexSizer->AddGrowableCol(1);
-+  flexSizer->AddGrowableCol(nCols - 1);
+   flexSizer->AddGrowableCol(1);
++#ifdef __OCPN__IOS__
++  // iOS: one column, heading above the setting; two columns were wider than an
++  // iPhone.
++  flexSizer->RemoveGrowableCol(1);
++  flexSizer->SetCols(1);
++  flexSizer->AddGrowableCol(0);
++  for (wxSizerItem* item : flexSizer->GetChildren())
++    item->SetFlag(item->GetFlag() & ~wxALIGN_RIGHT);
++#endif
    mainSizer->Add(flexSizer, 0, wxALL | wxEXPAND, 5);
  
    wxStdDialogButtonSizer* btnSizer = new wxStdDialogButtonSizer();
-@@ -9606,14 +9976,17 @@ void OpenGLOptionsDlg::Populate() {
+@@ -9606,7 +9953,10 @@ void OpenGLOptionsDlg::Populate() {
    m_cbPolygonSmoothing->SetValue(g_GLOptions.m_GLPolygonSmoothing);
    m_cbLineSmoothing->SetValue(g_GLOptions.m_GLLineSmoothing);
  
@@ -1098,14 +864,35 @@ index 763c23d97..6a6e07f7a 100644
    if (top_frame::Get()->GetWxGlCanvas()) {
      if (top_frame::Get()->GetGlVersionString().Upper().Find("MESA") !=
          wxNOT_FOUND)
-       m_cbSoftwareGL->SetValue(g_bSoftwareGL);
-   }
- #else
--  m_cbSoftwareGL->Hide();
-+    m_cbSoftwareGL->Hide();
- #endif
+diff --git a/model/include/model/ios_hooks.h b/model/include/model/ios_hooks.h
+index 28014abfe..3360235a7 100644
+--- a/model/include/model/ios_hooks.h
++++ b/model/include/model/ios_hooks.h
+@@ -27,17 +27,22 @@
  
-   wxFont* dialogFont = GetOCPNScaledFont(_("Dialog"));
+ #ifdef __OCPN__IOS__
+ 
++#include <wx/string.h>
++
+ class wxAuiManager;
+ class wxFrame;
+ 
+-void ocpnios_ApplySchemeColors(wxFrame *frame);
+-void ocpnios_FloatPluginPanes(wxAuiManager *mgr);
++void ocpnios_ApplySchemeColors(wxFrame* frame);
++wxString ocpnios_DisplayPath(const wxString& path);
++void ocpnios_FloatPluginPanes(wxAuiManager* mgr);
+ void ocpnios_HideBusyHud();
+ void ocpnios_OnStartupDone();
+ int ocpnios_OverlayInsetLeft();
+ int ocpnios_OverlayInsetRight();
+ void ocpnios_ShowBusyHud();
+ void ocpnios_ShowStartupBusy();
++wxString ocpnios_TcFull(const wxString& shown);
++wxString ocpnios_TcShow(const wxString& full);
+ void ocpnios_TidyDocuments();
+ void ocpnios_WaitUntilActive();
+ 
 -- 
-2.50.1 (Apple Git-155)
+2.54.0 (Apple Git-157)
 

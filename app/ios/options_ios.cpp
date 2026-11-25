@@ -7,6 +7,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <algorithm>
 #include <map>
+#include <set>
+#include <functional>
 #include <vector>
 
 #include <wx/wx.h>
@@ -15,11 +17,15 @@
 #include <wx/notebook.h>
 
 #include <QCoreApplication>
+#include <QTimer>
 #include <QColor>
 #include <QtWidgets/QWidget>
 #include <QtWidgets/QStyle>
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QTreeView>
+#include <QtWidgets/QAbstractScrollArea>
+#include <QFontMetrics>
+#include <QtWidgets/QAbstractItemView>
 #include <QtWidgets/QTabWidget>
 #include <QtWidgets/QTabBar>
 #include <QtWidgets/QGroupBox>
@@ -68,6 +74,18 @@ void options::IosBack() {
     IosGoLevel(1);
   else
     IosGoLevel(0);
+}
+
+// Hide the whole header row (Back/Cancel/Apply/Done) and the large title while a
+// connection is being edited; the edit panel has its own titled Cancel/Done bar.
+void options::ShowOKButtons(bool _show) {
+  m_OK_Cancel_Apply_buttons->Show(_show);
+  if (m_iosBackButton) m_iosBackButton->Show(_show && m_iosLevel > 0);
+  if (m_CancelButton) m_CancelButton->Show(_show && m_iosLevel == 0);
+  if (m_OKButton) m_OKButton->Show(_show);
+  if (m_ApplyButton) m_ApplyButton->Show(_show);
+  if (m_iosTitle) m_iosTitle->Show(_show);
+  Layout();
 }
 
 void options::IosGoLevel(int level) {
@@ -254,8 +272,14 @@ void options::IosApplyLayout() {
   place(pg, m_iosLevel == 2);
   // Connections only follows the page size on a wxEVT_SIZE of Options; after the
   // placement above an empty area (~200 pt) remained at the bottom.
-  if (m_iosLevel == 2 && pg && pg == m_pNMEAForm && comm_dialog)
+  if (m_iosLevel == 2 && pg && pg == m_pNMEAForm && comm_dialog) {
+#ifdef OCPNIOS_OCPN_MASTER  // master removed ConnectionsDlg::OnResize (1cb501077)
+    comm_dialog->SetSize(pg->GetClientSize());
+    comm_dialog->Layout();
+#else
     comm_dialog->OnResize(pg->GetClientSize());
+#endif
+  }
   if (m_iosLevel == 2 && pg) {
     wxNotebook* nb = IosCurrentNotebook();
     wxWindow* sub = nb ? nb->GetCurrentPage() : pg;
@@ -274,9 +298,180 @@ void ocpnios_SectionGrids(wxWindow* root);     // app/ios/fit_width.cpp
 void ocpnios_FixControls(wxWindow* root);      // app/ios/fit_width.cpp
 void ocpnios_EdgeMargins(wxWindow* root);      // app/ios/fit_width.cpp
 
+// Buttons on the Options pages were thick filled blue buttons; iOS Settings shows an
+// action as a row with blue text ("Add Dataset", "Inland ECDIS Manual") and a removal
+// in red (Xander, 24 Nov 2026). See fit_width.cpp, ocpnios_ActionRows.
+void ocpnios_ActionRows(wxWindow* root,
+                        const std::function<int(wxButton*)>& kind);  // fit_width.cpp
+static void IosActionRows(wxWindow* page) {
+  const wxString newLabel = _("New...");
+  const bool dark = QCoreApplication::instance() &&
+                    QCoreApplication::instance()->property("ocpnios_dark").toBool();
+  ocpnios_ActionRows(page, [&](wxButton* b) {
+    const int id = b->GetId();
+    if (b->GetLabel() == newLabel && b->GetParent() && b->GetParent() != page) {
+      // MMSI: the panel around the list and "New" kept the grey page colour; as a
+      // filled button that did not show, as a row it was a grey band in the card.
+      b->GetParent()->SetBackgroundColour(dark ? wxColour(0x1c, 0x1c, 0x1e) : *wxWHITE);
+    }
+    if (id == ID_BUTTONADD || id == ID_TCDATAADD || id == ID_GROUPINSERTDIR ||
+        id == ID_GROUPNEWGROUP || b->GetLabel() == newLabel)
+      return 1;  // add
+    if (id == ID_BUTTONDELETE || id == ID_TCDATADEL || id == ID_GROUPREMOVEDIR ||
+        id == ID_GROUPDELETEGROUP)
+      return 2;  // destructive
+    return 0;
+  });
+}
+
+// The sizer item that holds `target`, anywhere below `root`.
+static wxSizerItem* IosFindSizerItem(wxSizer* root, wxSizer* target) {
+  if (!root || !target) return nullptr;
+  for (wxSizerItem* it : root->GetChildren()) {
+    if (!it->IsSizer()) continue;
+    if (it->GetSizer() == target) return it;
+    if (wxSizerItem* r = IosFindSizerItem(it->GetSizer(), target)) return r;
+  }
+  return nullptr;
+}
+
+// Lists on Tides and Chart Files filled the page down to the bottom, with a large empty
+// white area under the entries and the buttons (Xander, 24 Nov 2026). As in iOS: the
+// list as high as its entries (at least one row), the card ending under the last row.
+static void IosListHeights(wxWindow* page, wxListCtrl* tides, wxScrolledWindow* dirs,
+                           wxSizer* dirsBox) {
+  auto shrink = [&](wxWindow* list, wxSizer* box, int h) {
+    list->SetMinSize(wxSize(list->GetMinSize().x, h));
+    list->SetMaxSize(wxSize(-1, h));
+    if (wxSizerItem* it = IosFindSizerItem(page->GetSizer(), box)) it->SetProportion(0);
+  };
+  if (tides && tides->GetParent() == page && tides->GetContainingSizer()) {
+    int h = 44;
+    if (auto* tv = dynamic_cast<QAbstractItemView*>(tides->GetHandle())) {
+      const int rows = tv->model() ? tv->model()->rowCount() : 0;
+      const int rowH = rows > 0 ? std::max(tv->sizeHintForRow(0), 30) : 44;
+      h = std::max(1, rows) * rowH + 12;
+    }
+    shrink(tides, tides->GetContainingSizer(), std::min(h, 400));
+  }
+  if (dirs && dirs->GetParent() == page && dirsBox) {
+    // Chart directories: no fixed height. The list follows its own content (best
+    // size from its sizer), so it is empty when there are none and grows when a
+    // directory is added, without the page having to be fitted again.
+    // The list as high as its rows; again whenever a directory row is added or removed
+    // (the page is not fitted again then).
+    auto fit = [page, dirs]() {
+      const int content = dirs->GetSizer() ? dirs->GetSizer()->CalcMin().y : 0;
+      const int h = std::min(content > 0 ? content + 4 : 0, 400);
+      if (dirs->GetMinSize().y == h && dirs->GetMaxSize().y == h) return;
+      dirs->SetMinSize(wxSize(dirs->GetMinSize().x, h));
+      dirs->SetMaxSize(wxSize(-1, h));
+      page->Layout();
+      if (auto* sw = dynamic_cast<wxScrolledWindow*>(page)) sw->FitInside();
+    };
+    // wx creates the rows in the viewport of the scroll area (or the widget itself).
+    std::vector<QWidget*> inners;
+    if (QWidget* q = dirs->GetHandle()) {
+      inners.push_back(q);
+      if (auto* sa = qobject_cast<QAbstractScrollArea*>(q)) inners.push_back(sa->viewport());
+    }
+    for (QWidget* inner : inners) {
+      if (!inner->property("ocpnios_dirs_fit").toBool()) {
+        inner->setProperty("ocpnios_dirs_fit", true);
+        struct Watch : QObject {
+          std::function<void()> fn;
+          bool eventFilter(QObject*, QEvent* e) override {
+            if (e->type() == QEvent::ChildAdded || e->type() == QEvent::ChildRemoved)
+              QTimer::singleShot(0, this, fn);
+            return false;
+          }
+        };
+        auto* w = new Watch;
+        w->setParent(inner);
+        w->fn = fit;
+        inner->installEventFilter(w);
+      }
+    }
+    if (wxSizerItem* it = IosFindSizerItem(page->GetSizer(), dirsBox)) it->SetProportion(0);
+    if (wxSizerItem* it = dirsBox->GetItem(dirs)) it->SetProportion(0);
+    fit();
+  }
+  page->Layout();
+  if (auto* sw = dynamic_cast<wxScrolledWindow*>(page)) sw->FitInside();
+}
+
+// MMSI Properties: seven columns of desktop width scrolled sideways on a phone. Columns
+// that do not fit are hidden, most important first (MMSI, ship name, track mode); all
+// values stay in the edit window of an entry.
+static void IosMmsiColumns(wxWindow* page) {
+  std::function<void(wxWindow*)> visit = [&](wxWindow* w) {
+    for (wxWindow* c : w->GetChildren()) {
+      visit(c);
+      auto* lc = dynamic_cast<MMSIListCtrl*>(c);
+      auto* tv = lc ? dynamic_cast<QTreeView*>(lc->GetHandle()) : nullptr;
+      if (!tv || !tv->header() || tv->viewport()->width() < 100) continue;
+      QHeaderView* h = tv->header();
+      const QFontMetrics fm(h->font());
+      const int room = tv->viewport()->width();
+      const int order[] = {mlMMSI, mlShipName, mlTrackMode, mlIgnore, mlMOB, mlFollower, mlVDM};
+      std::vector<int> width(h->count(), 0);
+      int used = 0;
+      bool full = false;  // after the first column that does not fit, hide the rest
+      for (int col : order) {
+        if (col >= h->count()) continue;
+        const QString text = h->model()->headerData(col, Qt::Horizontal).toString();
+        int need = fm.horizontalAdvance(text) + 24;
+        if (col == mlMMSI) need = std::max(need, fm.horizontalAdvance("999999999") + 24);
+        const bool fits = !full && used + need <= room;
+        if (!fits) full = true;
+        h->setSectionHidden(col, !fits);
+        if (fits) {
+          width[col] = need;
+          used += need;
+        }
+      }
+      // What is left goes to the ship name.
+      if (mlShipName < h->count() && width[mlShipName]) width[mlShipName] += room - used;
+      h->setStretchLastSection(false);
+      for (int col = 0; col < h->count(); col++)
+        if (width[col]) h->resizeSection(col, width[col]);
+      tv->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+      // As high as its rows (at least one), like the lists on Tides and Chart Files;
+      // again when an entry is added or removed.
+      auto fitHeight = [page, lc, tv]() {
+        const int rows = tv->model() ? tv->model()->rowCount() : 0;
+        const int rowH = rows > 0 ? std::max(tv->sizeHintForRow(0), 30) : 44;
+        const int listH = std::min(tv->header()->height() + std::max(1, rows) * rowH + 8, 400);
+        if (lc->GetMinSize().y == listH) return;
+        lc->SetMinSize(wxSize(lc->GetMinSize().x, listH));
+        lc->SetMaxSize(wxSize(-1, listH));
+        if (wxSizer* cs = lc->GetContainingSizer())
+          if (wxSizerItem* it = cs->GetItem(lc)) it->SetProportion(0);
+        if (wxWindow* panel = lc->GetParent()) {
+          panel->Layout();
+          if (wxSizer* ps = panel->GetContainingSizer())
+            if (wxSizerItem* it = ps->GetItem(panel)) it->SetProportion(0);
+        }
+        page->Layout();
+        if (auto* sw = dynamic_cast<wxScrolledWindow*>(page)) sw->FitInside();
+      };
+      if (tv->model() && !tv->property("ocpnios_mmsi_fit").toBool()) {
+        tv->setProperty("ocpnios_mmsi_fit", true);
+        auto later = [tv, fitHeight]() { QTimer::singleShot(0, tv, fitHeight); };
+        QObject::connect(tv->model(), &QAbstractItemModel::rowsInserted, tv, later);
+        QObject::connect(tv->model(), &QAbstractItemModel::rowsRemoved, tv, later);
+        QObject::connect(tv->model(), &QAbstractItemModel::modelReset, tv, later);
+      }
+      fitHeight();
+    }
+  };
+  visit(page);
+}
+
 void options::IosFitPage(wxWindow* page) {
   const int pageW = page->GetClientSize().x;
   if (pageW < 100) return;
+  IosActionRows(page);
   ocpnios_SectionGrids(page);    // "header | items" as iOS sections (fit_width.cpp)
   ocpnios_CenterRowItems(page);  // centre text next to a field or button
   const int fieldW = pageW * 28 / 100;  // inputs next to a text
@@ -483,6 +678,8 @@ void options::IosFitPage(wxWindow* page) {
       sw->Layout();
       sw->FitInside();
     }
+  IosListHeights(page, tcDataSelected, m_scrollWinChartList, activeSizer);
+  IosMmsiColumns(page);
   // Last: size buttons, fields and rows to their content (fit_width.cpp); otherwise
   // the rules above made a field narrower than its value (2147483646).
   ocpnios_FixControls(page);

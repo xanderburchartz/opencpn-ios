@@ -18,17 +18,17 @@ extern "C" {
 #undef OCPNIOS_PLUGIN
 }
 
-static const OcpnIosStaticPlugin kPlugins[] = {
+static const ocpnios_StaticPlugin kPlugins[] = {
 #define OCPNIOS_PLUGIN(sym, file, common) {file, sym##_create_pi, sym##_destroy_pi, common},
 #include "ocpnios_static_plugins.inc"
 #undef OCPNIOS_PLUGIN
     {nullptr, nullptr, nullptr, nullptr}};
 
-extern "C" const OcpnIosStaticPlugin* OcpnIosStaticPlugins() { return kPlugins; }
+extern "C" const ocpnios_StaticPlugin* ocpnios_StaticPlugins() { return kPlugins; }
 
-extern "C" const OcpnIosStaticPlugin* OcpnIosFindStaticPlugin(const char* file_name) {
+extern "C" const ocpnios_StaticPlugin* ocpnios_FindStaticPlugin(const char* file_name) {
   if (!file_name) return nullptr;
-  for (const OcpnIosStaticPlugin* p = kPlugins; p->file_name; ++p)
+  for (const ocpnios_StaticPlugin* p = kPlugins; p->file_name; ++p)
     if (std::strcmp(p->file_name, file_name) == 0) return p;
   return nullptr;
 }

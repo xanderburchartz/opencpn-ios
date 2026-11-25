@@ -1,0 +1,52 @@
+From 3686930d7528c169440a4cb64870872a9cd2df56 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 03/32] ChartCanvas: compare touch positions in the same pixel
+ units
+
+MouseEventProcessCanvas stores m_touchdownPos after multiplying the event
+position by m_displayScale (physical pixels). MouseEventProcessObjects
+compares it with the unscaled event position (logical pixels) to decide
+whether a touch was a tap or a drag. With m_displayScale != 1 (HiDPI) and
+touch input, the distance is wrong: on a scale-3 screen nearly every tap
+counted as a drag and no route point was added in route creation mode.
+Convert m_touchdownPos to logical pixels before comparing.
+
+Same change as OpenCPN pull request #5554.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/chcanv.cpp | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/gui/src/chcanv.cpp b/gui/src/chcanv.cpp
+index cc0c35425..51043e042 100644
+--- a/gui/src/chcanv.cpp
++++ b/gui/src/chcanv.cpp
+@@ -9285,8 +9285,10 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
+         // Check displacement from touchdown to distinguish taps from pans.
+         // On touchscreens, even a "tap" can have several pixels of jitter,
+         // so use a generous threshold (20px) to avoid false positives.
+-        int dx = x - m_touchdownPos.x;
+-        int dy = y - m_touchdownPos.y;
++        // m_touchdownPos is in physical pixels (MouseEventProcessCanvas
++        // multiplies by m_displayScale), x/y here are logical pixels.
++        int dx = x - wxRound(m_touchdownPos.x / m_displayScale);
++        int dy = y - wxRound(m_touchdownPos.y / m_displayScale);
+         int dist2 = dx * dx + dy * dy;
+         bool wasPan = (dist2 > 20 * 20);
+ 
+@@ -9578,8 +9580,8 @@ bool ChartCanvas::MouseEventProcessObjects(wxMouseEvent &event) {
+ 
+         // Skip if user panned (same logic as route handler above)
+         {
+-          int mdx = x - m_touchdownPos.x;
+-          int mdy = y - m_touchdownPos.y;
++          int mdx = x - wxRound(m_touchdownPos.x / m_displayScale);
++          int mdy = y - wxRound(m_touchdownPos.y / m_displayScale);
+           if (mdx * mdx + mdy * mdy > 20 * 20) return false;
+         }
+ 
+-- 
+2.54.0 (Apple Git-157)
+

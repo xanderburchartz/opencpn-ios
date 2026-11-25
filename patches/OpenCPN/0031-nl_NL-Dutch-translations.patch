@@ -1,7 +1,7 @@
-From 326d63db46950d9d1a6862ef2cd6c84402187fcd Mon Sep 17 00:00:00 2001
+From 9c0e137cc873b002d0d6547559b4a57eb28beb6b Mon Sep 17 00:00:00 2001
 From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:50:09 +0100
-Subject: [PATCH 13/13] nl_NL: Dutch translations
+Subject: [PATCH 31/32] nl_NL: Dutch translations
 
 Dutch translations for strings that had none, and for the continent names
 of the chart downloader. Translation updates only; normally these go
@@ -9,10 +9,10 @@ through Crowdin.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- plugins/chartdldr_pi/po/nl_NL.po | 138 ++++++++++++++++++++-
- plugins/grib_pi/po/nl_NL.po      | 112 ++++++++---------
- po/opencpn_nl_NL.po              | 204 +++++++++++++++++++------------
- 3 files changed, 317 insertions(+), 137 deletions(-)
+ plugins/chartdldr_pi/po/nl_NL.po | 138 +++++++++++++++-
+ plugins/grib_pi/po/nl_NL.po      | 112 ++++++-------
+ po/opencpn_nl_NL.po              | 266 ++++++++++++++++++++-----------
+ 3 files changed, 366 insertions(+), 150 deletions(-)
 
 diff --git a/plugins/chartdldr_pi/po/nl_NL.po b/plugins/chartdldr_pi/po/nl_NL.po
 index be4d7a12f..efd1d1570 100644
@@ -537,7 +537,7 @@ index 90a61831c..00314d800 100644
  #: src/CursorData.cpp:288
  msgid "Data at cursor position"
 diff --git a/po/opencpn_nl_NL.po b/po/opencpn_nl_NL.po
-index 6e2947559..6c3d12225 100644
+index 6e2947559..1b0b60e87 100644
 --- a/po/opencpn_nl_NL.po
 +++ b/po/opencpn_nl_NL.po
 @@ -3472,11 +3472,11 @@ msgstr "Zet koers uit naar hier"
@@ -581,12 +581,26 @@ index 6e2947559..6c3d12225 100644
  
  #: gui/src/connection_edit.cpp:329 gui/src/conn_params_panel.cpp:428
  msgid "Built-in GPS"
+@@ -4533,11 +4533,11 @@ msgstr "Bluetooth gegevensbronnen"
+ 
+ #: gui/src/connection_edit.cpp:371
+ msgid "Network Protocol"
+-msgstr "Netwerk Protocol"
++msgstr "Netwerkprotocol"
+ 
+ #: gui/src/connection_edit.cpp:424
+ msgid "Data Protocol"
+-msgstr "Data Protocol"
++msgstr "Dataprotocol"
+ 
+ #: gui/src/connection_edit.cpp:430 gui/src/connection_edit.cpp:554
+ msgid "NMEA 0183"
 @@ -4646,7 +4646,7 @@ msgstr "als autopilot of NMEA repeater"
  
  #: gui/src/connection_edit.cpp:628
  msgid "Advanced: "
 -msgstr ""
-+msgstr "Uitgebreid: "
++msgstr "Uitgebreid"
  
  #: gui/src/connection_edit.cpp:636
  msgid "Auth Token"
@@ -599,6 +613,40 @@ index 6e2947559..6c3d12225 100644
  
  #: gui/src/connection_edit.cpp:669
  msgid "APB bearing precision"
+@@ -4698,27 +4698,27 @@ msgstr "Detecteer nu"
+ 
+ #: gui/src/connection_edit.cpp:710
+ msgid "Input filtering"
+-msgstr "Invoerfiltering"
++msgstr "Invoerfilter"
+ 
+ #: gui/src/connection_edit.cpp:717 gui/src/connection_edit.cpp:2434
+ msgid "Accept only sentences"
+-msgstr "Accepteer alleen zinnen"
++msgstr "Alleen deze"
+ 
+ #: gui/src/connection_edit.cpp:721 gui/src/connection_edit.cpp:2435
+ msgid "Ignore sentences"
+-msgstr "Negeer zinnen"
++msgstr "Behalve deze"
+ 
+ #: gui/src/connection_edit.cpp:743
+ msgid "Output filtering"
+-msgstr "Uitvoerfiltering"
++msgstr "Uitvoerfilter"
+ 
+ #: gui/src/connection_edit.cpp:749 gui/src/connection_edit.cpp:2432
+ msgid "Transmit sentences"
+-msgstr "Zinnen uitzenden"
++msgstr "Alleen deze"
+ 
+ #: gui/src/connection_edit.cpp:753 gui/src/connection_edit.cpp:2432
+ msgid "Drop sentences"
+-msgstr "Wijs onderstaande strings af"
++msgstr "Behalve deze"
+ 
+ #: gui/src/connection_edit.cpp:859
+ msgid "Stop Scan"
 @@ -4734,23 +4734,23 @@ msgstr "Signal K server niet gevonden."
  
  #: gui/src/connection_edit.cpp:1727
@@ -628,6 +676,15 @@ index 6e2947559..6c3d12225 100644
  
  #: gui/src/connection_edit.cpp:1744 gui/src/options.cpp:8221
  #: gui/src/routeman_gui.cpp:63
+@@ -4764,7 +4764,7 @@ msgstr "OpenCPN info"
+ 
+ #: gui/src/connection_edit.cpp:2370
+ msgid "Sentence Filter"
+-msgstr "Stringfilter"
++msgstr "Zinnenfilter"
+ 
+ #: gui/src/connection_edit.cpp:2383 gui/src/options.cpp:3533
+ #: gui/src/options.cpp:3746
 @@ -4836,23 +4836,23 @@ msgstr "Nieuwe verbinding toevoegen..."
  
  #: gui/src/connections_dlg.cpp:403
@@ -686,7 +743,7 @@ index 6e2947559..6c3d12225 100644
  
  #: gui/src/connections_dlg.cpp:817 gui/src/options.cpp:3975
  msgid "General"
-@@ -4888,31 +4888,31 @@ msgstr "Algemeen"
+@@ -4888,43 +4888,43 @@ msgstr "Algemeen"
  
  #: gui/src/connections_dlg.cpp:835
  msgid "Adjust Nav data priorities..."
@@ -725,7 +782,8 @@ index 6e2947559..6c3d12225 100644
  
  #: gui/src/connections_dlg.cpp:949 gui/src/connections_dlg.cpp:973
  msgid "Always send RMB and RMC NMEA0183 data"
-@@ -4920,11 +4920,11 @@ msgstr ""
+-msgstr ""
++msgstr "RMB en RMC altijd verzenden"
  
  #: gui/src/connections_dlg.cpp:991
  msgid "Filter NMEA course and speed data. Filter period: "
@@ -1024,6 +1082,15 @@ index 6e2947559..6c3d12225 100644
  
  #: gui/src/options.cpp:5661
  msgid "Play Ships Bells"
+@@ -7659,7 +7664,7 @@ msgstr "Toon de \"zoom\" knoppen"
+ 
+ #: gui/src/options.cpp:5690
+ msgid "Use High Contrast Chart Colors"
+-msgstr ""
++msgstr "Kaartkleuren met hoog contrast"
+ 
+ #: gui/src/options.cpp:5694
+ msgid "Use Inland ECDIS"
 @@ -7695,7 +7700,7 @@ msgstr "Muiswiel zoom gevoeligheid"
  
  #: gui/src/options.cpp:6054
@@ -1051,6 +1118,20 @@ index 6e2947559..6c3d12225 100644
  
  #: gui/src/options.cpp:9517
  msgid "Texture Settings"
+@@ -8105,11 +8110,11 @@ msgstr "Er was een afdrukprobleem.\n"
+ 
+ #: gui/src/priority_gui.cpp:60
+ msgid "Adjust Comm Priorities"
+-msgstr "Comm prioriteiten aanpassen"
++msgstr "Bronprioriteiten"
+ 
+ #: gui/src/priority_gui.cpp:75
+ msgid "Priority List"
+-msgstr "Prioriteiten lijst"
++msgstr "Prioriteitenlijst"
+ 
+ #: gui/src/priority_gui.cpp:92 gui/src/route_prop_dlg_impl.cpp:897
+ msgid "Move Up"
 @@ -8250,7 +8255,7 @@ msgstr "Track-naam"
  
  #: gui/src/routemanagerdialog.cpp:612
@@ -1101,7 +1182,7 @@ index 6e2947559..6c3d12225 100644
  
  #: gui/src/route_prop_dlg.cpp:310 gui/src/track_prop_dlg.cpp:523
  #: gui/src/track_prop_dlg.cpp:765
-@@ -9210,3 +9215,42 @@ msgstr ""
+@@ -9210,3 +9215,78 @@ msgstr ""
  #: gui/src/user_colors_dlg.cpp:139
  msgid "Restore defaults"
  msgstr ""
@@ -1144,6 +1225,42 @@ index 6e2947559..6c3d12225 100644
 +#: gui/src/s57chart.cpp (opencpn-ios)
 +msgid "ENC cell %s has been cancelled by its producer (update %d) and is not shown. Install a current chart for this area."
 +msgstr "ENC-kaart %s is door de uitgever ingetrokken (update %d) en wordt niet getoond. Installeer een actuele kaart voor dit gebied."
++
++#: app/ios/connections_ios.cpp
++msgid "Required field address is missing"
++msgstr "Adres ontbreekt"
++
++#: app/ios/connections_ios.cpp
++msgid "Required field port is missing"
++msgstr "Poort ontbreekt"
++
++#: app/ios/connections_ios.cpp
++msgid "No data"
++msgstr "Geen data"
++
++#: app/ios/connections_ios.cpp
++msgid "Unreachable"
++msgstr "Onbereikbaar"
++
++#: app/ios/connections_ios.cpp
++msgid "Receiving"
++msgstr "Ontvangt"
++
++#: app/ios/connections_ios.cpp
++msgid "Filter sentences"
++msgstr "Zinnen filteren"
++
++msgid "For all connections"
++msgstr "Voor alle verbindingen"
++
++msgid "Output to GPS or autopilot"
++msgstr "Uitvoer naar GPS of autopilot"
++
++msgid "Only for a connection with output."
++msgstr "Alleen bij een verbinding met uitvoer."
++
++msgid "Reorder"
++msgstr "Wijzig"
 -- 
-2.50.1 (Apple Git-155)
+2.54.0 (Apple Git-157)
 

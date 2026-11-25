@@ -212,18 +212,52 @@ qt_add_executable(opencpn MACOSX_BUNDLE ${GUI_SRC}
   "${OCPNIOS_ROOT}/app/ios/touch_ui.cpp"
   "${OCPNIOS_ROOT}/app/ios/startup_diag.cpp"
   "${OCPNIOS_ROOT}/app/ios/gl_share.cpp"
+  "${OCPNIOS_ROOT}/app/ios/gl_background.cpp"
+  "${OCPNIOS_ROOT}/app/ios/gl_es_missing.cpp"
   "${OCPNIOS_ROOT}/app/ios/app_active.cpp"
   "${OCPNIOS_ROOT}/app/ios/screen_capture.mm"
   "${OCPNIOS_ROOT}/app/ios/source_scan.cpp"
   "${OCPNIOS_ROOT}/app/ios/action_sheet.mm"
   "${OCPNIOS_ROOT}/app/ios/file_picker.mm"
   "${OCPNIOS_ROOT}/app/ios/display_path.cpp"
-  "${OCPNIOS_ROOT}/app/ios/options_ios.cpp"
-  "${OCPNIOS_ROOT}/app/ios/frame_ios.cpp"
-  "${OCPNIOS_ROOT}/app/ios/dialogs_ios.cpp"
   "${OCPNIOS_ROOT}/app/ios/plugins_ios.cpp"
-  "${OCPNIOS_ROOT}/app/ios/canvas_ios.cpp"
-  "${OCPNIOS_ROOT}/app/ios/connections_ios.cpp")
+  "${OCPNIOS_ROOT}/app/ios/aui_panes_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/icon_combo_ios.cpp")
+# Lidfuncties van kernklassen staan in deze bestanden. De OpenCPN-reeks declareert ze per
+# commit (canvas, hoofdvenster, Opties, dialogen); bouw een bestand pas als de kern zijn haak
+# declareert, zodat elke commit van de reeks bouwt. CMake leest de header opnieuw als die
+# verandert (CMAKE_CONFIGURE_DEPENDS).
+# header: pad vanaf de OpenCPN-bron.
+function(ocpnios_has_hook out header hook)
+  set(_h "${CMAKE_SOURCE_DIR}/${header}")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_h}")
+  file(READ "${_h}" _text)
+  string(FIND "${_text}" "${hook}" _pos)
+  if(_pos EQUAL -1)
+    set(${out} FALSE PARENT_SCOPE)
+  else()
+    set(${out} TRUE PARENT_SCOPE)
+  endif()
+endfunction()
+function(ocpnios_add_with_hook file header hook)
+  ocpnios_has_hook(_found "${header}" "${hook}")
+  if(_found)
+    target_sources(opencpn PRIVATE "${OCPNIOS_ROOT}/app/ios/${file}")
+  endif()
+endfunction()
+ocpnios_add_with_hook(canvas_ios.cpp gui/include/gui/chcanv.h "void IosOnZoom(")
+ocpnios_add_with_hook(frame_ios.cpp gui/include/gui/ocpn_frame.h "void IosOnSize(")
+ocpnios_add_with_hook(options_ios.cpp gui/include/gui/options.h "void IosGoLevel(")
+ocpnios_add_with_hook(dialogs_ios.cpp gui/include/gui/about_frame_impl.h
+                      "void IosPhoneLayout(")
+ocpnios_add_with_hook(connections_ios.cpp model/include/model/ios_hooks.h
+                      "void ocpnios_AddSourceButtons(")
+# De Cancel/Done-balk van de verbindingseditor is een lid van ConnectionEditDialog (5.14).
+# OpenCPN master heeft die editor herschreven (3d30bc6d9); daar ontbreekt deze haak.
+ocpnios_has_hook(_nav gui/include/gui/connection_edit.h "void IosAddNavButtons(")
+if(_nav)
+  target_compile_definitions(opencpn PRIVATE OCPNIOS_CONN_EDIT_NAV=1)
+endif()
 # OpenCPN master (na 5.14) heeft API's hernoemd; app/ios kiest met deze macro.
 if(EXISTS "${CMAKE_SOURCE_DIR}/libs/nlohmann-json/CMakeLists.txt")
   target_compile_definitions(opencpn PRIVATE OCPNIOS_OCPN_MASTER=1)
@@ -282,9 +316,14 @@ ocpnios_bundle_data(opencpn)
 ocpnios_bundle_translations(opencpn)
 
 set(OCPNIOS_BUNDLE_PREFIX "local.opencpnios" CACHE STRING "Voorvoegsel voor bundel-ID's")
+# Een tweede app naast de gewone (bijv. de hoofdreeks op master): eigen ID en naam.
+set(OCPNIOS_APP_ID "opencpn" CACHE STRING "Laatste deel van de bundel-ID")
+set(OCPNIOS_APP_NAME "OpenCPN" CACHE STRING "Naam op het beginscherm")
+# Buildnummer (CFBundleVersion); per TestFlight-upload hoger.
+set(OCPNIOS_BUILD_NUMBER "1" CACHE STRING "CFBundleVersion")
 set_target_properties(opencpn PROPERTIES
-  MACOSX_BUNDLE_GUI_IDENTIFIER "${OCPNIOS_BUNDLE_PREFIX}.opencpn"
-  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${OCPNIOS_BUNDLE_PREFIX}.opencpn"
+  MACOSX_BUNDLE_GUI_IDENTIFIER "${OCPNIOS_BUNDLE_PREFIX}.${OCPNIOS_APP_ID}"
+  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${OCPNIOS_BUNDLE_PREFIX}.${OCPNIOS_APP_ID}"
   MACOSX_BUNDLE_BUNDLE_NAME "OpenCPN"
   XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
 
@@ -298,7 +337,7 @@ endif()
 # Xcode invult. Met Ninja blijft dat letterlijk staan (zichtbaar in de terugknop van
 # iOS). Na het bouwen vervangen, en de vraag om lokaal netwerk (NMEA/AIS) toevoegen.
 add_custom_command(TARGET opencpn POST_BUILD
-  COMMAND /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName OpenCPN"
+  COMMAND /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName '${OCPNIOS_APP_NAME}'"
           "$<TARGET_BUNDLE_CONTENT_DIR:opencpn>/Info.plist"
   COMMAND /usr/libexec/PlistBuddy -c "Delete :NSLocalNetworkUsageDescription"
           "$<TARGET_BUNDLE_CONTENT_DIR:opencpn>/Info.plist" || true
@@ -349,4 +388,10 @@ add_custom_command(TARGET opencpn POST_BUILD
           "$<TARGET_BUNDLE_CONTENT_DIR:opencpn>/Info.plist"
   COMMAND /usr/libexec/PlistBuddy -c "Add :UIDeviceFamily:1 integer 2"
           "$<TARGET_BUNDLE_CONTENT_DIR:opencpn>/Info.plist"
+  # Afmaken zoals Xcode (versie, DT*-sleutels, gecompileerd opstartscherm,
+  # privacymanifest, Engelse toestemmingsteksten met Nederlandse vertaling); nodig voor
+  # TestFlight, zie scripts/finish-bundle.sh en docs/testflight.md.
+  COMMAND "${OCPNIOS_ROOT}/scripts/finish-bundle.sh"
+          "$<TARGET_BUNDLE_CONTENT_DIR:opencpn>" "${OCPNIOS_ICON_PLATFORM}"
+          "${PACKAGE_VERSION}" "${OCPNIOS_BUILD_NUMBER}"
   VERBATIM)

@@ -1,7 +1,7 @@
-From 0c6ce26cebd66bea74187f6107129262af6f3610 Mon Sep 17 00:00:00 2001
+From b2cb6e36e746df3cf8af9e6918b7cd782264fb40 Mon Sep 17 00:00:00 2001
 From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
 Date: Sat, 14 Nov 2026 12:50:09 +0100
-Subject: [PATCH 05/13] iOS: touch input on the chart canvas
+Subject: [PATCH 20/32] iOS: touch input on the chart canvas
 
 Chart canvas, toolbar, compass and piano for a touch screen:
 
@@ -9,26 +9,104 @@ Chart canvas, toolbar, compass and piano for a touch screen:
   filter in the app layer; drag inertia with a cap.
 - Retina scaling in the GL path; widgets kept clear of the rounded screen
   corners.
-- No wxClientDC outside paint events (crashes under wxQt).
 - Actions that were only in the menu bar (iOS has none) are added to the
   context menu.
 
-The iOS implementation lives in the iOS app layer (app/ios/*_ios.cpp in the
-opencpn-ios repository); the core only declares and calls it.
-
-All changes are inside #ifdef __OCPN__IOS__; other platforms are unchanged.
-
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- gui/src/canvas_menu.cpp    |  20 ++++-
- gui/src/canvas_options.cpp |  24 ++++++
- gui/src/chcanv.cpp         | 154 ++++++++++++++++++++++++++++++++++++-
- gui/src/compass.cpp        |  18 ++++-
- gui/src/mui_bar.cpp        |   7 ++
- gui/src/piano.cpp          |  20 +++--
- gui/src/toolbar.cpp        |  32 +++++++-
- 7 files changed, 265 insertions(+), 10 deletions(-)
+ gui/include/gui/canvas_options.h |  14 ++++
+ gui/include/gui/chcanv.h         |  24 ++++++
+ gui/src/canvas_menu.cpp          |  20 ++++-
+ gui/src/canvas_options.cpp       |  52 +++++++++++++
+ gui/src/chcanv.cpp               | 129 ++++++++++++++++++++++++++++++-
+ gui/src/compass.cpp              |  18 ++++-
+ gui/src/mui_bar.cpp              |   6 ++
+ gui/src/piano.cpp                |  18 ++++-
+ gui/src/toolbar.cpp              |  31 +++++++-
+ model/include/model/ios_hooks.h  |   2 +
+ 10 files changed, 305 insertions(+), 9 deletions(-)
 
+diff --git a/gui/include/gui/canvas_options.h b/gui/include/gui/canvas_options.h
+index 6f1f00f5e..685d50c0f 100644
+--- a/gui/include/gui/canvas_options.h
++++ b/gui/include/gui/canvas_options.h
+@@ -113,6 +113,10 @@ enum {
+   IDCO_ENCDATAQUALITY_CHECKBOX,
+ };
+ 
++#ifdef __OCPN__IOS__
++class ChartCanvas;
++#endif
++
+ /**
+  * Represents the Canvas Options dialog. Implements a dialog that allows users
+  * to configure various options for the chart canvas display.
+@@ -158,6 +162,16 @@ private:
+   wxCheckBox *pCBShowAIS, *pCBAttenAIS, *pCBENCVisibleSectors,
+       *pCBENCDataQuality;
+   bool m_bmode_change_while_hidden;  // Coming from compass icon click
++#ifdef __OCPN__IOS__
++  // iOS: toggles that were only in the menu bar, which is removed on iOS.
++  wxCheckBox *m_iosNavobjects = nullptr, *m_iosChartBar = nullptr,
++             *m_iosHideMoored = nullptr, *m_iosAISTracks = nullptr,
++             *m_iosCPADialog = nullptr, *m_iosCPASound = nullptr,
++             *m_iosCPAWarn = nullptr;
++  // iOS hooks, defined in app/ios/canvas_ios.cpp
++  void IosRefreshControlValues(ChartCanvas *parentCanvas);
++  void IosUpdateCanvasOptions(ChartCanvas *parentCanvas, bool &b_needRefresh);
++#endif
+ 
+   DECLARE_EVENT_TABLE()
+ };
+diff --git a/gui/include/gui/chcanv.h b/gui/include/gui/chcanv.h
+index d107ae6cb..8d83f29bd 100644
+--- a/gui/include/gui/chcanv.h
++++ b/gui/include/gui/chcanv.h
+@@ -63,6 +63,7 @@
+ #include "rollover_win.h"
+ #include "s57_sector.h"
+ #include "tc_win.h"
++#include "ocpn_region.h"  // iOS: m_iosCacheRendered
+ #include "undo.h"
+ 
+ WX_DEFINE_ARRAY_PTR(ChartCanvas *, arrayofCanvasPtr);
+@@ -479,6 +480,13 @@ public:
+    */
+   void DoMovement(long dt);
+   void StopMovement();
++#ifdef __OCPN__IOS__
++  // iOS: stop drag inertia immediately (database rebuild).
++  void StopDragInertia() {
++    m_chart_drag_inertia_timer.Stop();
++    m_chart_drag_inertia_active = false;
++  }
++#endif
+ 
+   void StartTimedMovementVP(double target_lat, double target_lon, int nstep);
+   void DoTimedMovementVP();
+@@ -1355,6 +1363,22 @@ private:
+   wxLongLong m_chart_drag_inertia_time;
+   wxLongLong m_chart_drag_inertia_start_time;
+   bool m_chart_drag_inertia_active;
++#ifdef __OCPN__IOS__
++  bool m_iosPinchSeen = false;   // iOS: no inertia after a pinch
++  double m_iosCompassScale = 0;  // iOS: Retina factor at last compass scaling
++  // iOS: chart area (screen pixels) drawn into m_cached_chart_bm
++  OCPNRegion m_iosCacheRendered;
++  // iOS hooks, defined in app/ios/canvas_ios.cpp
++  void IosOnZoom(wxZoomGestureEvent &event);
++  bool IosClampDragTime(size_t n_vel, double &tacc);
++  void IosCapDragVelocity(size_t n_vel, double tacc);
++  void IosClampViewPoint(double &lat, double &scale_ppm, int projection);
++  void IosOnSizeScale();
++  void IosRedrawNewCoverage(wxMemoryDC &temp_dc, ViewPort &svp,
++                            OCPNRegion &chart_get_region,
++                            OCPNRegion &update_region, int dx, int dy);
++  void IosUpdateCompassScale(bool &b_update);
++#endif
+   double m_last_elapsed;
+   std::vector<int> m_drag_vec_x;
+   std::vector<int> m_drag_vec_y;
 diff --git a/gui/src/canvas_menu.cpp b/gui/src/canvas_menu.cpp
 index d1703b496..89e11cf19 100644
 --- a/gui/src/canvas_menu.cpp
@@ -82,41 +160,69 @@ index d1703b496..89e11cf19 100644
        RoutePoint *pWP = new RoutePoint(zlat, zlon, g_default_wp_icon,
                                         wxEmptyString, wxEmptyString);
 diff --git a/gui/src/canvas_options.cpp b/gui/src/canvas_options.cpp
-index 72f217442..4e190cbb0 100644
+index 72f217442..41246a289 100644
 --- a/gui/src/canvas_options.cpp
 +++ b/gui/src/canvas_options.cpp
-@@ -204,6 +204,16 @@ CanvasOptions::CanvasOptions(wxWindow* parent)
+@@ -204,6 +204,19 @@ CanvasOptions::CanvasOptions(wxWindow* parent)
    pSDepthUnits->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
                          wxCommandEventHandler(CanvasOptions::OnOptionChange),
                          NULL, this);
 +#ifdef __OCPN__IOS__
-+  auto iosBox = [&](wxSizer* box, const wxString& label) {
-+    auto* cb = new wxCheckBox(pDisplayPanel, wxID_ANY, label);
-+    box->Add(cb, verticalInputFlags);
-+    cb->Bind(wxEVT_CHECKBOX, &CanvasOptions::OnOptionChange, this);
-+    return cb;
-+  };
-+  m_iosNavobjects = iosBox(boxDisp, _("Show Navobjects"));
-+  m_iosChartBar = iosBox(boxDisp, _("Show Chart Bar"));
++  m_iosNavobjects =
++      new wxCheckBox(pDisplayPanel, wxID_ANY, _("Show Navobjects"));
++  boxDisp->Add(m_iosNavobjects, verticalInputFlags);
++  m_iosNavobjects->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
++                           wxCommandEventHandler(CanvasOptions::OnOptionChange),
++                           NULL, this);
++  m_iosChartBar = new wxCheckBox(pDisplayPanel, wxID_ANY, _("Show Chart Bar"));
++  boxDisp->Add(m_iosChartBar, verticalInputFlags);
++  m_iosChartBar->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
++                         wxCommandEventHandler(CanvasOptions::OnOptionChange),
++                         NULL, this);
 +#endif
  
    // AIS Options
    wxStaticBoxSizer* boxAIS = new wxStaticBoxSizer(
-@@ -223,6 +233,13 @@ CanvasOptions::CanvasOptions(wxWindow* parent)
+@@ -223,6 +236,38 @@ CanvasOptions::CanvasOptions(wxWindow* parent)
    pCBAttenAIS->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
                         wxCommandEventHandler(CanvasOptions::OnOptionChange),
                         NULL, this);
 +#ifdef __OCPN__IOS__
-+  m_iosHideMoored = iosBox(boxAIS, _("Hide Moored AIS Targets"));
-+  m_iosAISTracks = iosBox(boxAIS, _("Show AIS Target Tracks"));
-+  m_iosCPADialog = iosBox(boxAIS, _("Show CPA Alert Dialogs"));
-+  m_iosCPASound = iosBox(boxAIS, _("Sound CPA Alarms"));
-+  m_iosCPAWarn = iosBox(boxAIS, _("Show CPA Warnings"));
++  m_iosHideMoored =
++      new wxCheckBox(pDisplayPanel, wxID_ANY, _("Hide Moored AIS Targets"));
++  boxAIS->Add(m_iosHideMoored, verticalInputFlags);
++  m_iosHideMoored->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
++                           wxCommandEventHandler(CanvasOptions::OnOptionChange),
++                           NULL, this);
++  m_iosAISTracks =
++      new wxCheckBox(pDisplayPanel, wxID_ANY, _("Show AIS Target Tracks"));
++  boxAIS->Add(m_iosAISTracks, verticalInputFlags);
++  m_iosAISTracks->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
++                          wxCommandEventHandler(CanvasOptions::OnOptionChange),
++                          NULL, this);
++  m_iosCPADialog =
++      new wxCheckBox(pDisplayPanel, wxID_ANY, _("Show CPA Alert Dialogs"));
++  boxAIS->Add(m_iosCPADialog, verticalInputFlags);
++  m_iosCPADialog->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
++                          wxCommandEventHandler(CanvasOptions::OnOptionChange),
++                          NULL, this);
++  m_iosCPASound =
++      new wxCheckBox(pDisplayPanel, wxID_ANY, _("Sound CPA Alarms"));
++  boxAIS->Add(m_iosCPASound, verticalInputFlags);
++  m_iosCPASound->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
++                         wxCommandEventHandler(CanvasOptions::OnOptionChange),
++                         NULL, this);
++  m_iosCPAWarn =
++      new wxCheckBox(pDisplayPanel, wxID_ANY, _("Show CPA Warnings"));
++  boxAIS->Add(m_iosCPAWarn, verticalInputFlags);
++  m_iosCPAWarn->Connect(wxEVT_COMMAND_CHECKBOX_CLICKED,
++                        wxCommandEventHandler(CanvasOptions::OnOptionChange),
++                        NULL, this);
 +#endif
  
    // spacer
    generalSizer->Add(0, interGroupSpace);
-@@ -380,6 +397,9 @@ void CanvasOptions::RefreshControlValues() {
+@@ -380,6 +425,9 @@ void CanvasOptions::RefreshControlValues() {
    // AIS Options
    pCBShowAIS->SetValue(parentCanvas->GetShowAIS());
    pCBAttenAIS->SetValue(parentCanvas->GetAttenAIS());
@@ -126,7 +232,7 @@ index 72f217442..4e190cbb0 100644
  
    // Tide/Current
    pCDOTides->SetValue(parentCanvas->GetbShowTide());
-@@ -491,6 +511,10 @@ void CanvasOptions::UpdateCanvasOptions() {
+@@ -491,6 +539,10 @@ void CanvasOptions::UpdateCanvasOptions() {
      b_needRefresh = true;
    }
  
@@ -138,31 +244,20 @@ index 72f217442..4e190cbb0 100644
      parentCanvas->SetAttenAIS(pCBAttenAIS->GetValue());
      b_needRefresh = true;
 diff --git a/gui/src/chcanv.cpp b/gui/src/chcanv.cpp
-index 096f19931..62a2ebf79 100644
+index f725f5ef4..b08757500 100644
 --- a/gui/src/chcanv.cpp
 +++ b/gui/src/chcanv.cpp
-@@ -73,6 +73,10 @@
+@@ -73,6 +73,9 @@
  #include "chartdb.h"
  #include "chartimg.h"
  #include "chcanv.h"
 +#ifdef __OCPN__IOS__
-+int ocpnios_OverlayInsetLeft();  // app/ios/window_fit.cpp: safe area (points)
-+int ocpnios_OverlayInsetRight();
++#include "model/ios_hooks.h"
 +#endif
  #include "ch_info_win.h"
  #include "cm93.h"  // for chart outline draw
  #include "compass.h"
-@@ -480,6 +484,9 @@ ChartCanvas::ChartCanvas(wxFrame *frame, int canvasIndex, wxWindow *nmea_log)
-   m_canvas_scale_factor = 1.;
- 
-   m_canvas_width = 1000;
-+#ifdef __OCPN__IOS__
-+  m_canvas_height = 1000;  // iOS: was uninitialized; SetViewPoint reads it
-+#endif
- 
-   m_overzoomTextWidth = 0;
-   m_overzoomTextHeight = 0;
-@@ -642,17 +649,43 @@ ChartCanvas::ChartCanvas(wxFrame *frame, int canvasIndex, wxWindow *nmea_log)
+@@ -643,17 +646,43 @@ ChartCanvas::ChartCanvas(wxFrame *frame, int canvasIndex, wxWindow *nmea_log)
  #if defined(__WXOSX__) || defined(__WXGTK3__)
    // Support scaled HDPI displays.
    m_displayScale = GetContentScaleFactor();
@@ -206,7 +301,7 @@ index 096f19931..62a2ebf79 100644
  
      Bind(wxEVT_LONG_PRESS, &ChartCanvas::OnLongPress, this);
      Bind(wxEVT_PRESS_AND_TAP, &ChartCanvas::OnPressAndTap, this);
-@@ -941,7 +974,11 @@ void ChartCanvas::OnKillFocus(wxFocusEvent &WXUNUSED(event)) {
+@@ -942,7 +971,11 @@ void ChartCanvas::OnKillFocus(wxFocusEvent &WXUNUSED(event)) {
    //  starting a timer if required to actually Finish() a route on a legitimate
    //  focus change, but not if the focus is quickly regained ( <20 msec.) on
    //  this canvas.
@@ -219,7 +314,7 @@ index 096f19931..62a2ebf79 100644
    if (m_routeState && m_FinishRouteOnKillFocus)
      m_routeFinishTimer.Start(20, wxTIMER_ONE_SHOT);
  #else
-@@ -1110,6 +1147,9 @@ void ChartCanvas::OnMotion(wxMouseEvent &event) {
+@@ -1111,6 +1144,9 @@ void ChartCanvas::OnMotion(wxMouseEvent &event) {
  }
  
  void ChartCanvas::OnZoom(wxZoomGestureEvent &event) {
@@ -229,7 +324,7 @@ index 096f19931..62a2ebf79 100644
    /* there are spurious end zoom events upon right-click */
    if (event.IsGestureEnd()) return;
  
-@@ -1132,6 +1172,7 @@ void ChartCanvas::OnZoom(wxZoomGestureEvent &event) {
+@@ -1133,6 +1169,7 @@ void ChartCanvas::OnZoom(wxZoomGestureEvent &event) {
      PanCanvas(-delta.x, -delta.y);
      m_zoomStartPoint = event.GetPosition();
    }
@@ -237,20 +332,20 @@ index 096f19931..62a2ebf79 100644
  }
  
  void ChartCanvas::OnWheel(wxMouseEvent &event) { MouseEvent(event); }
-@@ -1227,6 +1268,12 @@ void ChartCanvas::SetShowGPS(bool bshow) {
+@@ -1228,6 +1265,12 @@ void ChartCanvas::SetShowGPS(bool bshow) {
      m_Compass = new ocpnCompass(this, bshow);
      m_Compass->SetScaleFactor(g_compass_scalefactor);
      m_Compass->Show(m_bShowCompassWin && g_bShowCompassWin);
 +#ifdef __OCPN__IOS__
 +    // iOS: the new compass sits at (0,0) until the next periodic update; after
 +    // startup it stayed at the top left for ~10 s.
-+    m_ocpnios_compass_cs = 0;
++    m_iosCompassScale = 0;
 +    UpdateGPSCompassStatusBox(true);
 +#endif
    }
    m_bShowGPS = bshow;
  }
-@@ -3489,6 +3536,9 @@ void ChartCanvas::StartChartDragInertia() {
+@@ -3490,6 +3533,9 @@ void ChartCanvas::StartChartDragInertia() {
      yacc += m_drag_vec_y.at(length - 1 - i);
      tacc += m_drag_vec_t.at(length - 1 - i);
    }
@@ -260,7 +355,7 @@ index 096f19931..62a2ebf79 100644
  
    if (tacc == 0) return;
  
-@@ -3503,6 +3553,9 @@ void ChartCanvas::StartChartDragInertia() {
+@@ -3504,6 +3550,9 @@ void ChartCanvas::StartChartDragInertia() {
  
    m_chart_drag_velocity_x = drag_velocity_x;
    m_chart_drag_velocity_y = drag_velocity_y;
@@ -270,42 +365,7 @@ index 096f19931..62a2ebf79 100644
  
    m_chart_drag_inertia_active = true;
    // First callback as fast as possible.
-@@ -3511,6 +3564,18 @@ void ChartCanvas::StartChartDragInertia() {
- 
- void ChartCanvas::OnChartDragInertiaTimer(wxTimerEvent &event) {
-   if (!m_chart_drag_inertia_active) return;
-+#ifdef __OCPN__IOS__
-+  // iOS: no inertia while the chart database is being (re)built. That happens
-+  // after every install, with a progress dialog that keeps processing events;
-+  // the quilt then referenced a freed cm93 chart (crash in
-+  // cm93compchart::GetNativeScale from this timer).
-+  if (!ChartData || ChartData->IsBusy() || !ChartData->IsValid()) {
-+    m_chart_drag_inertia_timer.Stop();
-+    m_chart_drag_inertia_active = false;
-+    return;
-+  }
-+#endif
-+
-   // Calculate time fraction from 0..1
-   wxLongLong now = wxGetLocalTimeMillis();
-   double elapsed = (now - m_chart_drag_inertia_start_time).ToDouble();
-@@ -4718,6 +4783,15 @@ void ChartCanvas::DoZoomCanvas(double factor, bool can_zoom_to_cursor) {
- 
-   //    Cannot allow Yield() re-entrancy here
-   if (m_bzooming) return;
-+#ifdef __OCPN__IOS__
-+  // iOS: a running jump animation (StartSmoothJump, after tapping the own-ship
-+  // button) resets the scale to the scale at the time of the tap every 16 ms.
-+  // Zooming during those 600 ms was undone or jumped back and forth.
-+  if (m_animationActive) {
-+    m_easeTimer.Stop();
-+    m_animationActive = false;
-+  }
-+#endif
-   m_bzooming = true;
- 
-   double old_ppm = GetVP().view_scale_ppm;
-@@ -5444,6 +5518,9 @@ bool ChartCanvas::SetViewPoint(double lat, double lon, double scale_ppm,
+@@ -5457,6 +5506,9 @@ bool ChartCanvas::SetViewPoint(double lat, double lon, double scale_ppm,
                                 double skew, double rotation, int projection,
                                 bool b_adjust, bool b_refresh) {
    if (ChartData->IsBusy()) return false;
@@ -315,7 +375,7 @@ index 096f19931..62a2ebf79 100644
    bool b_ret = false;
    if (skew > PI) /* so our difference tests work, put in range of +-Pi */
      skew -= 2 * PI;
-@@ -6779,6 +6856,9 @@ void ChartCanvas::ScaleBarDraw(ocpnDC &dc) {
+@@ -6792,6 +6844,9 @@ void ChartCanvas::ScaleBarDraw(ocpnDC &dc) {
      double blat, blon, tlat, tlon;
  
      int x_origin = 5.0 * GetPixPerMM();
@@ -325,7 +385,7 @@ index 096f19931..62a2ebf79 100644
      int chartbar_height = GetChartbarHeight();
      //         ocpnStyle::Style* style = g_StyleManager->GetCurrentStyle();
      //         if (style->chartStatusWindowTransparent)
-@@ -7130,9 +7210,11 @@ void ChartCanvas::OnSize(wxSizeEvent &event) {
+@@ -7143,9 +7198,11 @@ void ChartCanvas::OnSize(wxSizeEvent &event) {
    // GetClientSize returns the size of the canvas area in logical pixels.
    GetClientSize(&m_canvas_width, &m_canvas_height);
  
@@ -338,7 +398,7 @@ index 096f19931..62a2ebf79 100644
  #endif
  
    // Convert to physical pixels.
-@@ -7153,6 +7235,15 @@ void ChartCanvas::OnSize(wxSizeEvent &event) {
+@@ -7166,6 +7223,15 @@ void ChartCanvas::OnSize(wxSizeEvent &event) {
    m_absolute_min_scale_ppm =
        m_canvas_width /
        (1.2 * WGS84_semimajor_axis_meters * PI);  // something like 180 degrees
@@ -354,7 +414,7 @@ index 096f19931..62a2ebf79 100644
  
    //  Inform the parent Frame that I am being resized...
    top_frame::Get()->ProcessCanvasResize();
-@@ -7780,7 +7871,14 @@ void ChartCanvas::MouseTimedEvent(wxTimerEvent &event) {
+@@ -7793,7 +7859,14 @@ void ChartCanvas::MouseTimedEvent(wxTimerEvent &event) {
  bool leftIsDown;
  
  bool ChartCanvas::MouseEventOverlayWindows(wxMouseEvent &event) {
@@ -369,7 +429,7 @@ index 096f19931..62a2ebf79 100644
      /*
       * The m_Compass->GetRect() coordinates are in physical pixels, whereas the
       * mouse event coordinates are in logical pixels.
-@@ -11391,6 +11489,13 @@ wxString ChartCanvas::FinishRoute() {
+@@ -11402,6 +11475,13 @@ wxString ChartCanvas::FinishRoute() {
  }
  
  void ChartCanvas::HideGlobalToolbar() {
@@ -383,7 +443,7 @@ index 096f19931..62a2ebf79 100644
    if (m_canvasIndex == 0) {
      m_last_TBviz = top_frame::Get()->SetGlobalToolbarViz(false);
    }
-@@ -12214,6 +12319,11 @@ void ChartCanvas::OnPaint(wxPaintEvent &event) {
+@@ -12225,6 +12305,11 @@ void ChartCanvas::OnPaint(wxPaintEvent &event) {
                m_pQuilt->RenderQuiltRegionViewOnDCNoText(temp_dc, svp,
                                                          update_region);
                cache_dc.SelectObject(wxNullBitmap);
@@ -395,17 +455,17 @@ index 096f19931..62a2ebf79 100644
              } else {
                //    No sensible (dx, dy) change in the view, so use the cached
                //    member bitmap
-@@ -12257,6 +12367,9 @@ void ChartCanvas::OnPaint(wxPaintEvent &event) {
+@@ -12268,6 +12353,9 @@ void ChartCanvas::OnPaint(wxPaintEvent &event) {
  
          m_bm_cache_vp =
              VPoint;  // save the ViewPort associated with the cached wxBitmap
 +#ifdef __OCPN__IOS__
-+        m_ocpnios_cache_rendered = m_pQuilt->GetFullQuiltRenderedRegion();
++        m_iosCacheRendered = m_pQuilt->GetFullQuiltRenderedRegion();
 +#endif
        }
      }
  
-@@ -13103,6 +13216,10 @@ emboss_data *ChartCanvas::EmbossDepthScale() {
+@@ -13114,6 +13202,10 @@ emboss_data *ChartCanvas::EmbossDepthScale() {
    }
  
    ped->x = (GetVP().pix_width - ped->width);
@@ -416,7 +476,7 @@ index 096f19931..62a2ebf79 100644
  
    if (m_Compass && m_bShowCompassWin && g_bShowCompassWin) {
      wxRect r = m_Compass->GetRect();
-@@ -13113,6 +13230,18 @@ emboss_data *ChartCanvas::EmbossDepthScale() {
+@@ -13124,6 +13216,18 @@ emboss_data *ChartCanvas::EmbossDepthScale() {
    return ped;
  }
  
@@ -425,37 +485,37 @@ index 096f19931..62a2ebf79 100644
 +// (style: 30 pt). On an iPhone (440 pt wide) "Meters" covered half the chart
 +// width and overlapped the chart text. Scale to the chart width, with a 1200 pt
 +// monitor as reference; never larger than the original.
-+static void OcpnIosScaleEmbossFont(wxFont &font, int canvasWidth) {
++static void IosScaleEmbossFont(wxFont &font, int canvasWidth) {
 +  if (canvasWidth <= 0) return;
-+  const double f = std::min(1.0, canvasWidth / 1200.0);
-+  font.SetPointSize(std::max(10, (int)(font.GetPointSize() * f + 0.5)));
++  const double f = wxMin(1.0, canvasWidth / 1200.0);
++  font.SetPointSize(wxMax(10, (int)(font.GetPointSize() * f + 0.5)));
 +}
 +#endif
 +
  void ChartCanvas::CreateDepthUnitEmbossMaps(ColorScheme cs) {
    ocpnStyle::Style *style = g_StyleManager->GetCurrentStyle();
    wxFont font;
-@@ -13125,6 +13254,9 @@ void ChartCanvas::CreateDepthUnitEmbossMaps(ColorScheme cs) {
+@@ -13136,6 +13240,9 @@ void ChartCanvas::CreateDepthUnitEmbossMaps(ColorScheme cs) {
      font = wxFont(style->embossHeight, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL,
                    wxFONTWEIGHT_BOLD, false, style->embossFont);
  
 +#ifdef __OCPN__IOS__
-+  OcpnIosScaleEmbossFont(font, GetClientSize().x);
++  IosScaleEmbossFont(font, GetClientSize().x);
 +#endif
    int emboss_width = 500;
    int emboss_height = 200;
  
-@@ -13158,6 +13290,9 @@ void ChartCanvas::SetOverzoomFont() {
+@@ -13169,6 +13276,9 @@ void ChartCanvas::SetOverzoomFont() {
      font = wxFont(style->embossHeight, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL,
                    wxFONTWEIGHT_BOLD, false, style->embossFont);
  
 +#ifdef __OCPN__IOS__
-+  OcpnIosScaleEmbossFont(font, GetClientSize().x);
++  IosScaleEmbossFont(font, GetClientSize().x);
 +#endif
    wxClientDC dc(this);
    dc.SetFont(font);
    dc.GetTextExtent(OVERZOOM_TEXT, &w, &h);
-@@ -14329,6 +14464,9 @@ void ChartCanvas::UpdateGPSCompassStatusBox(bool b_force_new) {
+@@ -14340,6 +14450,9 @@ void ChartCanvas::UpdateGPSCompassStatusBox(bool b_force_new) {
    //    Look for change in overlap or positions
    bool b_update = false;
    int cc1_edge_comp = 2;
@@ -465,7 +525,7 @@ index 096f19931..62a2ebf79 100644
    wxRect rect = m_Compass->GetRect();
    wxSize parent_size = GetSize();
  
-@@ -14338,6 +14476,10 @@ void ChartCanvas::UpdateGPSCompassStatusBox(bool b_force_new) {
+@@ -14349,6 +14462,10 @@ void ChartCanvas::UpdateGPSCompassStatusBox(bool b_force_new) {
    // right)
    wxPoint compass_pt(parent_size.x - rect.width - cc1_edge_comp,
                       g_StyleManager->GetCurrentStyle()->GetCompassYOffset());
@@ -476,7 +536,7 @@ index 096f19931..62a2ebf79 100644
    wxRect compass_rect(compass_pt, rect.GetSize());
  
    m_Compass->Move(compass_pt);
-@@ -14349,6 +14491,14 @@ void ChartCanvas::UpdateGPSCompassStatusBox(bool b_force_new) {
+@@ -14360,6 +14477,14 @@ void ChartCanvas::UpdateGPSCompassStatusBox(bool b_force_new) {
    scaler = wxMax(scaler, 1.0);
    wxPoint note_point = wxPoint(
        parent_size.x - (scaler * 20 * wxWindow::GetCharWidth()), compass_rect.y);
@@ -538,21 +598,20 @@ index 003389c73..bddaf40d9 100644
  
  void ocpnCompass::CreateBmp(bool newColorScheme) {
 diff --git a/gui/src/mui_bar.cpp b/gui/src/mui_bar.cpp
-index 9d11e3c09..c9b7706d4 100644
+index 9d11e3c09..096299cfa 100644
 --- a/gui/src/mui_bar.cpp
 +++ b/gui/src/mui_bar.cpp
-@@ -31,6 +31,10 @@
+@@ -31,6 +31,9 @@
  #include "ssfn.h"
  
  #include "model/config_vars.h"
 +#ifdef __OCPN__IOS__
-+int ocpnios_OverlayInsetLeft();  // app/ios/window_fit.cpp: safe area (points)
-+int ocpnios_OverlayInsetRight();
++#include "model/ios_hooks.h"
 +#endif
  #include "model/idents.h"
  #include "model/svg_utils.h"
  
-@@ -1065,6 +1069,9 @@ void MUIBar::SetBestPosition() {
+@@ -1065,6 +1068,9 @@ void MUIBar::SetBestPosition() {
        (m_parentCanvas->GetClientSize().x - (m_size.x + (m_end_margin) * 2.00));
  
    int bottomOffset = 6;
@@ -563,21 +622,20 @@ index 9d11e3c09..c9b7706d4 100644
    int y = m_parentCanvas->GetClientSize().y - m_size.y - bottomOffset;
    // if ( g_bopengl){
 diff --git a/gui/src/piano.cpp b/gui/src/piano.cpp
-index 1d9285a28..4915b06f5 100644
+index 1d9285a28..10802b63e 100644
 --- a/gui/src/piano.cpp
 +++ b/gui/src/piano.cpp
-@@ -32,6 +32,10 @@
+@@ -32,6 +32,9 @@
  #include "model/gui_vars.h"
  #include "model/cutil.h"
  
 +#ifdef __OCPN__IOS__
-+int ocpnios_OverlayInsetLeft();  // app/ios/window_fit.cpp: safe area (points)
-+int ocpnios_OverlayInsetRight();
++#include "model/ios_hooks.h"
 +#endif
  #include "chartbase.h"
  #include "chartdb.h"
  #include "chcanv.h"
-@@ -770,7 +774,7 @@ wxString &Piano::GetStoredHash() { return m_hash; }
+@@ -770,7 +773,7 @@ wxString &Piano::GetStoredHash() { return m_hash; }
  void Piano::FormatKeys() {
    ocpnStyle::Style *style = g_StyleManager->GetCurrentStyle();
    int width = m_parentCanvas->GetClientSize().x;
@@ -586,22 +644,20 @@ index 1d9285a28..4915b06f5 100644
    if (g_bopengl) width *= m_parentCanvas->GetContentScaleFactor();
  #else
    width *= m_parentCanvas->GetContentScaleFactor();
-@@ -810,8 +814,14 @@ void Piano::FormatKeys() {
- 
-     KeyRect.clear();
-     m_width = 0;
-+    int x0 = 0;
-+#ifdef __OCPN__IOS__
-+    // iOS: keep the chart bar clear of the rounded bottom-left corner.
-+    x0 = ocpnios_OverlayInsetLeft() *
-+         (g_bopengl ? m_parentCanvas->GetContentScaleFactor() : 1);
-+#endif
-     for (int i = 0; i < nKeys; i++) {
--      wxRect r((i * kw) + 3, 2, kw - 6, height - 4);
-+      wxRect r(x0 + (i * kw) + 3, 2, kw - 6, height - 4);
+@@ -815,6 +818,13 @@ void Piano::FormatKeys() {
        KeyRect.push_back(r);
        m_width = r.x + r.width;
      }
++#ifdef __OCPN__IOS__
++    // iOS: keep the chart bar clear of the rounded bottom-left corner.
++    int x0 = ocpnios_OverlayInsetLeft() *
++             (g_bopengl ? m_parentCanvas->GetContentScaleFactor() : 1);
++    for (auto &r : KeyRect) r.x += x0;
++    m_width += x0;
++#endif
+   }
+   m_nRegions = nKeys;
+ }
 @@ -830,7 +840,7 @@ wxPoint Piano::GetKeyOrigin(int key_index) {
  bool Piano::MouseEvent(wxMouseEvent &event) {
    int x, y;
@@ -630,21 +686,20 @@ index 1d9285a28..4915b06f5 100644
  #endif
    if (g_btouch) {
 diff --git a/gui/src/toolbar.cpp b/gui/src/toolbar.cpp
-index 28796e396..761a211c1 100644
+index 28796e396..1d3af912d 100644
 --- a/gui/src/toolbar.cpp
 +++ b/gui/src/toolbar.cpp
-@@ -30,6 +30,10 @@
+@@ -30,6 +30,9 @@
  
  #include "config.h"
  #include "toolbar.h"
 +#ifdef __OCPN__IOS__
-+int ocpnios_OverlayInsetLeft();  // app/ios/window_fit.cpp: safe area (points)
-+int ocpnios_OverlayInsetRight();
++#include "model/ios_hooks.h"
 +#endif
  
  #include "model/ais_state_vars.h"
  #include "model/config_vars.h"
-@@ -443,6 +447,19 @@ void ocpnFloatingToolbarDialog::SetDefaultPosition() {
+@@ -443,6 +446,19 @@ void ocpnFloatingToolbarDialog::SetDefaultPosition() {
  
      m_position.x = wxMax(m_dock_min_x, m_position.x);
      m_position.y = wxMax(m_dock_min_y, m_position.y);
@@ -664,7 +719,7 @@ index 28796e396..761a211c1 100644
  
      m_position.y += m_auxOffsetY;
  
-@@ -543,6 +560,17 @@ void ocpnFloatingToolbarDialog::Realize() {
+@@ -543,6 +559,17 @@ void ocpnFloatingToolbarDialog::Realize() {
      m_ptoolbar->Realize();
      m_ptoolbar->CreateBitmap();
      m_toolbar_image.Destroy();
@@ -682,7 +737,7 @@ index 28796e396..761a211c1 100644
    }
  }
  
-@@ -1006,7 +1034,9 @@ bool ocpnToolBarSimple::Create(ocpnFloatingToolbarDialog *parent, wxWindowID id,
+@@ -1006,7 +1033,9 @@ bool ocpnToolBarSimple::Create(ocpnFloatingToolbarDialog *parent, wxWindowID id,
  ocpnToolBarSimple::~ocpnToolBarSimple() {}
  
  void ocpnToolBarSimple::EnableTooltips() {
@@ -693,6 +748,19 @@ index 28796e396..761a211c1 100644
    m_btooltip_show = true;
  #endif
  }
+diff --git a/model/include/model/ios_hooks.h b/model/include/model/ios_hooks.h
+index ebd7e3e91..e0be27554 100644
+--- a/model/include/model/ios_hooks.h
++++ b/model/include/model/ios_hooks.h
+@@ -31,6 +31,8 @@ class wxAuiManager;
+ 
+ void ocpnios_FloatPluginPanes(wxAuiManager *mgr);
+ void ocpnios_HideBusyHud();
++int ocpnios_OverlayInsetLeft();
++int ocpnios_OverlayInsetRight();
+ void ocpnios_ShowBusyHud();
+ void ocpnios_ShowStartupBusy();
+ void ocpnios_TidyDocuments();
 -- 
-2.50.1 (Apple Git-155)
+2.54.0 (Apple Git-157)
 

@@ -223,7 +223,7 @@ set(_ocpnios_common_fixups
   "opencpn-libs/plugin_dc/dc_utils/include/TexFont.h@@#ifdef __ANDROID__@@#if defined(__ANDROID__) || defined(__OCPN__IOS__)")
 
 function(ocpnios_ext_plugin name)
-  cmake_parse_arguments(E "GLCOMPAT" "COMMON" "LIBS;DEFINES;EXTRA_SRC;EXCLUDE;INCLUDES;FIXUPS" ${ARGN})
+  cmake_parse_arguments(E "GLCOMPAT" "COMMON;API" "LIBS;DEFINES;EXTRA_SRC;EXCLUDE;INCLUDES;FIXUPS" ${ARGN})
   set(dir "${OCPNIOS_ROOT}/upstream/${name}")
   if(NOT EXISTS "${dir}/CMakeLists.txt")
     message(STATUS "${name} niet gevonden in ${dir}; overgeslagen")
@@ -286,7 +286,10 @@ function(ocpnios_ext_plugin name)
   set(PROJECT_VERSION_TWEAK ${VERSION_TWEAK})
   set(OCPN_API_VERSION_MAJOR 1)
   set(OCPN_API_VERSION_MINOR 18)
-  set(API_VERSION "1.18")
+  if(E_API)  # bijv. API 21 voor een plugin op opencpn_plugin_121
+    set(OCPN_API_VERSION_MINOR ${E_API})
+  endif()
+  set(API_VERSION "1.${OCPN_API_VERSION_MINOR}")
   set(pkg_semver "${VERSION}")
   set(pkg_vers_build_info "ios")
   set(EXTRA_VERSION_INFO "")
@@ -526,6 +529,64 @@ ocpnios_ext_plugin(navico_autopilot_pi COMMON navicoautopilot
   FIXUPS
     "src/navico_autopilot_pi.cpp@@#include <chrono>@@#include <chrono>\n#include <QWidget>"
     "src/navico_autopilot_pi.cpp@@    m_panel->ApplyColours(m_scheme)%SEMI%@@    m_panel->ApplyColours(m_scheme)%SEMI%\n    m_panel->GetHandle()->setProperty(\"ocpnios_panel\", true)%SEMI% /* iOS */")
+
+# mayara_pi (github.com/opencpn-radar-pi/mayara_pi, GPL-3.0): radarbeeld van een mayara-server
+# via REST en WebSocket (TCP 6502), dus zonder radar-multicast op het toestel. Besluit Xander
+# (24 nov 2026): radar via Mayara op de navpi in plaats van radar_pi. Server zoeken via Bonjour
+# (dns_sd, NSBonjourServices in finish-bundle.sh) of een ingevuld adres. IXWebSocket zonder
+# TLS (ws:// op het LAN), met zlib, zoals upstream.
+set(_mpi "${OCPNIOS_ROOT}/upstream/mayara_pi")
+if(EXISTS "${_mpi}/third_party/IXWebSocket/ixwebsocket/IXWebSocket.cpp")
+  set(_ix_names Bench CancellationRequest ConnectionState DNSLookup ExponentialBackoff
+    GetFreePort GzipCodec Http HttpClient HttpServer NetSystem SelectInterrupt
+    SelectInterruptFactory SelectInterruptPipe SelectInterruptEvent SetThreadName Socket
+    SocketConnect SocketFactory SocketServer SocketTLSOptions StrCaseCompare UdpSocket
+    UrlParser Uuid UserAgent WebSocket WebSocketCloseConstants WebSocketHandshake
+    WebSocketHttpHeaders WebSocketPerMessageDeflate WebSocketPerMessageDeflateCodec
+    WebSocketPerMessageDeflateOptions WebSocketProxyServer WebSocketServer
+    WebSocketTransport)
+  set(_ix_src "")
+  foreach(n ${_ix_names})
+    if(EXISTS "${_mpi}/third_party/IXWebSocket/ixwebsocket/IX${n}.cpp")
+      list(APPEND _ix_src "${_mpi}/third_party/IXWebSocket/ixwebsocket/IX${n}.cpp")
+    endif()
+  endforeach()
+  ocpnios_ext_plugin(mayara_pi GLCOMPAT API 21 COMMON mayara
+    EXTRA_SRC ${_ix_src}
+    INCLUDES "${_mpi}/third_party" "${_mpi}/third_party/IXWebSocket"
+             "${_mpi}/third_party/mdns"
+    FIXUPS
+      # std::min neemt de constante als referentie; zonder definitie buiten de klasse
+      # ontbreekt het symbool bij een bouw zonder optimalisatie. Als waarde doorgeven.
+      "src/mayara_pi.cpp@@static_cast<int>(names.size()), kMaxMenuRadars)%SEMI%@@static_cast<int>(names.size()), int{kMaxMenuRadars})%SEMI%"
+      # Radarvenster: minimummaat paste niet op een iPhone (480 pt breed, scherm 402).
+      "src/PpiWindow.cpp@@  SetMinSize(FromDIP(wxSize(480, 320)))%SEMI%@@  SetMinSize(FromDIP(wxSize(200, 200)))%SEMI%"
+      "src/mayara_pi.cpp@@      frame->SetMinSize(frame->FromDIP(wxSize(480, 320)))%SEMI%@@      frame->SetMinSize(frame->FromDIP(wxSize(200, 200)))%SEMI%"
+      # iOS: OpenCPN niet verkleinen; radar naast de werkbalk, boven de kaart (staand) of rechts (liggend).
+      "src/mayara_pi.cpp@@  const int radar_w = std::max(360, area.width * 38 / 100)%SEMI%@@#ifdef __OCPN__IOS__\n  {\n    wxRect ocpnios_ToolbarScreenRect()%SEMI%  // app/ios/frame_ios.cpp\n    int x0 = area.x%SEMI%\n    const wxRect tb = ocpnios_ToolbarScreenRect()%SEMI%\n    if (!tb.IsEmpty() && tb.x < area.x + area.width / 2)\n      x0 = std::max(x0, tb.GetRight() + 4)%SEMI%\n    if (area.height > area.width)\n      TileInArea(m_windows, wxRect(x0, area.y, area.GetRight() + 1 - x0,\n                                   area.height * 55 / 100))%SEMI%\n    else {\n      x0 = std::max(x0, area.x + area.width / 2)%SEMI%\n      TileInArea(m_windows,\n                 wxRect(x0, area.y, area.GetRight() + 1 - x0, area.height))%SEMI%\n    }\n    return%SEMI%\n  }\n#endif\n  const int radar_w = std::max(360, area.width * 38 / 100)%SEMI%"
+      # Zoekvenster: geen lokale mayara-server op iOS, dat deel verbergen.
+      "src/mayara_pi.cpp@@  top->Add(local, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12)%SEMI%@@  local->Hide()%SEMI%\n  top->Add(local, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12)%SEMI%"
+      # Instellingen: idem, alleen 'server op het netwerk'.
+      "src/mayara_pi.cpp@@  sbox->Add(r_net, 0, wxALL, 8)%SEMI%@@  sbox->Hide(lbox)%SEMI%\n  r_local->Hide()%SEMI%\n  r_net->Hide()%SEMI%\n  sbox->Add(r_net, 0, wxALL, 8)%SEMI%"
+      # Bedieningspaneel: op iOS niet breder dan het venster, en het venster niet laten groeien.
+      "src/PpiWindow.cpp@@  return w%SEMI%\n}\n\nvoid MayaraPpiWindow::PositionControls@@#ifdef __OCPN__IOS__\n  w = std::min(w, GetClientSize().x)%SEMI%\n#endif\n  return w%SEMI%\n}\n\nvoid MayaraPpiWindow::PositionControls"
+      "src/PpiWindow.cpp@@    if (allow_grow && !m_docked && !m_fs && x < kMinPicture) {@@#ifdef __OCPN__IOS__\n    allow_grow = false%SEMI%\n#endif\n    if (allow_grow && !m_docked && !m_fs && x < kMinPicture) {"
+      # Draaien: radarvenster opnieuw indelen (staand boven, liggend rechts).
+      "src/mayara_pi.cpp@@    // Follow OpenCPN in/out of full screen.\n    const bool fs = GetFullScreen()%SEMI%@@#ifdef __OCPN__IOS__\n    {\n      static bool s_landscape = false, s_known = false%SEMI%\n      const wxSize ds = wxDisplay(0u).GetClientArea().GetSize()%SEMI%\n      const bool landscape = ds.x > ds.y%SEMI%\n      if (s_known && landscape != s_landscape && m_windows_visible)\n        AutoLayoutWindows(/*reflow_ocpn=*/false)%SEMI%\n      s_landscape = landscape%SEMI%\n      s_known = true%SEMI%\n    }\n#endif\n    // Follow OpenCPN in/out of full screen.\n    const bool fs = GetFullScreen()%SEMI%"
+      # Bij elk openen opnieuw indelen; de opgeslagen maat kan van de andere stand zijn.
+      "src/mayara_pi.cpp@@        if (win) win->ShowWindow(true)%SEMI%\n  } else {@@        if (win) win->ShowWindow(true)%SEMI%\n#ifdef __OCPN__IOS__\n    AutoLayoutWindows(/*reflow_ocpn=*/false)%SEMI%\n#endif\n  } else {"
+      # Radarvenster als vrij paneel voor de iOS-laag (window_fit.cpp): eigen plek, geen blad.
+      "src/mayara_pi.cpp@@      win->SetFloatingHost(frame)%SEMI%@@      win->SetFloatingHost(frame)%SEMI%\n#ifdef __OCPN__IOS__\n      if (QWidget* q = frame->GetHandle()) q->setProperty(\"ocpnios_floating\", true)%SEMI%\n#endif"
+      "src/mayara_pi.cpp@@#include <wx/utils.h>\n@@#include <wx/utils.h>\n#ifdef __OCPN__IOS__\n#include <QWidget>\n#endif\n"
+      # Kaartoverlay: projectie zetten en OpenCPN's vertex-buffers losmaken, zoals bij weather_routing_pi.
+      "src/mayara_pi.cpp@@  std::vector<OverlayItem> items = OverlayItems(canvasIndex)%SEMI%\n  if (items.empty()) return false%SEMI%\n\n  glEnable(GL_BLEND)%SEMI%@@  std::vector<OverlayItem> items = OverlayItems(canvasIndex)%SEMI%\n  if (items.empty()) return false%SEMI%\n\n#ifdef __OCPN__IOS__\n  ocpnios_glcompat_begin_overlay()%SEMI%\n  glBindBuffer(GL_ARRAY_BUFFER, 0)%SEMI%\n  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)%SEMI%\n#endif\n  glEnable(GL_BLEND)%SEMI%"
+      # Pictogram in de pluginlijst: lichte lijnen vielen weg op de witte lijst; grijs zoals iOS.
+      "src/mayara_pi.cpp@@  m_panel_bitmap = RadarIcon(48)%SEMI%\n@@#ifdef __OCPN__IOS__\n  {\n    std::string svg(kRadarSvg)%SEMI%\n    for (size_t p%SEMI% (p = svg.find(\"#e8e8e8\")) != std::string::npos%SEMI%)\n      svg.replace(p, 7, \"#636366\")%SEMI%\n    wxBitmapBundle bb = wxBitmapBundle::FromSVG(svg.c_str(), wxSize(48, 48))%SEMI%\n    m_panel_bitmap = bb.IsOk() ? bb.GetBitmap(wxSize(48, 48)) : RadarIcon(48)%SEMI%\n  }\n#else\n  m_panel_bitmap = RadarIcon(48)%SEMI%\n#endif\n"
+      # Geen mayara-server downloaden of starten op iOS (geen uitvoerbare bestanden).
+      "src/MayaraServer.cpp@@#if defined(__APPLE__)\n  return \"universal-apple-darwin.tar.gz\"%SEMI%@@#if defined(__APPLE__) && !defined(__OCPN__IOS__)\n  return \"universal-apple-darwin.tar.gz\"%SEMI%"
+    DEFINES PLUGIN_USE_SVG IXWEBSOCKET_USE_ZLIB
+            "PLUGIN_VERSION_COMMIT=\"ios\"")
+endif()
 
 # o-charts_pi met stub voor de ontsleuteling (eigen bestand, zie daar).
 include("${OCPNIOS_ROOT}/app/cmake/ios-ocharts.cmake")

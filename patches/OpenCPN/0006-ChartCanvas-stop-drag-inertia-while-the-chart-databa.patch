@@ -1,0 +1,38 @@
+From 7f5601b0eb8a944ba9dbf3c5d03913d62746eaa0 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 06/32] ChartCanvas: stop drag inertia while the chart database
+ is busy
+
+A chart database rebuild shows a progress dialog that processes events, so
+the inertia timer can fire while the old database is being replaced; the
+quilt then refers to freed charts (seen as a crash in
+cm93compchart::GetNativeScale on iOS). Stop the inertia when ChartData is
+missing, busy or invalid.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/chcanv.cpp | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/gui/src/chcanv.cpp b/gui/src/chcanv.cpp
+index 943c74b2c..b0c9ea82e 100644
+--- a/gui/src/chcanv.cpp
++++ b/gui/src/chcanv.cpp
+@@ -3512,6 +3512,13 @@ void ChartCanvas::StartChartDragInertia() {
+ 
+ void ChartCanvas::OnChartDragInertiaTimer(wxTimerEvent &event) {
+   if (!m_chart_drag_inertia_active) return;
++  // The chart database can be rebuilt while this timer runs (the progress
++  // dialog processes events); the quilt then refers to freed charts.
++  if (!ChartData || ChartData->IsBusy() || !ChartData->IsValid()) {
++    m_chart_drag_inertia_timer.Stop();
++    m_chart_drag_inertia_active = false;
++    return;
++  }
+   // Calculate time fraction from 0..1
+   wxLongLong now = wxGetLocalTimeMillis();
+   double elapsed = (now - m_chart_drag_inertia_start_time).ToDouble();
+-- 
+2.54.0 (Apple Git-157)
+

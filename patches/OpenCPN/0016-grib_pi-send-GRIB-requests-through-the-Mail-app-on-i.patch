@@ -1,0 +1,59 @@
+From 54a0bad17e0d70b00dc0a84c6cd7d09b982a6a41 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Thu, 19 Nov 2026 07:11:55 +0100
+Subject: [PATCH 16/32] grib_pi: send GRIB requests through the Mail app on iOS
+
+iOS has no shell, sendmail or wxExecute. Add an iOS branch to
+wxEmail::Send that opens a mailto: link with the request filled in; the
+user sends it from the Mail app.
+
+Only built on iOS (#elif defined(__OCPN__IOS__)); other platforms are
+unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ plugins/grib_pi/src/email.cpp | 28 ++++++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/plugins/grib_pi/src/email.cpp b/plugins/grib_pi/src/email.cpp
+index 101c4090e..50b4e4fd9 100644
+--- a/plugins/grib_pi/src/email.cpp
++++ b/plugins/grib_pi/src/email.cpp
+@@ -74,6 +74,34 @@ bool wxEmail::Send(wxMailMessage& message, int sendMethod,
+     return session.Send(message);
+ #endif
+ }
++#elif defined(__OCPN__IOS__)
++// iOS: no shell or sendmail. A mailto: link opens the Mail app with the request
++// filled in; the user sends it from there.
++static wxString IosMailtoEscape(const wxString& s) {
++  wxString out;
++  for (unsigned char c : std::string(s.ToUTF8())) {
++    if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~' ||
++        c == '@' || c == ',')
++      out << (char)c;
++    else
++      out << wxString::Format("%%%02X", c);
++  }
++  return out;
++}
++
++bool wxEmail::Send(wxMailMessage& message, int sendMethod,
++                   const wxString& profileName, const wxString& sendMail2,
++                   const wxString& sendMail1, const wxString& sendMail0) {
++  wxString addr;
++  for (size_t rcpt = 0; rcpt < message.m_to.GetCount(); rcpt++) {
++    if (rcpt > 0) addr << ",";
++    addr << message.m_to[rcpt];
++  }
++  wxString url = "mailto:" + IosMailtoEscape(addr) +
++                 "?subject=" + IosMailtoEscape(message.m_subject) +
++                 "&body=" + IosMailtoEscape(message.m_body);
++  return wxLaunchDefaultBrowser(url);
++}
+ #elif defined(__UNIX__)
+ bool wxEmail::Send(wxMailMessage& message, int sendMethod,
+                    const wxString& profileName, const wxString& sendMail2,
+-- 
+2.54.0 (Apple Git-157)
+

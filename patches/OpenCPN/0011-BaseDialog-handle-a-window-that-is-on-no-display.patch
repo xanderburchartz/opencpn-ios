@@ -1,0 +1,31 @@
+From 8be21eb3e0909ba74c76dacaf1f309d6e88c4827 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 11/32] BaseDialog: handle a window that is on no display
+
+SetInitialSize uses wxDisplay(this); fall back to the primary display when
+the window is on none, instead of using an invalid display.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ libs/gui/src/dialog_base.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/libs/gui/src/dialog_base.cpp b/libs/gui/src/dialog_base.cpp
+index 882a783fd..05fe1de1e 100644
+--- a/libs/gui/src/dialog_base.cpp
++++ b/libs/gui/src/dialog_base.cpp
+@@ -53,7 +53,9 @@ BaseDialog::BaseDialog(wxWindow* parent, const std::string& title, long style)
+ }
+ 
+ void BaseDialog::SetInitialSize() {
+-  wxDisplay display(wxDisplay::GetFromWindow(this));
++  // GetFromWindow returns wxNOT_FOUND if the window has no display (yet);
++  // wxDisplay(const wxWindow*) then falls back to the primary display.
++  wxDisplay display(this);
+   wxRect rect(display.GetGeometry());
+   GUI::Breakpoint breakpoint(GUI::GetScreenSize(&rect));
+ 
+-- 
+2.54.0 (Apple Git-157)
+

@@ -5,4 +5,4 @@
 // Toont het iOS-deelvenster (AirPrint, Mail, Bestanden, ...) voor het bestand op
 // `path`. Doet niets als het bestand niet bestaat. Keert direct terug; het venster
 // verschijnt na de huidige event-ronde.
-void OcpnIosShareFile(const char* path);
+void ocpnios_ShareFile(const char* path);

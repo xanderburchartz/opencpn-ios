@@ -1,0 +1,35 @@
+From 369785cddf69563d769c261b26dfabbc0f5e25bb Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 12/32] PluginLoader: check INSTALLS_TOOLBOX_PAGE after Init()
+
+UpdatePlugIns resets m_has_setup_options from the capability flags before
+calling Init(). A plugin enabled for the first time still has m_cap_flag 0
+there, so its options page never appeared. Check the flags returned by
+Init() instead.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ model/src/plugin_loader.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/model/src/plugin_loader.cpp b/model/src/plugin_loader.cpp
+index c2b0fec82..42a6a4251 100644
+--- a/model/src/plugin_loader.cpp
++++ b/model/src/plugin_loader.cpp
+@@ -838,9 +838,11 @@ bool PluginLoader::UpdatePlugIns() {
+       wxString msg("PluginLoader: Initializing PlugIn: ");
+       msg += pic->m_plugin_file;
+       wxLogMessage(msg);
++      pic->m_cap_flag = pic->m_pplugin->Init();
++      // Only Init() tells if the plugin has an options page; a plugin enabled
++      // for the first time still had m_cap_flag 0 here.
+       if (pic->m_cap_flag & INSTALLS_TOOLBOX_PAGE)
+         pic->m_has_setup_options = false;
+-      pic->m_cap_flag = pic->m_pplugin->Init();
+       pic->m_pplugin->SetDefaults();
+       pic->m_init_state = true;
+       ProcessLateInit(pic);
+-- 
+2.54.0 (Apple Git-157)
+

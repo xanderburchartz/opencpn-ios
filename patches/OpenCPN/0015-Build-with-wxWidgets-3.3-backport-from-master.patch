@@ -1,0 +1,71 @@
+From a623330b6c90bcba0b030f35294df92e82cc13c5 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 12:50:09 +0100
+Subject: [PATCH 15/32] Build with wxWidgets 3.3: backport from master
+
+Backport the OCPN_AUIManager and color_types.h parts of 2e73d2bad from
+master ("Fix wx3.3 related build problems", Alec Leamas). The iOS build
+uses wxWidgets 3.3; the rest of that commit is not needed on this branch.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/ocpn_aui_manager.cpp   | 18 ++++++++++++++++--
+ libs/s52plib/src/color_types.h |  5 +++++
+ 2 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/gui/src/ocpn_aui_manager.cpp b/gui/src/ocpn_aui_manager.cpp
+index 1d7017204..9b36ebfb1 100644
+--- a/gui/src/ocpn_aui_manager.cpp
++++ b/gui/src/ocpn_aui_manager.cpp
+@@ -115,8 +115,15 @@ void OCPN_AUIManager::OnMotionx(wxMouseEvent& event) {
+     // by the Update within DoEndResizeAction.
+     if (m_currentDragItem != -1)
+       m_actionPart = &(m_uiParts.Item(m_currentDragItem));
+-    else
+-      m_currentDragItem = m_uiParts.Index(*m_actionPart);
++    else {
++      // Find by address: wx 3.3 array Index() needs operator==
++      for (size_t i = 0; i < m_uiParts.GetCount(); i++) {
++        if (&m_uiParts.Item(i) == m_actionPart) {
++          m_currentDragItem = i;
++          break;
++        }
++      }
++    }
+ 
+     if (m_actionPart) {
+       wxPoint pos = m_actionPart->rect.GetPosition();
+@@ -436,7 +443,14 @@ void OCPN_AUIManager::OnLeftUp(wxMouseEvent& event) {
+     m_frame->ReleaseMouse();
+ 
+     if (m_actionPart) {
++#if wxCHECK_VERSION(3, 3, 2)
++      UpdateButtonOnScreen(m_actionPart,
++                           m_actionPart == HitTest(event.GetX(), event.GetY())
++                               ? wxAUI_BUTTON_STATE_HOVER
++                               : wxAUI_BUTTON_STATE_NORMAL);
++#else
+       UpdateButtonOnScreen(m_actionPart, event);
++#endif
+ 
+       // make sure we're still over the item that was originally clicked
+       if (m_actionPart == HitTest(event.GetX(), event.GetY())) {
+diff --git a/libs/s52plib/src/color_types.h b/libs/s52plib/src/color_types.h
+index af9e5734a..84e89d1f5 100644
+--- a/libs/s52plib/src/color_types.h
++++ b/libs/s52plib/src/color_types.h
+@@ -28,6 +28,11 @@
+ #ifndef _COLORTYPES_H_
+ #define _COLORTYPES_H_
+ 
++#include <wx/colour.h>
++#include <wx/dynarray.h>
++#include <wx/hashmap.h>
++#include <wx/string.h>
++
+ typedef struct _S52color {
+   char colName[20];
+   unsigned char R;
+-- 
+2.54.0 (Apple Git-157)
+

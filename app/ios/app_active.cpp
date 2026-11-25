@@ -22,10 +22,14 @@
 #include <QWidget>
 
 #include <wx/log.h>
+#include <wx/sizer.h>
 
 #include <cstdlib>
 
 void ocpnios_WaitUntilActive() {
+  // wxWidgets 3.3 reports sizer flags it ignores (sizer.cpp DoInsert) at every
+  // start; OpenCPN's dialogs are written for wx 3.2. Do not report them.
+  wxSizerFlags::DisableConsistencyChecks();
   if (std::getenv("OCPNIOS_NO_WAIT_ACTIVE")) return;
   if (QGuiApplication::applicationState() == Qt::ApplicationActive) {
     wxLogMessage("opencpn-ios: app al actief bij start");
