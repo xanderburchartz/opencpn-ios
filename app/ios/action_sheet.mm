@@ -95,6 +95,11 @@ void ShowMenu(QMenu* menu, QWidget* anchor, NSString* cancel) {
 
 }  // namespace
 
+// Actieblad met de items van één menu (de knop "Meer" van de werkbalk, toolbar_ios.cpp).
+void ocpnios_ShowActionSheet(QMenu* menu, QWidget* anchor, const QString& cancel) {
+  if (menu) ShowMenu(menu, anchor, cancel.toNSString());
+}
+
 // Actieblad met de menu's van `menus` (de acties van een menubalk), daarna de items.
 void ocpnios_ShowMenuSheet(const QList<QAction*>& menus, QWidget* anchor, const QString& cancel) {
   UIAlertController* ac =

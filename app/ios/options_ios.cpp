@@ -6,6 +6,7 @@
 // carries the hooks that call them.
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <set>
 #include <functional>
@@ -15,9 +16,12 @@
 #include <wx/filename.h>
 #include <wx/listbook.h>
 #include <wx/notebook.h>
+#include <wx/spinctrl.h>
 
 #include <QCoreApplication>
 #include <QTimer>
+#include <QElapsedTimer>
+#include <QApplication>
 #include <QColor>
 #include <QtWidgets/QWidget>
 #include <QtWidgets/QStyle>
@@ -30,10 +34,21 @@
 #include <QtWidgets/QTabBar>
 #include <QtWidgets/QGroupBox>
 
+#include "model/config_vars.h"  // g_bAutoHideToolbar
 #include "options.h"
 
 class QAbstractItemView;
 void ocpnios_MakeNavList(QAbstractItemView* view);  // app/ios/nav_list.cpp
+void ocpnios_BuildStatusPage(wxScrolledWindow* page);  // app/ios/status_panel.cpp
+wxString ocpnios_StatusPageTitle();                   // app/ios/status_panel.cpp
+void ocpnios_BuildToolbarPage(wxScrolledWindow* page);  // app/ios/toolbar_ios.cpp
+wxString ocpnios_ToolbarPageTitle();                   // app/ios/toolbar_ios.cpp
+void ocpnios_RefreshToolbarPage(wxWindow* shownPage);  // app/ios/toolbar_ios.cpp
+void ocpnios_SetAutoHideCheckbox(wxCheckBox* cb);      // app/ios/toolbar_ios.cpp
+int ocpnios_ChartBarWanted();                          // app/ios/chart_bar_ios.cpp
+void ocpnios_ChartBarSetWanted(bool wanted);           // app/ios/chart_bar_ios.cpp
+int ocpnios_CompassWanted();                           // app/ios/map_controls_ios.cpp
+void ocpnios_SetCompassWanted(bool wanted);            // app/ios/map_controls_ios.cpp
 
 #if defined(__OCPN__IOS__) && defined(OCPN_OPTIONS_USE_LISTBOOK)
 // iOS: list mode = category list filling the dialog (like the Settings app);
@@ -51,6 +66,39 @@ wxNotebook* options::IosCurrentNotebook() {
 }
 
 void options::IosOpenCategory() {
+  ocpnios_RefreshToolbarPage(m_pListbook->GetCurrentPage());
+  // "Show chart bar" is the user's choice; g_bShowChartBar itself is off while there is
+  // only one chart here (chart_bar_ios.cpp).
+  // Auto-hide of the toolbar is one setting, shown here and in Options > Toolbar
+  // (toolbar_ios.cpp): show the current value, not the one from when Options was built,
+  // otherwise Done wrote the old value back.
+  if (pToolbarAutoHideCB) {
+    pToolbarAutoHideCB->SetValue(g_bAutoHideToolbar);
+    ocpnios_SetAutoHideCheckbox(pToolbarAutoHideCB);
+  }
+  // Same for the compass box (map_controls_ios.cpp keeps g_bShowCompassWin off).
+  if (pShowCompassWin && ocpnios_CompassWanted() >= 0) {
+    pShowCompassWin->SetValue(ocpnios_CompassWanted() == 1);
+    if (!pShowCompassWin->GetClientData()) {
+      pShowCompassWin->SetClientData(pShowCompassWin);
+      pShowCompassWin->Bind(wxEVT_CHECKBOX, [](wxCommandEvent& e) {
+        e.Skip();
+        ocpnios_SetCompassWanted(e.IsChecked());
+      });
+    }
+  }
+  if (pShowChartBar && ocpnios_ChartBarWanted() >= 0) {
+    pShowChartBar->SetValue(ocpnios_ChartBarWanted() == 1);
+    // A change is the user's choice right away: while the bar is off because there is
+    // one chart, switching it off would otherwise not register.
+    if (!pShowChartBar->GetClientData()) {
+      pShowChartBar->SetClientData(pShowChartBar);
+      pShowChartBar->Bind(wxEVT_CHECKBOX, [](wxCommandEvent& e) {
+        e.Skip();
+        ocpnios_ChartBarSetWanted(e.IsChecked());
+      });
+    }
+  }
   wxNotebook* nb = IosCurrentNotebook();
   if (!nb) {
     IosGoLevel(2);
@@ -81,9 +129,10 @@ void options::IosBack() {
 void options::ShowOKButtons(bool _show) {
   m_OK_Cancel_Apply_buttons->Show(_show);
   if (m_iosBackButton) m_iosBackButton->Show(_show && m_iosLevel > 0);
-  if (m_CancelButton) m_CancelButton->Show(_show && m_iosLevel == 0);
+  // No Cancel and no Apply: changes count at once (IosDirectApply).
+  if (m_CancelButton) m_CancelButton->Hide();
   if (m_OKButton) m_OKButton->Show(_show);
-  if (m_ApplyButton) m_ApplyButton->Show(_show);
+  if (m_ApplyButton) m_ApplyButton->Hide();
   if (m_iosTitle) m_iosTitle->Show(_show);
   Layout();
 }
@@ -101,8 +150,22 @@ void options::IosGoLevel(int level) {
   } else if (level == 2) {
     if (nb) {
       // Long (translated) names made the button two lines high; then just "Back",
-      // as iOS does. Limit 16 characters: 14 still fits on one line on iPhone.
-      back = catName.length() <= 16 ? catName : _("Back");
+      // as iOS does. Measured against the room the header leaves (half the
+      // window width, the right half holds Apply and Done) instead of a fixed 16
+      // characters: on iPad and for names that fit on iPhone the button now names the
+      // previous page (HIG review 26 Nov 2026, item 9; "< Back" and "< Options"
+      // alternated).
+      back = catName;
+      back.Replace("\n", " ");
+      if (m_iosBackButton) {
+        const QFontMetrics fm(m_iosBackButton->GetHandle()->font());
+        const int room = GetClientSize().x / 2;
+        const wxString label = wxString::FromUTF8("\u2039 ") + back;
+        if (fm.horizontalAdvance(QString::fromUtf8(label.utf8_str().data())) + 32 > room)
+          back = _("Back");
+      } else if (catName.length() > 16) {
+        back = _("Back");
+      }
       const int sp = nb->GetSelection();
       title = sp >= 0 ? wxString(nb->GetPageText(sp)).Strip(wxString::both) : catName;
     } else {
@@ -125,19 +188,11 @@ void options::IosGoLevel(int level) {
     }
     m_iosBackButton->Show(level > 0);
   }
-  if (m_CancelButton) m_CancelButton->Show(level == 0);
-  // A plugin page (Chart Downloader, o-charts) has nothing to apply: hide Apply,
-  // Done closes Options. Detected by ocpnios_pluginpage, set in AddOptionsPage
-  // (ocpn_plugin_gui.cpp).
-  if (m_ApplyButton) {
-    bool pluginPage = false;
-    if (level == 2) {
-      wxWindow* cur = nb ? nb->GetCurrentPage() : m_pListbook->GetCurrentPage();
-      pluginPage = cur && cur->GetHandle() &&
-                   cur->GetHandle()->property("ocpnios_pluginpage").toBool();
-    }
-    m_ApplyButton->Show(!pluginPage);
-  }
+  // As the iOS Settings app: no Cancel and no Apply, a change counts at once
+  // (IosDirectApply below); Done closes. Xander 26 nov 2026 asked whether
+  // Cancel/Apply/Done "wel iOS" is; Apply does not exist on iOS.
+  if (m_CancelButton) m_CancelButton->Hide();
+  if (m_ApplyButton) m_ApplyButton->Hide();
   if (m_iosTitle) m_iosTitle->SetLabel(title);
   // Hide the notebook tab bar: selection goes through the list.
   if (nb) {
@@ -161,6 +216,28 @@ QString ocpnios_DarkSwitchStyle();  // app/ios/fit_width.cpp
 QString ocpnios_ButtonStyle(bool dark);  // app/ios/fit_width.cpp
 
 void options::IosApplyLook() {
+  // iOS: extra page under User Interface for the status display (status_panel.cpp).
+  // Once; IosApplyLook runs again after a colour scheme change.
+  if (m_pageUI != (size_t)-1) {
+    auto* nb = dynamic_cast<wxNotebook*>(m_pListbook->GetPage(m_pageUI));
+    const wxString title = ocpnios_StatusPageTitle();
+    bool have = false;
+    for (size_t i = 0; nb && i < nb->GetPageCount(); i++)
+      if (nb->GetPageText(i) == title) have = true;
+    if (nb && !have) ocpnios_BuildStatusPage(AddPage(m_pageUI, title));
+  }
+  // iOS: own category "Toolbar" (toolbar_ios.cpp), at the end of the list.
+  int toolbarPage = -1;
+  {
+    const wxString title = ocpnios_ToolbarPageTitle();
+    for (size_t i = 0; i < m_pListbook->GetPageCount(); i++)
+      if (m_pListbook->GetPageText(i) == title) toolbarPage = (int)i;
+    if (toolbarPage < 0) {
+      const size_t p = CreatePanel(title);
+      ocpnios_BuildToolbarPage(AddPage(p, title));
+      toolbarPage = (int)p;
+    }
+  }
   if (auto* tv = dynamic_cast<QAbstractItemView*>(m_pListbook->GetListView()->GetHandle())) {
     std::vector<std::pair<std::string, unsigned>> syms(m_pListbook->GetPageCount(),
                                                        {"gearshape", 0x8e8e93});
@@ -173,6 +250,7 @@ void options::IosApplyLook() {
     set(m_pageShips, "ferry", 0xff3b30);
     set(m_pageUI, "slider.horizontal.3", 0x8e8e93);
     set(m_pagePlugins, "puzzlepiece.extension", 0xaf52de);
+    set(toolbarPage, "sidebar.left", 0x5856d6);
     ocpnios_SetNavSymbols(tv, syms);
   }
   const bool dark = QCoreApplication::instance() &&
@@ -774,12 +852,94 @@ void options::IosMoveButtonsToHeader(int border_size) {
     bf.SetWeight(wxFONTWEIGHT_BOLD);
     m_OKButton->SetFont(bf);
   }
-  m_iosHead->Insert(0, m_CancelButton, 0, wxALIGN_CENTER_VERTICAL);
-  m_iosHead->Add(m_ApplyButton, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, border_size);
+  // Cancel and Apply stay in the dialog (OpenCPN uses them) but are never shown: a
+  // change counts at once, as in the iOS Settings app; Done closes.
+  m_OK_Cancel_Apply_buttons->Add(m_CancelButton);
+  m_OK_Cancel_Apply_buttons->Add(m_ApplyButton);
+  m_CancelButton->Hide();
+  m_ApplyButton->Hide();
   m_iosHead->Add(m_OKButton, 0, wxALIGN_CENTER_VERTICAL);
+  // Direct apply: a switch, choice, radio button, slider or spin box that the user
+  // changed is applied a moment later, as Apply did (OnApplyClick), without closing.
+  // Only after a touch on the dialog: building a page may change controls from code.
+  // Typed text counts on Done (or when a switch changes after it).
+  {
+    auto* lastTouch = new QElapsedTimer;  // lives as long as Options (deleted below)
+    auto* pending = new QTimer;
+    pending->setSingleShot(true);
+    pending->setInterval(700);
+    QObject::connect(pending, &QTimer::timeout, [this]() {
+      if (!IsShown()) return;
+      // Own ship at real scale with sizes still 0 or out of range: wait for Done, where
+      // OpenCPN checks them (ApplyChanges). Applying at once showed its error message
+      // right after choosing the icon type, before the sizes could be typed.
+      if (m_pShipIconType && m_pShipIconType->GetSelection() > 0) {
+        double len = 0, beam = 0, offx = 0, offy = 0;
+        long minmm = 0;
+        m_pOSLength->GetValue().ToDouble(&len);
+        m_pOSWidth->GetValue().ToDouble(&beam);
+        m_pOSGPSOffsetX->GetValue().ToDouble(&offx);
+        m_pOSGPSOffsetY->GetValue().ToDouble(&offy);
+        m_pOSMinSize->GetValue().ToLong(&minmm);
+        if (len <= 0 || beam <= 0 || std::fabs(offx) > beam / 2.0 || offy < 0 || offy > len ||
+            minmm <= 0 || minmm > 100)
+          return;
+      }
+      wxLogMessage("ocpnios: Options applied after a change");
+      wxCommandEvent ev(wxEVT_BUTTON, m_ApplyButton ? m_ApplyButton->GetId() : wxID_APPLY);
+      OnApplyClick(ev);
+    });
+    if (QWidget* q = GetHandle()) {
+      struct TouchFilter : QObject {
+        QElapsedTimer* t;
+        explicit TouchFilter(QElapsedTimer* tt, QObject* parent) : QObject(parent), t(tt) {}
+        bool eventFilter(QObject* o, QEvent* e) override {
+          const auto ty = e->type();
+          if (ty == QEvent::MouseButtonRelease || ty == QEvent::TouchEnd ||
+              ty == QEvent::KeyRelease)
+            t->start();
+          return false;
+        }
+      };
+      qApp->installEventFilter(new TouchFilter(lastTouch, q));
+    }
+    auto changed = [this, lastTouch, pending](wxCommandEvent& e) {
+      e.Skip();
+      // A choice can show or hide rows (own ship at real scale, range rings). OpenCPN
+      // then lays out the page but does not resize its scroll area: the new rows ran
+      // over the ones below and the page did not scroll (iPad, Eigen Schip, 26 nov 2026).
+      CallAfter([this]() {
+        wxNotebook* nb = IosCurrentNotebook();
+        wxWindow* page = nb ? nb->GetCurrentPage() : m_pListbook->GetCurrentPage();
+        if (auto* sw = dynamic_cast<wxScrolledWindow*>(page)) {
+          sw->Layout();
+          sw->FitInside();
+          sw->Refresh();
+        }
+      });
+      wxLogDebug("ocpnios: Options change, touch %lld ms ago",
+                 lastTouch->isValid() ? (long long)lastTouch->elapsed() : -1LL);
+      if (lastTouch->isValid() && lastTouch->elapsed() < 1500 && IsShown())
+        pending->start();
+    };
+    Bind(wxEVT_CHECKBOX, changed);
+    Bind(wxEVT_RADIOBUTTON, changed);
+    Bind(wxEVT_CHOICE, changed);
+    Bind(wxEVT_COMBOBOX, changed);
+    Bind(wxEVT_SLIDER, changed);
+    Bind(wxEVT_SPINCTRL, [changed](wxSpinEvent& e) { changed(e); });
+    Bind(wxEVT_SPINCTRLDOUBLE, [changed](wxSpinDoubleEvent& e) { changed(e); });
+    Bind(wxEVT_DESTROY, [this, lastTouch, pending](wxWindowDestroyEvent& e) {
+      e.Skip();
+      if (e.GetEventObject() != this) return;
+      pending->stop();
+      pending->deleteLater();
+      delete lastTouch;
+    });
+  }
   // Same style as the header of other dialogs (window_fit.cpp): blue text without
   // a frame (style rule in touch_ui.cpp).
-  for (wxButton* b : {m_CancelButton, m_ApplyButton, m_OKButton, m_iosBackButton})
+  for (wxButton* b : {m_OKButton, m_iosBackButton})
     if (b && b->GetHandle()) {
       QWidget* q = b->GetHandle();
       q->setProperty("ocpnios_nav", true);

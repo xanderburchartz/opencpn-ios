@@ -8,6 +8,12 @@
 //  - de toestand van de app (actief/inactief) en van elk topvenster: zichtbaar, maat,
 //    "exposed", actief; elke 500 ms en bij Show/Hide/Expose/Resize.
 // Daarna alleen nog de Qt-meldingen. Uitzetten met env OCPNIOS_NO_DIAG.
+//
+// Alleen voor eigen tests (besluit Xander 25 nov 2026, nu er externe TestFlight-testers komen):
+// standaard uit. Aan zolang de map Documents/log/schermafbeeldingen bestaat (zonder bestand OFF
+// erin), of met env OCPNIOS_DIAG=1. Zelfde schakelaar als de schermafbeeldingen
+// (screen_capture.mm). Aanzetten op een toestel: in de Bestanden-app onder "OpenCPN › log" een
+// map "schermafbeeldingen" maken; daarna de app opnieuw starten.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <QApplication>
@@ -30,6 +36,21 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+
+// Schakelaar voor schermafbeeldingen en het diagnoselog, zie boven.
+bool ocpnios_TestDiagnostics() {
+  static int cached = -1;
+  if (cached >= 0) return cached;
+  cached = 0;
+  if (std::getenv("OCPNIOS_DIAG")) return cached = 1;
+  const char* home = std::getenv("HOME");
+  if (!home) return cached;
+  const std::string dir = std::string(home) + "/Documents/log/schermafbeeldingen";
+  struct stat st;
+  if (stat(dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) return cached;
+  if (stat((dir + "/OFF").c_str(), &st) == 0) return cached;
+  return cached = 1;
+}
 
 namespace {
 
@@ -173,6 +194,7 @@ class DiagFilter : public QObject {
 
 void InstallDiag() {
   if (std::getenv("OCPNIOS_NO_DIAG")) return;
+  if (!ocpnios_TestDiagnostics()) return;
   const char* home = std::getenv("HOME");
   if (!home) return;
   // In Documents/log, bij de andere logbestanden (13 nov 2026).

@@ -27,6 +27,9 @@
 #include <QVBoxLayout>
 #include <QEvent>
 #include <QMouseEvent>
+#include <QTouchEvent>
+#include <QLineF>
+#include <QRegularExpression>
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QPointer>
@@ -47,6 +50,7 @@
 #include <QAbstractItemView>
 #include <QInputMethod>
 #include <QLabel>
+#include <QProgressBar>
 #include <QFocusEvent>
 #include <QAbstractSpinBox>
 #include <QPlainTextEdit>
@@ -82,6 +86,8 @@
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 
+#include "tooltip.h"  // OpenCPN-tooltips verbergen
+
 #include <algorithm>
 #include <vector>
 #include <cstdlib>
@@ -90,12 +96,15 @@ void ocpnios_FitToWidth(wxWindow* root);  // fit_width.cpp
 void ocpnios_RelayoutOverlays();  // frame_ios.cpp
 void ocpnios_ListButtons(wxWindow* top);  // connections_ios.cpp
 void ocpnios_RoundWindow(QWidget* w, double radius);  // action_sheet.mm
+QRect ocpnios_ToolbarRect();  // toolbar_ios.cpp
 void ocpnios_ShowMenuSheet(const QList<QAction*>& menus, QWidget* anchor,
                            const QString& cancel);  // action_sheet.mm
 void ocpnios_AlertLook(QWidget* dialog);  // fit_width.cpp
+void ocpnios_AlertStyle(QWidget* dialog);  // fit_width.cpp
 void ocpnios_HideStartupBusy();            // startup_busy.mm
 QRect ocpnios_AppWindowRect();            // app_window.mm
 bool ocpnios_AppIsWindowed();             // app_window.mm
+bool ocpnios_AppIsOnMac();                // app_window.mm
 
 namespace {
 
@@ -235,6 +244,20 @@ void FitMessageBox(QMessageBox* mb) {
 // (simulator 11 nov 2026).
 void RoundPanel(QWidget* w) { ocpnios_RoundWindow(w, 10); }
 
+// Groot scherm (iPad, iPad-app op de Mac): ook de korte kant minstens 700 pt.
+bool LargeScreen(const QRect& avail) { return std::min(avail.width(), avail.height()) >= 700; }
+
+// Breedte van een blad. iPad: als een iOS-blad in het midden, hooguit 720 pt, ook
+// liggend; schermvullend oogde als een desktopvenster (Xander 26 nov 2026: "bij kantelen
+// zijn de menuschermen op de iPad helemaal schermvullend"). iPhone: de volle breedte.
+int SheetWidth(const QRect& avail, int sheet) {
+  if (sheet == 3 || !LargeScreen(avail)) return avail.width();
+  return std::min(avail.width() - 40, 720);
+}
+
+// Ruimte boven een groot blad, zodat de kaart erachter zichtbaar blijft zoals bij iOS.
+int SheetTopGap(const QRect& avail) { return LargeScreen(avail) ? 24 : 8; }
+
 void FitToScreen(QWidget* w) {
   const QRect avail = UsableArea(w);
   if (!avail.isValid()) return;
@@ -249,7 +272,7 @@ void FitToScreen(QWidget* w) {
       w->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
       if (wxWindow* ww = wxWindow::QtRetrieveWindowPointer(w)) ww->SetMaxSize(wxDefaultSize);
     }
-    g.setWidth(avail.width());
+    g.setWidth(SheetWidth(avail, sheet));
     // wx zet bij Fit() een minimum gelijk aan de desktopmaat (Tactics: 450 pt op 440).
     if (w->minimumWidth() > avail.width() || w->minimumHeight() > avail.height()) {
       // Ook de hoogte: VDR viel anders over de statusregel; wat niet past schuift
@@ -260,7 +283,7 @@ void FitToScreen(QWidget* w) {
       if (wxWindow* ww = wxWindow::QtRetrieveWindowPointer(w)) ww->SetMinSize(wxSize(mw, mh));
     }
   }
-  if (sheet == 2) g.setHeight(avail.height());
+  if (sheet == 2) g.setHeight(avail.height() - SheetTopGap(avail));
   if (sheet == 3) {
     // Paneel onderin: zo hoog als de inhoud (de kopbalk zit als lege regel in de
     // sizer), hooguit de helft van het scherm (liggend 70%); wat niet past schuift.
@@ -299,7 +322,7 @@ void FitToScreen(QWidget* w) {
         }
       }
   }
-  const int width = std::min(g.width(), avail.width());
+  int width = std::min(g.width(), avail.width());
   const int height = std::min(g.height(), avail.height());
   const int x = std::clamp(g.x(), avail.left(), avail.left() + avail.width() - width);
   int y = std::clamp(g.y(), avail.top(), avail.top() + avail.height() - height);
@@ -331,6 +354,31 @@ void FitToScreen(QWidget* w) {
     y = std::max(avail.top(), avail.top() + avail.height() - height - below);
     if (landscape) xx = avail.left() + (below > 0 ? 0 : beside);
   }
+  // Blad: in het midden; een groot blad (soort 2) met een kier bovenaan, zodat het als
+  // blad over de kaart ligt en niet als schermvullend venster.
+  if (sheet == 1 || sheet == 2) xx = avail.left() + (avail.width() - width) / 2;
+  if (sheet == 2) y = avail.top() + SheetTopGap(avail);
+  // Zwevend paneel dat vrij moet staan (Navico-stuurautomaat): de eerste keer onderin,
+  // rechts van de werkbalk; past het daar niet, dan onder de werkbalk. Daarna houdt het
+  // de plek waar de gebruiker het heen sleept.
+  if (sheet == 4 && w->property("ocpnios_place_clear").toBool() &&
+      !w->property("ocpnios_placed").toBool()) {
+    w->setProperty("ocpnios_placed", true);
+    const QRect tb = ocpnios_ToolbarRect();
+    xx = avail.left() + 8;
+    y = avail.top() + avail.height() - height - 8;
+    if (tb.isValid()) {
+      // Rechts van de werkbalk; op een smal scherm (iPhone staand) zo smal als de ruimte
+      // daar, zodat de werkbalk met MOB bereikbaar blijft.
+      const int room = avail.left() + avail.width() - 8 - (tb.right() + 8);
+      xx = tb.right() + 8;
+      if (width > room && room >= 260) {
+        width = room;
+        if (wxWindow* ww = wxWindow::QtRetrieveWindowPointer(w)) ww->SetMinSize(wxSize(-1, -1));
+        if (w->minimumWidth() > width) w->setMinimumWidth(width);
+      }
+    }
+  }
   // Melding (ocpnios_alert): in het midden, ook na verschalen van het app-venster.
   if (sheet == 0 && w->property("ocpnios_alert").toBool()) {
     xx = avail.left() + (avail.width() - width) / 2;
@@ -338,6 +386,14 @@ void FitToScreen(QWidget* w) {
   }
   const QRect fitted(xx, y, width, height);
   if (fitted != w->geometry()) w->setGeometry(fitted);
+  // Afgeronde hoeken voor bladen en panelen onderin, zoals iOS-bladen (Xander 26 nov
+  // 2026: "dan zouden het wel afgeronde hoeken moeten zijn", "van elk veld dat zweeft
+  // afgeronde hoeken"). Via de laag van het venster, zoals RoundPanel.
+  if (sheet >= 1 && sheet <= 3 && !w->property("ocpnios_rounded").toBool()) {
+    w->setProperty("ocpnios_rounded", true);
+    QPointer<QWidget> guard(w);
+    QTimer::singleShot(0, w, [guard]() { if (guard) ocpnios_RoundWindow(guard, 12); });
+  }
 }
 
 // Kolomkoppen van lijsten (wxListCtrl): OpenCPN geeft kolommen een breedte in tekens
@@ -369,6 +425,94 @@ void CenterProgress(QWidget* w) {
   const int y = avail.top() + (avail.height() - height) / 2;
   const QRect want(x, y, width, height);
   if (want != w->geometry()) w->setGeometry(want);
+}
+
+// Voortgangsmelding: OpenCPN zet hier het volledige pad van de kaart of map in
+// ("/Users/.../Documents/Kaarten"). Een iOS-voortgangsmelding noemt alleen wat er
+// gebeurt; de bestandsnaam is genoeg. De tekst wordt bij elke Update() opnieuw gezet,
+// dus bij het tekenen inkorten tot het laatste deel van het pad.
+class ProgressPathFilter : public QObject {
+public:
+  using QObject::QObject;
+  bool eventFilter(QObject* o, QEvent* e) override {
+    if (e->type() == QEvent::Paint) {
+      if (auto* l = qobject_cast<QLabel*>(o)) {
+        const QString t = l->text();
+        const int slash = t.lastIndexOf('/');
+        if (slash >= 0 && slash < t.size() - 1) l->setText(t.mid(slash + 1));
+      }
+    }
+    return false;
+  }
+};
+
+// Voortgangsvenster in de vorm van een iOS-melding (Xander, 26 nov 2026: "vlak daarvoor
+// kwam nog een andere OpenCPN melding ... en dat was niet in deze stijl", het bijwerken
+// van de kaartdatabase op de Mac). Zelfde opmaak als ocpnios_AlertStyle: afgerond,
+// lichtgrijs, geen kader. De venstertitel staat vet in het midden (iOS tekent geen
+// titelbalk), de melding eronder in het midden, een dun blauw balkje, en zonder de
+// regels met verstreken, geschatte en resterende tijd. Geldt voor alle
+// wxGenericProgressDialog's (kaartdatabase, SENC, downloads, GPX-import).
+void ProgressLook(QWidget* dialog, wxGenericProgressDialog* pd) {
+  if (dialog->property("ocpnios_progresslook").toBool()) return;
+  dialog->setProperty("ocpnios_progresslook", true);
+  const bool dark = QCoreApplication::instance() &&
+                    QCoreApplication::instance()->property("ocpnios_dark").toBool();
+  ocpnios_AlertStyle(dialog);
+  dialog->setAttribute(Qt::WA_StyledBackground, true);
+  dialog->setStyleSheet(
+      dialog->styleSheet() +
+      QString(" QDialog#ocpnios_alert_dialog QProgressBar { border: none; background: %1;"
+              "   border-radius: 2px; min-height: 4px; max-height: 4px; }"
+              " QDialog#ocpnios_alert_dialog QProgressBar::chunk { background: %2;"
+              "   border-radius: 2px; }")
+          .arg(dark ? "#48484a" : "#d1d1d6", dark ? "#d06060" : "#007aff"));
+  for (QProgressBar* bar : dialog->findChildren<QProgressBar*>()) bar->setTextVisible(false);
+
+  wxSizer* top = pd->GetSizer();
+  if (!top) return;
+  // Tijdregels weg: dat is het enige rooster (wxFlexGridSizer) in het venster.
+  for (wxSizerItem* item : top->GetChildren()) {
+    if (item->IsSizer() && dynamic_cast<wxFlexGridSizer*>(item->GetSizer()))
+      item->Show(false);
+  }
+  // Melding over de hele breedte, tekst in het midden; paden worden bestandsnamen.
+  for (wxSizerItem* item : top->GetChildren()) {
+    auto* st = item->IsWindow() ? dynamic_cast<wxStaticText*>(item->GetWindow()) : nullptr;
+    if (!st) continue;
+    item->SetFlag(item->GetFlag() | wxEXPAND);
+    if (auto* ql = qobject_cast<QLabel*>(st->GetHandle())) {
+      ql->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+      ql->setWordWrap(true);
+      ql->installEventFilter(new ProgressPathFilter(ql));
+    }
+  }
+  // Titel bovenaan, vet, zoals de kop van een iOS-melding.
+  const wxString title = pd->GetTitle();
+  if (!title.empty()) {
+    auto* head = new wxStaticText(pd, wxID_ANY, title, wxDefaultPosition, wxDefaultSize,
+                                  wxALIGN_CENTRE_HORIZONTAL);
+    wxFont f = head->GetFont();
+    f.SetWeight(wxFONTWEIGHT_SEMIBOLD);
+    head->SetFont(f);
+    if (auto* ql = qobject_cast<QLabel*>(head->GetHandle()))
+      ql->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    top->Insert(0, head, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 16);
+  }
+  // Smal zoals een iOS-melding (270 pt). wx maakt het venster bij een langere melding
+  // breder (Fit() in UpdateMessage, het label groeit mee met het volledige pad); een
+  // maximale breedte op het Qt-venster houdt het smal, de sizer legt het label dan
+  // binnen die breedte neer (wxEXPAND).
+  const QRect avail = UsableArea(dialog);
+  const int maxw = avail.isValid() ? std::min(300, avail.width() - 32) : 300;
+  for (wxSizerItem* item : top->GetChildren()) {
+    if (auto* st = item->IsWindow() ? dynamic_cast<wxStaticText*>(item->GetWindow()) : nullptr)
+      st->SetMinSize(wxSize(1, -1));
+  }
+  dialog->setMaximumWidth(maxw);
+  dialog->setMinimumWidth(std::min(270, maxw));
+  pd->Fit();
+  pd->Layout();
 }
 
 // Kopbalk (10 nov 2026, op verzoek van Xander, vervangt het ronde sluitkruisje): iOS
@@ -464,7 +608,8 @@ void ApplySafeArea(QWidget* w) {
   // Venstermodus (iPadOS 26) zonder menubalk: linksboven liggen de vensterknopjes (●●●)
   // over de werkbalk; bovenin een strook vrijhouden.
   // Gemeten (iPad-simulator, 10 nov 2026): de knopjes reiken tot ~64 pt onder de bovenrand.
-  const int top = (ocpnios_AppIsWindowed() && !mw->menuWidget()) ? std::max(s.top(), 66)
+  const int top = (ocpnios_AppIsWindowed() && !ocpnios_AppIsOnMac() && !mw->menuWidget())
+                      ? std::max(s.top(), 66)
                                                                    : s.top();
   w->setContentsMargins(left, top, 0, s.bottom());
   if (s != s_safeArea || int(o) != s_orient) {
@@ -777,6 +922,50 @@ bool HasInputs(wxWindow* w) {
   return false;
 }
 
+// Tekstveld met een getal of een positie: toetsenbord met cijfers en leestekens, zonder
+// woordsuggesties en hoofdletter. Herkend aan de inhoud, want OpenCPN gebruikt voor
+// getallen en posities gewone tekstvelden.
+void SetNumericKeyboard(QLineEdit* le) {
+  static const QRegularExpression kNumber(
+      QString::fromUtf8("^[-+]?[0-9][0-9 .,°'\"′″]*[NSEWOnsewo]?$"));
+  const bool numeric = kNumber.match(le->text().trimmed()).hasMatch();
+  const Qt::InputMethodHints mine =
+      Qt::ImhPreferNumbers | Qt::ImhNoPredictiveText | Qt::ImhNoAutoUppercase;
+  Qt::InputMethodHints h = le->inputMethodHints();
+  if (numeric) {
+    h |= mine;
+    le->setProperty("ocpnios_numkbd", true);
+  } else if (le->property("ocpnios_numkbd").toBool()) {
+    h &= ~mine;  // veld is van inhoud veranderd: weer het gewone toetsenbord
+    le->setProperty("ocpnios_numkbd", false);
+  }
+  if (h != le->inputMethodHints()) le->setInputMethodHints(h);
+}
+
+// Veld in een schuifvlak tot boven de bovenste 45% van het scherm schuiven (het
+// toetsenbord met zijn balk beslaat op een iPhone staand ~40% onderaan). Via
+// triggerAction: wx schuift een wxScrolledWindow alleen mee op actionTriggered.
+void ScrollFieldAboveKeyboard(QWidget* field) {
+  QScreen* sc = field->screen();
+  if (!sc) return;
+  const QRect sg = sc->geometry();
+  const int limit = sg.height() * 45 / 100;
+  for (QWidget* p = field->parentWidget(); p; p = p->parentWidget()) {
+    auto* sa = qobject_cast<QAbstractScrollArea*>(p);
+    if (!sa) continue;
+    QScrollBar* vb = sa->verticalScrollBar();
+    if (!vb || vb->maximum() <= 0) continue;
+    const int bottom = field->mapToGlobal(QPoint(0, field->height())).y() - sg.top();
+    const int delta = bottom - limit;
+    if (delta <= 0) return;
+    const int target = std::min(vb->maximum(), vb->value() + delta);
+    if (target == vb->value()) return;
+    vb->setSliderPosition(target);
+    vb->triggerAction(QAbstractSlider::SliderMove);
+    return;
+  }
+}
+
 // Een wx-knop indrukken zoals een tik: Qt's click() geeft via wxQt een wxEVT_BUTTON.
 void PressWxButton(wxButton* b) {
   if (auto* qb = qobject_cast<QAbstractButton*>(b->GetHandle())) qb->click();
@@ -852,19 +1041,12 @@ void EnsureSheetHeader(QWidget* dialog) {
   }
   // Voortgangsvenster (kaarten bijwerken bij het opstarten): geen sluitknop, zoals een
   // iOS-voortgangsmelding. Een eigen Annuleren-knop (wxPD_CAN_ABORT) blijft staan.
-  if (dynamic_cast<wxGenericProgressDialog*>(ww)) {
+  if (auto* pd = dynamic_cast<wxGenericProgressDialog*>(ww)) {
     dialog->setProperty(kSheetProp, 0);
     dialog->setProperty("ocpnios_progress", true);
-    // Eigen achtergrond en kader zoals een melding: zonder stond de tekst los over de
-    // pagina eronder ("Bronnen zoeken", iPhone 11 nov 2026).
-    if (dialog->styleSheet().isEmpty()) {
-      const bool dark = QCoreApplication::instance() &&
-                        QCoreApplication::instance()->property("ocpnios_dark").toBool();
-      dialog->setAttribute(Qt::WA_StyledBackground, true);
-      dialog->setStyleSheet(QString("QDialog { background-color: %1; border: 1px solid "
-                                    "#a0a0a8; border-radius: 12px; }")
-                                .arg(dark ? "#1c1c1e" : "#ffffff"));
-    }
+    // Eigen achtergrond zoals een melding: zonder stond de tekst los over de pagina
+    // eronder ("Bronnen zoeken", iPhone 11 nov 2026). Sinds 26 nov in iOS-vorm.
+    ProgressLook(dialog, pd);
     CenterProgress(dialog);
     return;
   }
@@ -872,7 +1054,7 @@ void EnsureSheetHeader(QWidget* dialog) {
   // kader; zonder kader viel de melding weg tegen het venster eronder.
   if (dialog->property("ocpnios_alert").toBool()) {
     dialog->setProperty(kSheetProp, 0);
-    dialog->setStyleSheet("QDialog { border: 1px solid #a0a0a8; }");
+    ocpnios_AlertStyle(dialog);
     return;
   }
 
@@ -890,6 +1072,7 @@ void EnsureSheetHeader(QWidget* dialog) {
   }
   wxButton* done = nullptr;
   wxButton* cancel = nullptr;
+  wxButton* apply = nullptr;  // Toepassen: bestaat op iOS niet
   bool decision = false;  // Ja/Nee: een vraag, geen blad
   for (wxButton* b : buttons) {
     const int id = b->GetId();
@@ -906,7 +1089,13 @@ void EnsureSheetHeader(QWidget* dialog) {
       done = b;
     else if (!cancel && (id == wxID_CANCEL || LabelIs(b, {"Cancel"})))
       cancel = b;
+    else if (!apply && !onPage && (id == wxID_APPLY || LabelIs(b, {"Apply"})))
+      apply = b;
   }
+  // Een venster met knoppen per regel (meldingenlijst: "OK" per melding) is een blad met
+  // Gereed; die knoppen zijn niet van het venster zelf (map_controls_ios.cpp).
+  const bool listSheet = dialog->property("ocpnios_listsheet").toBool();
+  if (listSheet) done = cancel = apply = nullptr, decision = false;
   // Een korte melding met eigen knoppen (OCPNMessageBox, vragen) blijft zoals een
   // iOS-melding: klein, knoppen onderin.
   const QRect avail = UsableArea(dialog);
@@ -914,7 +1103,7 @@ void EnsureSheetHeader(QWidget* dialog) {
   // het tekstvak 0 pt hoog en was alleen OK te zien (11 nov 2026).
   const bool small = avail.isValid() && dialog->height() < avail.height() * 45 / 100 &&
                      !HasInputs(ww) && !HasHtmlText(ww);
-  if (decision || (small && (done || cancel) && type == Qt::Dialog)) {
+  if (!listSheet && (decision || (small && (done || cancel) && type == Qt::Dialog))) {
     dialog->setProperty(kSheetProp, 0);
     // Kader zoals bij een melding: zonder lag het venster doorzichtig over wat eronder
     // stond ("Over" van Watchdog op de pluginlijst, iPad 10 nov 2026).
@@ -949,6 +1138,15 @@ void EnsureSheetHeader(QWidget* dialog) {
         dialog->setProperty("ocpnios_panel", true);
         break;
       }
+  // Zwevend AUI-paneel met eigen knoppen (Navico-stuurautomaat): weer zwevend en
+  // versleepbaar, zonder kopbalk (Xander 26 nov 2026: "De Navico plugin is geen zwevend
+  // veld meer"). Eerst naast de werkbalk gezet (FitToScreen), niet eroverheen zoals op
+  // 13 nov.
+  if (marked && dynamic_cast<wxAuiFloatingFrame*>(ww)) {
+    dialog->setProperty(kSheetProp, 4);
+    dialog->setProperty("ocpnios_place_clear", true);
+    return;
+  }
   const bool displayOnly = !marked && type != Qt::Dialog && buttons.empty() && !HasInputs(ww);
   if (displayOnly) {
     dialog->setProperty(kSheetProp, 4);
@@ -995,7 +1193,15 @@ void EnsureSheetHeader(QWidget* dialog) {
       doneText = QString::fromUtf8(PlainLabel(done).utf8_string().c_str());
     auto* b = MakeHeaderButton(header, doneText, true);
     wxWindowID id = done ? done->GetId() : wxID_NONE;
-    QObject::connect(b, &QPushButton::clicked, dialog, [guard, ww, id]() {
+    // Toepassen staat niet in de balk (iOS kent het niet, Xander 26 nov 2026). Is
+    // Gereed een OK, dan past dat zelf toe; is het Sluiten (of er is geen knop), dan
+    // eerst Toepassen indrukken, zodat er niets verloren gaat.
+    const wxWindowID applyId =
+        apply && !(done && done->GetId() == wxID_OK) ? apply->GetId() : wxID_NONE;
+    QObject::connect(b, &QPushButton::clicked, dialog, [guard, ww, id, applyId]() {
+      if (!guard) return;
+      if (applyId != wxID_NONE)
+        if (auto* a = dynamic_cast<wxButton*>(ww->FindWindow(applyId))) PressWxButton(a);
       if (!guard) return;
       wxButton* d = id != wxID_NONE ? dynamic_cast<wxButton*>(ww->FindWindow(id)) : nullptr;
       if (d)
@@ -1013,9 +1219,11 @@ void EnsureSheetHeader(QWidget* dialog) {
                             .arg(kHeaderName)
                             .arg(dialog->palette().color(QPalette::Window).name()));
 
-  // Originele OK/Annuleren verbergen; de balk neemt ze over.
+  // Originele OK/Annuleren verbergen; de balk neemt ze over. Toepassen ook: Gereed doet
+  // dat nu.
   if (done) done->Hide();
   if (cancel) cancel->Hide();
+  if (apply) apply->Hide();
 
   if (mw) {
     // Een eigen menubalk van het venster (wxFrame::SetMenuBar, bv. WeatherRouting) niet
@@ -1100,7 +1308,7 @@ void EnsureSheetHeader(QWidget* dialog) {
                       !dialog->isModal() && !done && !cancel &&
                       avail.isValid() &&
                       dialog->height() < std::max(avail.width(), avail.height()) * 40 / 100);
-  dialog->setProperty(kSheetProp, panel ? 3 : 2);
+  dialog->setProperty(kSheetProp, listSheet ? 2 : panel ? 3 : 2);
   // Meldingsregel met vaste maat (wxST_NO_AUTORESIZE) in een paneel onderin: de plugin
   // breekt af op zijn eigen breedte, die op de iPhone breder is dan het scherm; de melding
   // van de Navico-stuurautomaat viel rechts weg (13 nov 2026). Qt breekt af op de echte
@@ -1185,6 +1393,8 @@ class PanelDrag {
 
 class WindowFitFilter : public QObject {
   QElapsedTimer m_swallowUntil;  // zie eventFilter: doortikken na sluiten
+  QPointF m_lastPress;           // plaats (scherm) van de laatste druk of aanraking
+  QPointF m_swallowAt;           // plaats van de tik die het blad sloot
   QTimer* m_refit = nullptr;     // opnieuw passend maken na verschalen app-venster
   PanelDrag m_drag;
 
@@ -1204,12 +1414,22 @@ class WindowFitFilter : public QObject {
     // viel na het sluiten door naar wat eronder lag: op de iPad zit het kompas van de
     // kaart precies onder "Gereed", en de kaart sprong op koers-boven (Xander, gemeten in
     // de simulator 10 nov 2026). Na het verdwijnen van een blad of dialoog daarom
-    // 500 ms geen tik/klik naar het hoofdvenster.
+    // 500 ms geen tik/klik naar het hoofdvenster op de plaats van die tik. Een nieuwe tik
+    // ergens anders (de werkbalk direct na Gereed) gaat wel door; die viel eerder weg
+    // (HIG-review 26 nov 2026, punt 1).
+    if (ev->type() == QEvent::MouseButtonPress || ev->type() == QEvent::TouchBegin) {
+      if (ev->type() == QEvent::MouseButtonPress)
+        m_lastPress = static_cast<QMouseEvent*>(ev)->globalPosition();
+      else if (!static_cast<QTouchEvent*>(ev)->points().isEmpty())
+        m_lastPress = static_cast<QTouchEvent*>(ev)->points().first().globalPosition();
+    }
     if (ev->type() == QEvent::Hide && obj->isWidgetType()) {
       auto* w = static_cast<QWidget*>(obj);
       if (w->isWindow() && !IsMainWindow(w) && IsManagedWindow(w) &&
-          w->property(kSheetProp).toInt() != 4)
+          w->property(kSheetProp).toInt() != 4) {
         m_swallowUntil.start();
+        m_swallowAt = m_lastPress;
+      }
       // Een paneel onderin dicht: de andere panelen zakken weer naar beneden.
       if (w->isWindow() && w->property(kSheetProp).toInt() == 3) {
         QTimer::singleShot(0, qApp, []() {
@@ -1231,8 +1451,17 @@ class WindowFitFilter : public QObject {
       case QEvent::TouchBegin:
       case QEvent::TouchEnd:
         if (m_swallowUntil.isValid() && m_swallowUntil.elapsed() < 500 &&
-            obj->isWidgetType() && IsMainWindow(static_cast<QWidget*>(obj)->window()))
-          return true;
+            obj->isWidgetType() && IsMainWindow(static_cast<QWidget*>(obj)->window())) {
+          QPointF at = m_swallowAt;
+          if (ev->type() == QEvent::TouchBegin || ev->type() == QEvent::TouchEnd) {
+            const auto& pts = static_cast<QTouchEvent*>(ev)->points();
+            if (!pts.isEmpty()) at = pts.first().globalPosition();
+          } else {
+            at = static_cast<QMouseEvent*>(ev)->globalPosition();
+          }
+          // Binnen een vingerbreedte (44 pt) van de sluitende tik: inslikken.
+          if (QLineF(at, m_swallowAt).length() < 44) return true;
+        }
         break;
       default:
         break;
@@ -1361,7 +1590,40 @@ class WindowFitFilter : public QObject {
           if (QInputMethod* im = QGuiApplication::inputMethod()) im->hide();
         });
       }
+      // Na een tik op een veld laag in een blad: het blad zelf zo verschuiven dat het veld
+      // in de bovenste helft staat, vóór het toetsenbord opkomt. Anders schoof Qt het hele
+      // venster omhoog: kop buiten beeld en een zwart vlak boven het toetsenbord (HIG-review
+      // ronde 1, punt 8; Opties > Gebruikersinterface, veld "seconden").
+      if (textInput && fe->reason() == Qt::MouseFocusReason && !IsMainWindow(fw->window()))
+        ScrollFieldAboveKeyboard(fw);
     }
+    // Een blad wordt weer actief na een iOS-venster erboven (lettertypekiezer,
+    // deelvenster): iOS gaf het veld met de focus het toetsenbord terug, zonder dat er
+    // op een veld getikt was; het veld lag onder het toetsenbord (Opties >
+    // Gebruikersinterface, HIG-review 26 nov 2026, punt 8). Dan de focus weghalen.
+    if (ev->type() == QEvent::WindowActivate && obj->isWidgetType()) {
+      auto* w = static_cast<QWidget*>(obj);
+      if (w->isWindow() && !IsMainWindow(w) && IsManagedWindow(w)) {
+        QPointer<QWidget> win(w);
+        const QPointF press = m_lastPress;
+        QTimer::singleShot(0, w, [win, press]() {
+          if (!win) return;
+          QWidget* f = win->focusWidget();
+          if (!f || !f->testAttribute(Qt::WA_InputMethodEnabled)) return;
+          const QRect r(f->mapToGlobal(QPoint(0, 0)), f->size());
+          if (r.adjusted(-8, -8, 8, 8).contains(press.toPoint())) return;  // erop getikt
+          f->clearFocus();
+          if (QInputMethod* im = QGuiApplication::inputMethod()) im->hide();
+        });
+      }
+    }
+    // Toetsenbord dat bij de invoer past: een veld met een getal of een positie
+    // ("51° 49.5964' N") kreeg het lettertoetsenbord met woordsuggesties en
+    // autocorrectie (HIG-review 26 nov 2026, punt 8). Nu cijfers en leestekens, zonder
+    // suggesties. Een leeg veld of gewone tekst houdt het gewone toetsenbord.
+    if (ev->type() == QEvent::FocusIn && obj->isWidgetType())
+      if (auto* le = qobject_cast<QLineEdit*>(static_cast<QWidget*>(obj)))
+        SetNumericKeyboard(le);
     if (ev->type() == QEvent::FocusIn && obj->isWidgetType()) {
       if (auto* iv = qobject_cast<QAbstractItemView*>(static_cast<QWidget*>(obj))) {
         if (iv->testAttribute(Qt::WA_InputMethodEnabled)) {
@@ -1375,6 +1637,18 @@ class WindowFitFilter : public QObject {
     }
     if (ev->type() == QEvent::Show && obj->isWidgetType()) {
       auto* w = static_cast<QWidget*>(obj);
+      // OpenCPN's eigen tooltips (gui/src/tooltip.cpp, een wxFrame): op een aanraakscherm
+      // blijven ze staan na een tik, zonder weg te gaan ("Koers-Boven / GNSS (0
+      // satellieten)", "kan het niet wegklikken en het lijkt totaal niet op iOS", Xander
+      // 26 nov 2026). iOS kent geen tooltips; de knoppen op de kaart tonen hun stand zelf.
+      if (w->isWindow()) {
+        if (dynamic_cast<Tooltip*>(wxWindow::QtRetrieveWindowPointer(w))) {
+          w->setWindowOpacity(0.0);
+          QPointer<QWidget> g(w);
+          QTimer::singleShot(0, w, [g]() { if (g) g->hide(); });
+          return false;
+        }
+      }
       // Qt-melding (wxMessageBox): te lange tekst schuifbaar, melding op het scherm.
       if (auto* mb = qobject_cast<QMessageBox*>(w)) {
         QPointer<QMessageBox> g(mb);

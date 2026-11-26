@@ -5,7 +5,8 @@
 #   <toestel>  devicectl-id of naam van het toestel (zie `xcrun devicectl list devices`),
 #              of "sim:<udid>" voor een simulator.
 #   [doelmap]  standaard build/shots/<toestel>/<tijd>
-# De app bewaart de laatste 40 afbeeldingen in Documents/log/schermafbeeldingen.
+# De app bewaart de laatste 40 afbeeldingen in Documents/log/schermafbeeldingen, alleen als die
+# map bestaat (standaard uit, zie README.md).
 # SPDX-License-Identifier: GPL-2.0-or-later
 set -euo pipefail
 
@@ -24,8 +25,8 @@ else
   if ! xcrun devicectl device copy from --device "$DEV" \
       --domain-type appDataContainer --domain-identifier "$APP_ID" \
       --source Documents/log/schermafbeeldingen --destination "$DEST" >/dev/null 2>"$DEST/.fout"; then
-    echo "Niets opgehaald. Is de app sinds de installatie al gestart en is er iets geopend of"
-    echo "getikt? De map Documents/log/schermafbeeldingen bestaat pas na de eerste opname."
+    echo "Niets opgehaald. Schermafbeeldingen staan standaard uit: maak in de Bestanden-app onder"
+    echo "OpenCPN › log een map 'schermafbeeldingen', start de app opnieuw en open of tik iets."
     sed 's/^/  /' "$DEST/.fout"; rm -f "$DEST/.fout"; exit 1
   fi
   rm -f "$DEST/.fout"

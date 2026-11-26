@@ -16,6 +16,9 @@
 
 #include "model/gui_vars.h"  // g_compass_scalefactor
 #include "model/safe_mode.h"
+#include "model/ais_state_vars.h"  // alarm sound files
+#include "model/config_vars.h"     // g_SART_sound_file, gWorldMapLocation
+#include "ocpn_platform.h"         // g_Platform
 #include "chcanv.h"          // ChartCanvas, g_canvasArray, global_color_scheme
 #include "compass.h"
 #include "navutil.h"         // pConfig
@@ -25,12 +28,46 @@
 
 #ifdef __OCPN__IOS__
 void ocpnios_HideStartupBusy();  // app/ios/startup_busy.mm
+void ocpnios_StatusPanelInit();  // app/ios/status_panel.cpp
+void ocpnios_ToolbarInit();      // app/ios/toolbar_ios.cpp
+void ocpnios_MapControlsInit();  // app/ios/map_controls_ios.cpp
+void ocpnios_CoreOverlaysOff();  // app/ios/map_controls_ios.cpp
 
 // iOS: menu bar, status bar and iOS status bar follow the color scheme, using
 // the UI colors from the OpenCPN color table (DILG1 background, UITX1 text).
 // Day: light grey with black text, as before (the status bar sits at the bottom
 // near the home indicator, where it is black).
+// iOS installs every app update (and every TestFlight build) in a new folder, so
+// settings that point into the app bundle point to a folder that no longer exists.
+// Tide/current data is mapped when the config is read (ocpnios_MapBundleDataPath,
+// plugins_ios.cpp); the alarm sounds and the basemap were not: after an update the AIS,
+// DSC, SART and anchor alarm sound files pointed to the old bundle (simulator config,
+// 26 Nov 2026). Point them into the current bundle again, once, before any alarm plays.
+static wxString ocpnios_Rebase(const wxString &path, const wxString &appRoot) {
+  if (path.empty() || appRoot.empty() || wxFileExists(path) || wxDirExists(path))
+    return path;
+  const int i = path.Find(".app/");
+  if (i == wxNOT_FOUND) return path;
+  const wxString moved = appRoot + path.Mid(i + 5);
+  return (wxFileExists(moved) || wxDirExists(moved)) ? moved : path;
+}
+
+static void ocpnios_RebaseBundlePaths() {
+  static bool done = false;
+  if (done || !g_Platform) return;
+  done = true;
+  const wxString shared = g_Platform->GetSharedDataDir();
+  const int i = shared.Find(".app/");
+  if (i == wxNOT_FOUND) return;
+  const wxString appRoot = shared.Left(i + 5);
+  for (wxString *s : {&g_AIS_sound_file, &g_DSC_sound_file, &g_SART_sound_file,
+                      &g_anchorwatch_sound_file, &g_sAIS_Alert_Sound_File,
+                      &gWorldMapLocation})
+    *s = ocpnios_Rebase(*s, appRoot);
+}
+
 void ocpnios_ApplySchemeColors(wxFrame *frame) {
+  ocpnios_RebaseBundlePaths();
   if (!frame || !frame->GetHandle()) return;
   const bool day = global_color_scheme == GLOBAL_COLOR_SCHEME_DAY ||
                    global_color_scheme == GLOBAL_COLOR_SCHEME_RGB;
@@ -44,6 +81,12 @@ void ocpnios_ApplySchemeColors(wxFrame *frame) {
                     : (night ? wxColour(90, 90, 90) : wxColour(141, 141, 147));
   OcpnIosApplyUiColors(frame->GetHandle(), bg.Red(), bg.Green(), bg.Blue(),
                        fg.Red(), fg.Green(), fg.Blue(), !day);
+  // OpenCPN's zoom bar and compass off before the first chart is drawn (iOS versions in
+  // map_controls_ios.cpp).
+  ocpnios_CoreOverlaysOff();
+  // The iOS status display as soon as the status bar exists, so the desktop status
+  // line does not show during startup (it did for ~3 s until ocpnios_OnStartupDone).
+  ocpnios_StatusPanelInit();
 }
 
 // iOS: called from MyFrame::OnSize instead of ODoSetSize().
@@ -75,6 +118,7 @@ void MyFrame::IosOnSize() {
 // Recompute it after switching (via OnSize and SetScaleFactor), otherwise
 // zoom jumps and oversized text without OpenGL. Called from ProcessOptionsDialog.
 void MyFrame::IosRescaleCanvases() {
+  ocpnios_CoreOverlaysOff();  // Options may have set g_bShowCompassWin again
   for (unsigned int i = 0; i < g_canvasArray.GetCount(); i++) {
     ChartCanvas *gcc = g_canvasArray.Item(i);
     if (!gcc) continue;
@@ -151,6 +195,9 @@ void ocpnios_OnStartupDone() {
   safe_mode::clear_check();
 #endif
   ocpnios_HideStartupBusy();
+  ocpnios_StatusPanelInit();  // status bar / floating box in iOS style
+  ocpnios_ToolbarInit();      // iOS toolbar in place of OpenCPN's own
+  ocpnios_MapControlsInit();  // iOS zoom bar and compass box
   // iOS: iOS never quits the app cleanly (swipe away = hard kill), so OpenCPN
   // never wrote its settings to disk: an enabled plugin or a chosen pilot type
   // was lost after a restart. Save on every transition to the background, as

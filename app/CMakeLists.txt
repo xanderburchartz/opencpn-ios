@@ -202,6 +202,7 @@ qt_add_executable(opencpn MACOSX_BUNDLE ${GUI_SRC}
   "${OCPNIOS_ROOT}/app/ios/fit_width.cpp"
   "${OCPNIOS_ROOT}/app/ios/nav_list.cpp"
   "${OCPNIOS_ROOT}/app/ios/pinch_zoom.cpp"
+  "${OCPNIOS_ROOT}/app/ios/trackpad_pinch.mm"
   "${OCPNIOS_ROOT}/app/ios/share_sheet.mm"
   "${OCPNIOS_ROOT}/app/ios/color_scheme.mm"
   "${OCPNIOS_ROOT}/app/ios/internal_gps.mm"
@@ -222,7 +223,11 @@ qt_add_executable(opencpn MACOSX_BUNDLE ${GUI_SRC}
   "${OCPNIOS_ROOT}/app/ios/display_path.cpp"
   "${OCPNIOS_ROOT}/app/ios/plugins_ios.cpp"
   "${OCPNIOS_ROOT}/app/ios/aui_panes_ios.cpp"
-  "${OCPNIOS_ROOT}/app/ios/icon_combo_ios.cpp")
+  "${OCPNIOS_ROOT}/app/ios/icon_combo_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/status_panel.cpp"
+  "${OCPNIOS_ROOT}/app/ios/chart_bar_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/toolbar_ios.cpp"
+  "${OCPNIOS_ROOT}/app/ios/map_controls_ios.cpp")
 # Lidfuncties van kernklassen staan in deze bestanden. De OpenCPN-reeks declareert ze per
 # commit (canvas, hoofdvenster, Opties, dialogen); bouw een bestand pas als de kern zijn haak
 # declareert, zodat elke commit van de reeks bouwt. CMake leest de header opnieuw als die

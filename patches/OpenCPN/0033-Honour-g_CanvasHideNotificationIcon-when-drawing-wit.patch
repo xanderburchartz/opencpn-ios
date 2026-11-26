@@ -1,0 +1,35 @@
+From 598f04a9271dae9f6e241e4a8538c7ea7f48a205 Mon Sep 17 00:00:00 2001
+From: Xander Burchartz <210020462+xanderburchartz@users.noreply.github.com>
+Date: Thu, 26 Nov 2026 13:48:22 +0100
+Subject: [PATCH 33/33] Honour g_CanvasHideNotificationIcon when drawing with
+ OpenGL
+
+ChartCanvas::DrawOverlayObjects() does not draw the notification bell
+when g_CanvasHideNotificationIcon is set, but glChartCanvas::Render()
+drew it regardless. With OpenGL the bell stayed on the chart although
+it was meant to be hidden. Check the flag there too.
+
+Affects all platforms with OpenGL; nothing changes while the flag is
+not set.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ gui/src/gl_chart_canvas.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gui/src/gl_chart_canvas.cpp b/gui/src/gl_chart_canvas.cpp
+index f0bad7794..a2510c691 100644
+--- a/gui/src/gl_chart_canvas.cpp
++++ b/gui/src/gl_chart_canvas.cpp
+@@ -4539,7 +4539,7 @@ void glChartCanvas::Render() {
+       g_bShowCompassWin)
+     m_pParentCanvas->m_Compass->Paint(gldc);
+ 
+-  if (m_pParentCanvas->IsPrimaryCanvas() &&
++  if (!g_CanvasHideNotificationIcon && m_pParentCanvas->IsPrimaryCanvas() &&
+       m_pParentCanvas->m_notification_button) {
+     auto &noteman = NotificationManager::GetInstance();
+     if (noteman.GetNotificationCount()) {
+-- 
+2.54.0 (Apple Git-157)
+

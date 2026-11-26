@@ -13,24 +13,30 @@
 #include "manual.h"
 #endif
 #include "ocpn_platform.h"  // g_Platform
+#include "share_sheet.h"
 
 #ifdef __OCPN__IOS__
 // iOS: phone layout of the About dialog (called at the end of the constructor).
 void AboutFrameImpl::IosPhoneLayout() {
   // - Hide the logo: it took ~40% of the width.
   m_bitmapLogo->Hide();
-  // - Paths below their label and relative to the app dir ("~/Library/..."); next
-  //   to the label they were truncated. Rows must not stretch (large empty areas).
-  const wxString home = wxGetHomeDir();
-  for (wxHyperlinkCtrl* link : {m_hyperlinkLogFile, m_hyperlinkIniFile}) {
-    wxString path = link->GetURL();
-    if (!home.empty() && path.StartsWith(home)) path = "~" + path.Mid(home.length());
-    link->SetLabel(path);
-    if (auto* row = dynamic_cast<wxBoxSizer*>(link->GetContainingSizer())) {
-      row->SetOrientation(wxVERTICAL);
-      if (wxSizerItem* it = m_scrolledWindowAbout->GetSizer()->GetItem(row))
-        it->SetProportion(0);
-    }
+  // - No file paths: an iOS user cannot open them (HIG review 26 Nov 2026, item 17).
+  //   The config file row goes; the log file link opens the iOS share sheet, so the
+  //   log can be mailed or saved to Files. Rows must not stretch (large empty areas).
+  m_staticTextIniFile->Hide();
+  m_hyperlinkIniFile->Hide();
+  const wxString logPath = m_hyperlinkLogFile->GetURL();
+  m_hyperlinkLogFile->SetLabel(_("Send"));
+  m_hyperlinkLogFile->SetToolTip(wxEmptyString);
+  // Size from the new label (the best size of the long path was still cached). No
+  // 44 pt height here: the generic link draws its text at the top, above the label.
+  m_hyperlinkLogFile->InvalidateBestSize();
+  m_hyperlinkLogFile->Bind(wxEVT_HYPERLINK, [logPath](wxHyperlinkEvent&) {
+    ocpnios_ShareFile(logPath.utf8_str());
+  });
+  if (auto* row = dynamic_cast<wxBoxSizer*>(m_hyperlinkLogFile->GetContainingSizer())) {
+    if (wxSizerItem* it = m_scrolledWindowAbout->GetSizer()->GetItem(row))
+      it->SetProportion(0);
   }
   for (wxSizerItem* it : m_scrolledWindowAbout->GetSizer()->GetChildren())
     it->SetProportion(0);

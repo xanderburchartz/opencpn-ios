@@ -2722,7 +2722,7 @@ void ocpnios_AddAlertButtons(wxDialog* dlg, wxSizer* topsizer, long style) {
   auto* row = new wxBoxSizer(wxHORIZONTAL);
   auto addBtn = [&](wxWindowID id) {
     auto* b = new wxButton(dlg, id, wxGetStockLabel(id, wxSTOCK_NOFLAGS));
-    row->Add(b, 1, wxALL | wxEXPAND, 4);
+    row->Add(b, 1, wxEXPAND);  // full width, the line above comes from the style
     return b;
   };
   if (style & wxHELP) addBtn(wxID_HELP);
@@ -2732,8 +2732,7 @@ void ocpnios_AddAlertButtons(wxDialog* dlg, wxSizer* topsizer, long style) {
   if (style & wxYES) def = addBtn(wxID_YES);
   if (style & wxOK) def = addBtn(wxID_OK);
   if (def && !(style & wxNO_DEFAULT)) def->SetDefault();
-  topsizer->Add(new wxStaticLine(dlg), 0, wxEXPAND | wxTOP, 10);
-  topsizer->Add(row, 0, wxEXPAND | wxALL, 6);
+  topsizer->Add(row, 0, wxEXPAND | wxTOP, 14);
   if (dlg->GetHandle()) dlg->GetHandle()->setProperty("ocpnios_alert", true);
 }
 

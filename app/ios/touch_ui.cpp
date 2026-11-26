@@ -35,11 +35,15 @@
 #include <QElapsedTimer>
 #include <cmath>
 #include <vector>
+#include <QWheelEvent>
 #include <QWidget>
 
 #include <cstdio>
 #include <cstdlib>
 #include <QColor>
+
+// canvas_ios.cpp: trackpad scrolling over the chart pans it.
+bool ocpnios_TrackpadPanChart(QWidget* w, const QPoint& delta);
 
 namespace {
 
@@ -127,6 +131,8 @@ class KineticFilter : public QObject {
         return OnMove(obj, static_cast<QMouseEvent*>(ev));
       case QEvent::MouseButtonRelease:
         return OnRelease(obj, static_cast<QMouseEvent*>(ev));
+      case QEvent::Wheel:
+        return OnWheel(obj, static_cast<QWheelEvent*>(ev));
       default:
         break;
     }
@@ -288,6 +294,46 @@ class KineticFilter : public QObject {
     m_samples.push_back({e->globalPosition(), m_clock.elapsed()});
     while (m_samples.size() > 6) m_samples.erase(m_samples.begin());
     return true;  // beweging niet meer naar het kind
+  }
+
+  // Trackpad scrolling with two fingers and the mouse wheel (iPad with trackpad,
+  // iPad app on a Mac). Qt delivers them as wheel events with the scroll distance
+  // in pixels (QUIView handleScroll). Without this, wx turned them into wheel
+  // "rotations" that scrolled a settings page a few units at most and zoomed the
+  // chart a full step per event. Now: lists and pages follow the fingers 1:1, the
+  // chart pans (canvas_ios.cpp). The macOS setting for scroll direction is already
+  // in the pixel delta.
+  bool OnWheel(QObject* obj, QWheelEvent* e) {
+    auto* w = qobject_cast<QWidget*>(obj);
+    if (!w || m_area) return false;
+    QPoint d = e->pixelDelta();
+    if (d.isNull()) d = e->angleDelta() / 3;  // mouse wheel: 120 per notch = 40 pt
+    if (e->modifiers() & Qt::ShiftModifier) d = QPoint(d.y(), d.x());
+    if (ocpnios_TrackpadPanChart(w, d)) return true;
+    QAbstractScrollArea* sa = nullptr;
+    for (QWidget* p = w; p && !sa; p = p->parentWidget()) {
+      if (p->isWindow() && p != w) break;
+      if (!p->property("ocpnios_kinetic").toBool()) continue;
+      if (auto* a = qobject_cast<QAbstractScrollArea*>(p->parentWidget()))
+        if (CanScroll(a)) sa = a;
+    }
+    if (!sa) {
+      sa = ScrollAreaFor(w);
+      if (sa) PixelScrollUnits(sa);
+    }
+    if (!sa) return false;
+    StopCoast();
+    if (d.isNull()) return true;
+    // wx (wxQtScrollArea) only moves the page on a scroll bar action, not on a
+    // plain setValue.
+    auto step = [](QScrollBar* sb, int delta) {
+      if (!sb || !delta) return;
+      sb->setSliderPosition(sb->value() - delta);
+      sb->triggerAction(QAbstractSlider::SliderMove);
+    };
+    step(sa->verticalScrollBar(), d.y());
+    step(sa->horizontalScrollBar(), d.x());
+    return true;
   }
 
   bool OnRelease(QObject* obj, QMouseEvent* e) {

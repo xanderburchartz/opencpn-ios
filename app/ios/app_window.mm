@@ -47,3 +47,11 @@ bool ocpnios_AppIsWindowed() {
   return r.x() + r.width() < scr.bounds.size.width - 1 ||
          r.y() + r.height() < scr.bounds.size.height - 1 || r.y() > 0;
 }
+
+// iPad app on a Mac ("Designed for iPad"): the window has a real macOS title bar with
+// its own buttons, so no strip for the iPadOS window buttons is needed inside the app.
+// Without this the app kept an empty grey strip of 66 pt at the top (Mac, 26 Nov 2026).
+bool ocpnios_AppIsOnMac() {
+  if (@available(iOS 14.0, *)) return [NSProcessInfo processInfo].isiOSAppOnMac;
+  return false;
+}

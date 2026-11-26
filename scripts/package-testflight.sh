@@ -9,6 +9,16 @@
 #           pas als het app-record bestaat.
 # Vooraf: OCPNIOS_BUILD_NUMBER=<n> scripts/build-ocpn-ios.sh device-release all
 # (buildnummer per upload hoger dan het vorige).
+#
+# Aanmelden bij App Store Connect, een van beide:
+#   - het Xcode-account (Xcode › Settings › Accounts). Werkt niet als het scherm van de Mac op slot
+#     staat: xcodebuild leest de aanmelding dan niet uit de sleutelhanger ("missing Xcode-Username")
+#     en Xcode raakt het account kwijt (gemeten 24-25 nov 2026, logboek);
+#   - een App Store Connect API-sleutel: OCPNIOS_ASC_KEY_ID en OCPNIOS_ASC_ISSUER_ID, met het
+#     bestand ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8 (buiten de repo; ander pad met
+#     OCPNIOS_ASC_KEY_PATH). Hangt niet aan de Xcode-aanmelding.
+# Externe test: standaard mag de build ook naar externe groepen. OCPNIOS_TF_INTERNAL_ONLY=1 maakt
+# hem alleen intern (testFlightInternalTestingOnly; zo'n build kan nooit naar een externe groep).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -73,6 +83,16 @@ EOF
 
 DEST=export
 [ "$MODE" = upload ] && DEST=upload
+INTERNAL_ONLY=false
+[ "${OCPNIOS_TF_INTERNAL_ONLY:-0}" = 1 ] && INTERNAL_ONLY=true
+AUTH=()
+if [ -n "${OCPNIOS_ASC_KEY_ID:-}" ]; then
+  : "${OCPNIOS_ASC_ISSUER_ID:?zet OCPNIOS_ASC_ISSUER_ID bij OCPNIOS_ASC_KEY_ID}"
+  KEY="${OCPNIOS_ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_$OCPNIOS_ASC_KEY_ID.p8}"
+  [ -f "$KEY" ] || { echo "ontbreekt: $KEY" >&2; exit 1; }
+  AUTH=(-authenticationKeyPath "$KEY" -authenticationKeyID "$OCPNIOS_ASC_KEY_ID"
+        -authenticationKeyIssuerID "$OCPNIOS_ASC_ISSUER_ID")
+fi
 cat > "$OUT/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -91,11 +111,11 @@ cat > "$OUT/ExportOptions.plist" <<EOF
 	<key>manageAppVersionAndBuildNumber</key>
 	<false/>
 	<key>testFlightInternalTestingOnly</key>
-	<true/>
+	<$INTERNAL_ONLY/>
 </dict>
 </plist>
 EOF
 
 xcodebuild -exportArchive -archivePath "$ARCH" -exportOptionsPlist "$OUT/ExportOptions.plist" \
-  -exportPath "$OUT/export" -allowProvisioningUpdates
+  -exportPath "$OUT/export" -allowProvisioningUpdates ${AUTH[@]+"${AUTH[@]}"}
 [ "$MODE" = export ] && ls -la "$OUT/export"; exit 0

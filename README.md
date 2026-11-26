@@ -3,11 +3,12 @@
 An unofficial port of [OpenCPN](https://opencpn.org) 5.14.2 to iPhone and iPad.
 
 The app is the regular OpenCPN chart plotter, built for iOS with wxWidgets 3.3 on Qt 6. That
-is the same route as the Android version of OpenCPN. The screens follow the desktop version,
-adapted for touch and small screens: dialogs open as sheets that fit the screen, and the
-mayara radar window keeps clear of the toolbar. Plugins are built into the app, because iOS
-does not allow apps to load them at runtime. After a fresh install all plugins are off; turn
-them on under Options › Plugins.
+is the same route as the Android version of OpenCPN. The screens follow iOS: the toolbar, the
+compass and GPS box, the zoom buttons and the SOG/COG box are drawn in iOS style, Options
+works like the iOS Settings app, and dialogs open as sheets that fit the screen. On an iPad
+with a trackpad, and in the iPad app on a Mac, you scroll with two fingers and pinch to zoom.
+Plugins are built into the app, because iOS does not allow apps to load them at runtime. After
+a fresh install all plugins are off; turn them on under Options › Plugins.
 
 > **Made with Claude Code.** This port was developed by Xander Burchartz together with
 > [Claude Code](https://claude.com/product/claude-code), Anthropic's AI coding assistant. Claude wrote
@@ -59,9 +60,14 @@ the OpenCPN project.
 
 ## Getting the app
 
-You build it yourself with a Mac and Xcode, and install it on your own device with a free
-Apple ID: see [docs/building.md](docs/building.md). TestFlight builds exist for internal
-testing; there is no public TestFlight link.
+The app is available as an unofficial beta on TestFlight:
+[testflight.apple.com/join/RFM5evw4](https://testflight.apple.com/join/RFM5evw4). Install
+Apple's TestFlight app first, then open the link on your iPhone, iPad or Mac. The current
+build is build 9; what changed per build is in [CHANGELOG.md](CHANGELOG.md). Please send
+feedback through the TestFlight app.
+
+You can also build it yourself with a Mac and Xcode, and install it on your own device with a
+free Apple ID: see [docs/building.md](docs/building.md).
 
 ## Repository layout
 

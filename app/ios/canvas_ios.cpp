@@ -26,8 +26,12 @@
 #include "notification_manager_gui.h"
 #include "ocpn_frame.h"
 #include "quilt.h"
+#include "styles.h"
 
 #ifdef __OCPN__IOS__
+
+#include <QPoint>
+#include <QWidget>
 
 // ---------------------------------------------------------------------------
 // ChartCanvas
@@ -212,19 +216,33 @@ void ChartCanvas::IosUpdateCompassScale(bool &b_update) {
       if (m_notification_button) m_notification_button->UpdateStatus(true);
       b_update = true;
     }
+    // Tap target: each icon (compass, GPS status, bell) at least 44 pt, as the HIG asks
+    // (HIG review 26 Nov 2026, item 14: they were about 34 pt on iPhone). The icon
+    // is the style's tool size times the scale factor, in pt (measured: tool 32, factor
+    // 1.0 gave a 34 pt icon on iPhone).
+    // Also when other code set the factor back to g_compass_scalefactor.
+    ocpnStyle::Style *style = g_StyleManager ? g_StyleManager->GetCurrentStyle() : nullptr;
+    const double tool = style ? style->GetToolSize().x : 0;
+    const float scale =
+        std::max(g_compass_scalefactor, tool > 0 ? float(44.0 / tool) : 0.0f);
+    if (cs == m_iosCompassScale && std::fabs(m_Compass->GetScaleFactor() - scale) > 0.01)
+      m_iosCompassScale = 0;
     if (cs != m_iosCompassScale) {
       m_iosCompassScale = cs;
-      m_Compass->SetScaleFactor(g_compass_scalefactor);
+      m_Compass->SetScaleFactor(scale);
       // The notification bell has the same problem; UpdateStatus(true) recreates
       // its (static) background at the new size.
       if (m_notification_button) {
-        m_notification_button->SetScaleFactor(g_compass_scalefactor);
+        m_notification_button->SetScaleFactor(scale);
         m_notification_button->UpdateStatus(true);
       }
       b_update = true;
     }
   }
 }
+
+int ocpnios_ChartBarWanted();                // app/ios/chart_bar_ios.cpp
+void ocpnios_ChartBarSetWanted(bool wanted);  // app/ios/chart_bar_ios.cpp
 
 // ---------------------------------------------------------------------------
 // CanvasOptions: toggles that were only in the menu bar, which iOS removes.
@@ -233,7 +251,10 @@ void ChartCanvas::IosUpdateCompassScale(bool &b_update) {
 void CanvasOptions::IosRefreshControlValues(ChartCanvas *parentCanvas) {
   if (m_iosNavobjects) {
     m_iosNavobjects->SetValue(parentCanvas->m_bShowNavobjects);
-    m_iosChartBar->SetValue(g_bShowChartBar);
+    // The user's choice, not the momentary state: with one chart here the chart bar
+    // is off without the user turning it off (chart_bar_ios.cpp).
+    m_iosChartBar->SetValue(ocpnios_ChartBarWanted() >= 0 ? ocpnios_ChartBarWanted() == 1
+                                                           : g_bShowChartBar);
     m_iosHideMoored->SetValue(g_bHideMoored);
     m_iosAISTracks->SetValue(g_bAISShowTracks);
     m_iosCPADialog->SetValue(g_bAIS_CPA_Alert);
@@ -249,8 +270,12 @@ void CanvasOptions::IosUpdateCanvasOptions(ChartCanvas *parentCanvas,
   if (m_iosNavobjects) {
     if (m_iosNavobjects->GetValue() != parentCanvas->m_bShowNavobjects)
       gFrame->ToggleNavobjects(parentCanvas);
-    if (m_iosChartBar->GetValue() != g_bShowChartBar)
+    if (ocpnios_ChartBarWanted() >= 0) {
+      if (m_iosChartBar->GetValue() != (ocpnios_ChartBarWanted() == 1))
+        ocpnios_ChartBarSetWanted(m_iosChartBar->GetValue());
+    } else if (m_iosChartBar->GetValue() != g_bShowChartBar) {
       gFrame->ToggleChartBar(parentCanvas);
+    }
     if (m_iosHideMoored->GetValue() != g_bHideMoored) {
       g_bHideMoored = m_iosHideMoored->GetValue();
       b_needRefresh = true;
@@ -268,6 +293,27 @@ void CanvasOptions::IosUpdateCanvasOptions(ChartCanvas *parentCanvas,
       b_needRefresh = true;
     }
   }
+}
+
+// Trackpad or mouse wheel scroll over the chart (touch_ui.cpp): pan the chart by
+// the scroll distance, as maps do on iPadOS. Qt delivers trackpad scrolling as
+// wheel events with a pixel delta; OpenCPN would zoom one step per event.
+// Returns false when the widget is not part of a chart canvas.
+bool ocpnios_TrackpadPanChart(QWidget *w, const QPoint &delta) {
+  wxWindow *ww = nullptr;
+  for (QWidget *q = w; q && !ww; q = q->parentWidget())
+    ww = wxWindow::QtRetrieveWindowPointer(q);
+  for (wxWindow *p = ww; p; p = p->GetParent()) {
+    if (p->IsTopLevel()) break;
+    auto *cc = dynamic_cast<ChartCanvas *>(p);
+    if (!cc) continue;
+    if (!delta.isNull()) {
+      const double s = cc->GetDisplayScale();
+      cc->PanCanvas(-delta.x() * s, -delta.y() * s);
+    }
+    return true;
+  }
+  return false;
 }
 
 #endif  // __OCPN__IOS__

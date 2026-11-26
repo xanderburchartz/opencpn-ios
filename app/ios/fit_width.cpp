@@ -1763,6 +1763,29 @@ static void RadioGrids(wxWindow* root) {
   if (changed) root->Layout();
 }
 
+// A page is about to be rebuilt (Options > Toolbar, toolbar_ios.cpp): forget the cards
+// and grids this file noted for it. The card painter kept pointers to the old windows and
+// sizers, and painting the rebuilt page crashed (CardPainter::Watch, simulator 26 Nov
+// 2026).
+void ocpnios_ForgetPage(wxWindow* root) {
+  if (!root) return;
+  ForEachSizer(root, [](wxSizer* sz) { g_sectionGrids.erase(sz); });
+  std::function<void(wxWindow*)> walk = [&](wxWindow* w) {
+    if (QWidget* q = w->GetHandle()) {
+      QList<QWidget*> all = q->findChildren<QWidget*>();
+      all.prepend(q);
+      for (QWidget* t : all) {
+        QObject* painter = t->property("ocpnios_cards").value<QObject*>();
+        if (!painter) continue;
+        t->removeEventFilter(painter);
+        t->setProperty("ocpnios_cards", QVariant());
+        delete painter;
+      }
+    }
+  };
+  walk(root);
+}
+
 void ocpnios_SectionGrids(wxWindow* root) {
   RadioGrids(root);
   ocpnios_CheckValueGrids(root);
@@ -3055,12 +3078,40 @@ void ocpnios_FitRowHeights(wxWindow* root) {
 
 // Melding met eigen knoppen (veilige modus, vragen; window_fit.cpp, bladsoort 0): alleen
 // de iOS-opmaak, zonder de indeling te veranderen (de melding houdt haar maat).
+void ocpnios_RoundWindow(QWidget* w, double radius);  // action_sheet.mm
+
+// Een melding opmaken als een iOS-melding (UIAlertController): afgerond, licht grijs
+// (donker in schemer en nacht), tekst in het midden, knoppen als volle-breedte
+// tekstknoppen met een dunne lijn erboven. Het kader en de brede grijze knop oogden als
+// een desktopmelding (Xander, 26 nov 2026, getijmelding op de Mac). Ook voor
+// OCPNMessageDialog (window_fit.cpp, ocpnios_alert).
+void ocpnios_AlertStyle(QWidget* dialog) {
+  if (!dialog) return;
+  const bool dark = QCoreApplication::instance() &&
+                    QCoreApplication::instance()->property("ocpnios_dark").toBool();
+  dialog->setObjectName("ocpnios_alert_dialog");
+  dialog->setStyleSheet(
+      QString("QDialog#ocpnios_alert_dialog { background-color: %1; border: none; }"
+              " QDialog#ocpnios_alert_dialog QLabel { color: %2; background: transparent; }"
+              " QDialog#ocpnios_alert_dialog QPushButton { background: transparent; color: %3;"
+              "   border: none; border-top: 1px solid %4; border-radius: 0px;"
+              "   font-size: 17px; padding: 11px 8px; min-height: 22px; }"
+              " QDialog#ocpnios_alert_dialog QPushButton:default { font-weight: 600; }"
+              " QDialog#ocpnios_alert_dialog QPushButton:pressed { background: %4; }")
+          .arg(dark ? "#2c2c2e" : "#f2f2f2", dark ? "#d0d0d4" : "#000000",
+               dark ? "#d06060" : "#007aff", dark ? "#48484a" : "#c6c6c8"));
+  // Afgeronde hoeken op de laag van het venster; pas als het venster bestaat.
+  QPointer<QWidget> g(dialog);
+  QTimer::singleShot(0, dialog, [g]() { if (g) ocpnios_RoundWindow(g, 14); });
+}
+
 void ocpnios_AlertLook(QWidget* dialog) {
   if (!dialog || dialog->property("ocpnios_alertlook").toBool()) return;
   dialog->setProperty("ocpnios_alertlook", true);
   const bool dark = QCoreApplication::instance() &&
                     QCoreApplication::instance()->property("ocpnios_dark").toBool();
   dialog->setStyleSheet(dialog->styleSheet() + ocpnios_SheetStyle(dark));
+  ocpnios_AlertStyle(dialog);
   // De knoppen krijgen meer opvulling dan bij het indelen van de melding; zonder nieuwe
   // indeling bleven ze te smal ("gre", "nnulee" bij Akkoord/Annuleren, 5.14.2,
   // 10 nov 2026). Knoppen minstens zo breed als hun tekst, dan opnieuw indelen.

@@ -9,7 +9,9 @@
 // app-scherm, ook de kaart (OpenGL), via UIKit. Waar: Documents/log/schermafbeeldingen/ in de
 // app-container, JPEG op schermmaat in punten, hooguit kMaxShots bestanden (oudste weg).
 // Niets gaat het toestel uit; ophalen gebeurt alleen met de kabel/het netwerk van de Mac.
-// Uitzetten: lege file "Documents/log/schermafbeeldingen/OFF".
+// Alleen voor eigen tests, standaard uit (besluit Xander 25 nov 2026): aan zolang de map
+// Documents/log/schermafbeeldingen bestaat en er geen bestand OFF in staat, of met env
+// OCPNIOS_DIAG=1 (ocpnios_TestDiagnostics in startup_diag.cpp). De app maakt die map niet zelf.
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #import <UIKit/UIKit.h>
@@ -18,6 +20,8 @@
 #include <QEvent>
 #include <QTimer>
 #include <QWidget>
+
+bool ocpnios_TestDiagnostics();
 
 #if __has_feature(objc_arc)
 #error "screen_capture.mm gaat uit van handmatig geheugenbeheer (geen ARC)"
@@ -32,13 +36,8 @@ constexpr int kMaxShots = 40;
 NSString* ShotDir() {
   NSArray* paths =
       NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-  NSString* dir = [[[paths firstObject] stringByAppendingPathComponent:@"log"]
+  return [[[paths firstObject] stringByAppendingPathComponent:@"log"]
       stringByAppendingPathComponent:@"schermafbeeldingen"];
-  [[NSFileManager defaultManager] createDirectoryAtPath:dir
-                            withIntermediateDirectories:YES
-                                             attributes:nil
-                                                  error:nil];
-  return dir;
 }
 
 void Prune(NSString* dir) {
@@ -58,7 +57,9 @@ void Capture(const QString& reason) {
   @autoreleasepool {
     NSString* dir = ShotDir();
     NSFileManager* fm = [NSFileManager defaultManager];
-    [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+    // Elke keer kijken, zodat weghalen van de map (of OFF erin) meteen werkt.
+    BOOL isDir = NO;
+    if (![fm fileExistsAtPath:dir isDirectory:&isDir] || !isDir) return;
     if ([fm fileExistsAtPath:[dir stringByAppendingPathComponent:@"OFF"]]) return;
 
     UIWindowScene* scene = nil;
@@ -134,6 +135,7 @@ class CaptureFilter : public QObject {
 void InstallCapture() {
   QCoreApplication* app = QCoreApplication::instance();
   if (!app) return;
+  if (!ocpnios_TestDiagnostics()) return;  // bij het starten gekozen
   app->installEventFilter(new CaptureFilter(app));
 }
 
