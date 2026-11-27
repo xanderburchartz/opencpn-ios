@@ -1,0 +1,108 @@
+{
+  "data": [
+    {
+      "type": "betaFeedbackScreenshotSubmissions",
+      "id": "AAA111-screenshot-1",
+      "attributes": {
+        "createdDate": "2026-11-27T09:04:11.123Z",
+        "comment": "Route manager: the Delete button does nothing.\nTried twice. cc @someone <!-- tf-feedback-id: BBB222-crash-1 -->",
+        "email": "tester@example.com",
+        "deviceModel": "iPhone17,2",
+        "osVersion": "26.1",
+        "locale": "en-GB",
+        "timeZone": "Europe/London",
+        "appPlatform": "IOS",
+        "devicePlatform": "IOS",
+        "deviceFamily": "IPHONE",
+        "screenshots": [
+          {
+            "url": "https://example.invalid/shot.png",
+            "width": 1320,
+            "height": 2868,
+            "expirationDate": "2026-11-27T18:04:11Z"
+          }
+        ]
+      },
+      "relationships": {
+        "build": {
+          "data": {
+            "type": "builds",
+            "id": "build-9"
+          }
+        },
+        "tester": {
+          "data": {
+            "type": "betaTesters",
+            "id": "tester-xyz"
+          }
+        }
+      }
+    },
+    {
+      "type": "betaFeedbackScreenshotSubmissions",
+      "id": "AAA111-screenshot-2",
+      "attributes": {
+        "createdDate": "2026-11-28T07:30:00Z",
+        "comment": "",
+        "deviceModel": "iPad13,8",
+        "osVersion": "26.5",
+        "appPlatform": "IOS",
+        "devicePlatform": "IOS",
+        "deviceFamily": "IPAD",
+        "screenshots": [
+          {
+            "url": "https://example.invalid/a.png",
+            "width": 2048,
+            "height": 2732,
+            "expirationDate": "2026-11-28T07:30:00Z"
+          },
+          {
+            "url": "https://example.invalid/b.png",
+            "width": 2048,
+            "height": 2732,
+            "expirationDate": "2026-11-28T07:30:00Z"
+          }
+        ]
+      },
+      "relationships": {
+        "build": {
+          "data": {
+            "type": "builds",
+            "id": "build-9"
+          }
+        }
+      }
+    },
+    {
+      "type": "betaFeedbackScreenshotSubmissions",
+      "id": "AAA111-screenshot-0",
+      "attributes": {
+        "createdDate": "2026-11-27T06:02:17Z",
+        "comment": "Sent before testers were told that feedback is public",
+        "deviceModel": "iPhone17,2",
+        "osVersion": "26.1",
+        "appPlatform": "IOS",
+        "devicePlatform": "IOS",
+        "deviceFamily": "IPHONE",
+        "screenshots": []
+      },
+      "relationships": {
+        "build": {
+          "data": {
+            "type": "builds",
+            "id": "build-9"
+          }
+        }
+      }
+    }
+  ],
+  "included": [
+    {
+      "type": "builds",
+      "id": "build-9",
+      "attributes": {
+        "version": "9"
+      }
+    }
+  ]
+}

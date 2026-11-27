@@ -1,0 +1,38 @@
+Incident Identifier: 6F1D2C3B-4A5E-4F60-8A9B-0C1D2E3F4A5B
+Beta Identifier:     1A2B3C4D-5E6F-4071-8293-A4B5C6D7E8F9
+Hardware Model:      iPad8,12
+Process:             opencpn [1234]
+Path:                /private/var/containers/Bundle/Application/0A1B2C3D-4E5F-4061-8728-394A5B6C7D8E/opencpn.app/opencpn
+Identifier:          local.opencpnios.opencpn
+Version:             5.14.2 (9)
+Beta:                YES
+
+Date/Time:           2026-11-26 22:15:40.1234 +0100
+OS Version:          iPhone OS 26.5 (23F79)
+
+Exception Type:  EXC_BAD_ACCESS (SIGSEGV)
+Exception Subtype: KERN_INVALID_ADDRESS at 0x0000000000000010
+Exception Codes: 0x0000000000000001, 0x0000000000000010
+Termination Reason: SIGNAL 11 Segmentation fault: 11
+Terminating Process: exc handler [1234]
+
+Triggered by Thread:  0
+
+Thread 0 name:   Dispatch queue: com.apple.main-thread
+Thread 0 Crashed:
+0   opencpn                       	0x0000000102a3c4d8 RadarControl::Start() + 40 (radar_pi.cpp:812)
+1   opencpn                       	0x0000000102a3b100 radar_pi::Init() + 512 (radar_pi.cpp:301)
+2   opencpn                       	0x0000000101f00a10 PluginLoader::LoadPlugIn(wxString const&) + 1200
+3   opencpn                       	0x0000000101eff000 PluginLoader::LoadAllPlugIns(bool) + 300
+4   QtCore                        	0x00000001044a0b2c 0x104300000 + 1706796
+5   QtCore                        	0x00000001044a0000 0x104300000 + 1703936
+6   UIKitCore                     	0x00000001a1b2c3d4 -[UIApplication _run] + 1100
+7   UIKitCore                     	0x00000001a1b2c000 UIApplicationMain + 340
+8   opencpn                       	0x0000000101e00100 main + 64
+9   dyld                          	0x00000001b0a0b0c0 start + 6000
+
+Thread 1:
+0   libsystem_pthread.dylib       	0x00000001f0e0a0b0 start_wqthread + 0
+
+Binary Images:
+       0x101e00000 -        0x103ffffff opencpn arm64  <0a1b2c3d4e5f60718293a4b5c6d7e8f9> /private/var/containers/Bundle/Application/0A1B2C3D-4E5F-4061-8728-394A5B6C7D8E/opencpn.app/opencpn

@@ -1,0 +1,58 @@
+# Copies new TestFlight feedback to issues with the label "testflight-feedback".
+# The tester's name and email address are not copied; screenshots are not published.
+# Only feedback sent from 27 November 2026 on (START in the script).
+# See scripts/testflight-feedback/sync.mjs.
+name: TestFlight feedback
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only show what would be posted"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read # checkout only
+  issues: write
+
+concurrency:
+  group: testflight-feedback
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Only in the public repository, where the secrets are.
+    if: github.repository == 'xanderburchartz/opencpn-ios'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/testflight-feedback
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests
+        run: node scripts/testflight-feedback/test.mjs
+      - name: Sync
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_APP_ID: "6838640154"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_PRIVATE_KEY" ]; then
+            echo "::notice::App Store Connect secrets are not set; nothing to do."
+            exit 0
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            node scripts/testflight-feedback/sync.mjs --dry-run
+          else
+            node scripts/testflight-feedback/sync.mjs
+          fi

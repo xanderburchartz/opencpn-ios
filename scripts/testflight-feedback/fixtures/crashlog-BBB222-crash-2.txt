@@ -1,0 +1,81 @@
+{"app_name": "opencpn", "app_version": "5.14.2", "build_version": "9", "bundleID": "local.opencpnios.opencpn", "incident_id": "6F1D2C3B-4A5E-4F60-8A9B-0C1D2E3F4A5B", "os_version": "iPhone OS 26.6 (23G5)", "bug_type": "309"}
+{
+  "crashReporterKey": "abcdef0123456789",
+  "exception": {
+    "type": "EXC_CRASH",
+    "signal": "SIGABRT",
+    "codes": "0x0000000000000000, 0x0000000000000000"
+  },
+  "termination": {
+    "namespace": "SIGNAL",
+    "indicator": "Abort trap: 6",
+    "code": 6
+  },
+  "asi": {
+    "libsystem_c.dylib": [
+      "abort() called"
+    ]
+  },
+  "faultingThread": 2,
+  "usedImages": [
+    {
+      "name": "opencpn",
+      "path": "/private/var/containers/Bundle/Application/0A1B2C3D-4E5F-4061-8728-394A5B6C7D8E/opencpn.app/opencpn"
+    },
+    {
+      "name": "libsystem_kernel.dylib"
+    },
+    {
+      "name": "libsystem_c.dylib"
+    },
+    {
+      "name": "libc++abi.dylib"
+    }
+  ],
+  "threads": [
+    {
+      "frames": [
+        {
+          "imageIndex": 1,
+          "imageOffset": 100,
+          "symbol": "mach_msg2_trap",
+          "symbolLocation": 8
+        }
+      ]
+    },
+    {
+      "frames": []
+    },
+    {
+      "triggered": true,
+      "frames": [
+        {
+          "imageIndex": 1,
+          "imageOffset": 40000,
+          "symbol": "__pthread_kill",
+          "symbolLocation": 8
+        },
+        {
+          "imageIndex": 2,
+          "imageOffset": 50000,
+          "symbol": "abort",
+          "symbolLocation": 124
+        },
+        {
+          "imageIndex": 3,
+          "imageOffset": 6000,
+          "symbol": "abort_message",
+          "symbolLocation": 132
+        },
+        {
+          "imageIndex": 0,
+          "imageOffset": 9123456
+        },
+        {
+          "imageIndex": 0,
+          "imageOffset": 9120000
+        }
+      ]
+    }
+  ]
+}

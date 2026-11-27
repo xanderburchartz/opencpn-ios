@@ -1,0 +1,56 @@
+{
+  "data": [
+    {
+      "type": "betaFeedbackCrashSubmissions",
+      "id": "BBB222-crash-1",
+      "attributes": {
+        "createdDate": "2026-11-27T21:15:42Z",
+        "comment": "Crashed when I turned on the radar plugin",
+        "email": "tester@example.com",
+        "deviceModel": "iPad8,12",
+        "osVersion": "26.5",
+        "appPlatform": "IOS",
+        "devicePlatform": "IOS",
+        "deviceFamily": "IPAD"
+      },
+      "relationships": {
+        "build": {
+          "data": {
+            "type": "builds",
+            "id": "build-9"
+          }
+        }
+      }
+    },
+    {
+      "type": "betaFeedbackCrashSubmissions",
+      "id": "BBB222-crash-2",
+      "attributes": {
+        "createdDate": "2026-11-28T09:01:00Z",
+        "comment": "",
+        "deviceModel": "iPhone18,2",
+        "osVersion": "26.6",
+        "appPlatform": "IOS",
+        "devicePlatform": "IOS",
+        "deviceFamily": "IPHONE"
+      },
+      "relationships": {
+        "build": {
+          "data": {
+            "type": "builds",
+            "id": "build-9"
+          }
+        }
+      }
+    }
+  ],
+  "included": [
+    {
+      "type": "builds",
+      "id": "build-9",
+      "attributes": {
+        "version": "9"
+      }
+    }
+  ]
+}

@@ -66,6 +66,13 @@ Apple's TestFlight app first, then open the link on your iPhone, iPad or Mac. Th
 build is build 9; what changed per build is in [CHANGELOG.md](CHANGELOG.md). Please send
 feedback through the TestFlight app.
 
+Feedback sent with TestFlight from 27 November 2026 on is public: once an hour it is copied to an issue in this
+repository, with the label
+[`testflight-feedback`](https://github.com/xanderburchartz/opencpn-ios/issues?q=label%3Atestflight-feedback).
+The issue shows your comment, the build, the device model, the iOS version and the date, not
+your name or email address. Screenshots are not published, as they can show your position;
+only the maintainer sees them. For a crash, the issue has a short summary of the crash log.
+
 You can also build it yourself with a Mac and Xcode, and install it on your own device with a
 free Apple ID: see [docs/building.md](docs/building.md).
 
